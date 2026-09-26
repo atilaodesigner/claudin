@@ -1,0 +1,13 @@
+D = {0:'Abertura aérea IA, título em nuvem',1:'Poste de amarração, água',2:'Parede de fotos (cabine)',3:'Silhueta no pôr do sol',4:'Lampião no escuro',
+5:'Parede de fotos',6:'Mão escrevendo na mesa',7:'Foto na parede',8:'Deck wide, artista sentado',9:'Artista na cadeira do deck',10:'Close caneta no papel',
+11:'Nuca, escrevendo (couro)',12:'Transição espiral',13:'Flash negativo',14:'Artista no deck, braço aberto',15:'Cabine wide',16:'OTS cabine',17:'Deck girando',
+18:'Close artista deck',19:'Foto/OTS cabine',20:'Contra-plongée cabine',21:'Blip escuro',22:'Janela, dinheiro',23:'Close óculos deck',24:'Foto → flashback rua',
+25:'OTS porta cabine',26:'P&B garoto capuz',27:'P&B garoto olhar',28:'P&B garoto olho',29:'P&B garoto alambrado',30:'Artista falando deck',31:'Close baixo deck',
+32:'Deck wide (letterbox)',33:'Transição queimando',34:'Flash',35:'Dinheiro na teia',36:'Fogueira (dia)',37:'Tênis no tapete',38:'Lago, jacaré ao fundo',
+39:'Jacaré nadando',40:'Cadeira deck holandês',41:'Olho do jacaré',42:'Aérea jacarés e barco',43:'Deck top, artista',44:'Drone barco',45:'Barco aproximando',
+46:'Fisheye cabine',47:'OTS cabine',48:'OTS cabine',49:'Artista sentado cabine',50:'Mãos com dinheiro',51:'Close cantando deck',52:'Agachado deck',
+53:'Barco noite IA',54:'Deck noite fumaça',55:'Fogueira dinheiro',56:'Deck noite fumaça',57:'Dinheiro queimando',58:'Aérea mar noite',59:'Relógio no fundo',
+60:'Fisheye top cabine',61:'OTS cabine',62:'Barco + cédula queimando',63:'Transição + artista noite',64:'Artista noite, cédulas',65:'Barco noite IA',66:'Timão',
+67:'Painel',68:'Deck noite fumaça',69:'Barco neblina',70:'Barco, artista caminhando',71:'OTS cabine',72:'Artista noite, cédulas',73:'Cédula caindo no fogo',
+74:'Cobra e ampulheta',75:'OTS cabine',76:'Barco noite IA',77:'Estátua e cobra',78:'Chão pegando fogo',79:'Close óculos, cédula',80:'Janela em chamas',
+81:'Deck em chamas',82:'Subaquático',83:'Casco, reflexo do fogo',84:'Barco em chamas',85:'Parede de fotos queimando',86:'Reflexo do fogo',87:'Remo, barco ao fundo',88:'Créditos'}
