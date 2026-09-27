@@ -308,6 +308,7 @@ export class HUD {
   setExtraction(mult: number, hint: string, channeling: boolean): void {
     const show = mult > 0;
     this.extractWrap.style.display = show ? '' : 'none';
+    toggleClass(this.root, 'extract-on', show);
     if (!show) return;
     setText(this.extractBtn, channeling ? 'EXTRAINDO...' : `EXTRAIR  x${mult}`);
     setText(this.extractHint, hint);

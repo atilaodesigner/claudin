@@ -49,7 +49,7 @@ import { RecordsScreen } from '../ui/RecordsScreen';
 import { ResultsScreen } from '../ui/ResultsScreen';
 import { SettingsScreen } from '../ui/SettingsScreen';
 import { Thumbnails } from '../ui/Thumbnails';
-import { UpgradeScreen } from '../ui/UpgradeScreen';
+import { EvolutionDock } from '../ui/EvolutionDock';
 import { clamp, damp, formatInt } from '../utils/math';
 import { dailyKey, dailySeed } from '../utils/rng';
 import { AState } from '../world/Abductable';
@@ -65,7 +65,7 @@ import { RunController } from './RunController';
 import { Time } from './Time';
 import { Rng } from '../utils/rng';
 
-export type GameState = 'loading' | 'menu' | 'intro' | 'playing' | 'levelup' | 'paused' | 'extracting' | 'dying' | 'results';
+export type GameState = 'loading' | 'menu' | 'intro' | 'playing' | 'paused' | 'extracting' | 'dying' | 'results';
 
 const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
 const _v = new Vector3();
@@ -127,7 +127,7 @@ export class Game {
   readonly hud: HUD;
   private readonly loading: LoadingScreen;
   private readonly menu: MainMenu;
-  private readonly upgradeScreen: UpgradeScreen;
+  private readonly evoDock: EvolutionDock;
   private readonly results: ResultsScreen;
   private metaScreen!: MetaScreen;
   private dexScreen!: DexScreen;
@@ -182,9 +182,9 @@ export class Game {
 
     this.ui = container.querySelector('#ui') as HTMLElement;
     this.hud = new HUD(this.ui);
+    this.evoDock = new EvolutionDock(this.hud.root);
     this.loading = new LoadingScreen(this.ui);
     this.menu = new MainMenu(this.ui);
-    this.upgradeScreen = new UpgradeScreen(this.ui);
     this.results = new ResultsScreen(this.ui);
     this.recordsScreen = new RecordsScreen(this.ui);
     this.settingsScreen = new SettingsScreen(this.ui);
@@ -339,8 +339,9 @@ export class Game {
 
   private wireUI(): void {
     this.menu.onAction = (a) => this.onMenuAction(a);
-    this.upgradeScreen.onPick = (o) => this.onUpgradePicked(o);
-    this.upgradeScreen.onHover = () => this.audio.ui('hover');
+    this.evoDock.onPick = (o) => this.onUpgradePicked(o);
+    this.evoDock.onHover = () => this.audio.ui('hover');
+    this.evoDock.canPick = () => this.state === 'playing';
     this.results.onAgain = () => {
       this.audio.ui('tap');
       this.results.hide();
@@ -573,6 +574,7 @@ export class Game {
     this.dashCooldown = 0;
     this.ufoVisuals.setLevel(1);
     this.levelUpDelay = -1;
+    this.evoDock.close();
     this.hud.setBoss(false, 0, 0);
     this.hud.setLock(false);
     this.hud.setTutorial(null);
@@ -706,32 +708,32 @@ export class Game {
   }
 
   private triggerLevelUpFx(): void {
-    // 0.5s of juice before the cards: slow-mo, distortion, particles, rising sound
-    this.levelUpDelay = 0.5;
-    this.time.slowMo(0.25, 0.5);
+    // no pause: a quick burst of juice, then the evolution chips slide in
+    this.levelUpDelay = 0.35;
     this.vfx.levelUp(this.ufo.position, this.stats.radius);
     this.audio.levelUp();
-    this.hud.showBanner('LEVEL UP', `NÍVEL ${this.run.progression.level}`, 'var(--alien-green)');
+    this.haptics.light();
+    this.hud.floatText(this.ufo.position, `NÍVEL ${this.run.progression.level}`, 'var(--alien-green)', 30);
     this.bus.emit('player:levelup', { level: this.run.progression.level });
     const revealed = this.ufoVisuals.setLevel(this.run.progression.level);
     if (revealed) this.hud.toast('A NAVE EVOLUIU', 'Novo módulo alienígena acoplado', 'alien', 2.2);
   }
 
-  private openUpgradeCards(): void {
+  private openEvolutionChoices(): void {
     const pr = this.run.progression;
-    if (pr.pendingLevelUps <= 0) return;
+    if (pr.pendingLevelUps <= 0) {
+      this.evoDock.close();
+      return;
+    }
     const offers = this.upgrades.rollOffers(this.run.rng, pr.level, 3, 0.08 + this.stats.rarityBonus * 0.1);
     if (offers.length === 0) {
       pr.pendingLevelUps = 0;
+      this.evoDock.close();
       return;
     }
-    this.state = 'levelup';
-    this.time.paused = true;
-    this.input.enabled = false;
-    this.audio.setBeam(false, 0, 0, false);
-    this.audio.setStrain(0);
     const levelShown = pr.level - pr.pendingLevelUps + 1;
-    this.upgradeScreen.open(levelShown, offers, this.upgrades.levels, pr.pendingLevelUps - 1);
+    this.evoDock.open(levelShown, offers, this.upgrades.levels, pr.pendingLevelUps - 1);
+    if (this.tutorialPhase >= 0 && levelShown === 2) this.hud.toast('EVOLUA SEM PARAR', this.input.isTouchDevice ? 'Toque num poder lá embaixo' : 'Clique num poder ou use 1, 2, 3', 'info', 3.2);
   }
 
   private onUpgradePicked(o: UpgradeOffer): void {
@@ -746,6 +748,7 @@ export class Game {
       this.damage.setMaxHull(this.stats.maxHull);
       this.damage.heal(this.stats.maxHull);
     } else if (this.stats.maxHull !== prevMaxHull) this.damage.setMaxHull(this.stats.maxHull);
+    this.hud.floatText(this.ufo.position, o.def.name, 'var(--energy-cyan)', 20);
     for (const s of res.newSynergies) {
       const syn = SYNERGY_BY_ID.get(s);
       if (!syn) continue;
@@ -755,15 +758,12 @@ export class Game {
       }, 350);
       this.bus.emit('synergy:unlocked', { id: s });
     }
-    if (this.run.progression.pendingLevelUps > 0) {
-      setTimeout(() => this.openUpgradeCards(), 320);
-      return;
-    }
-    this.state = 'playing';
-    this.time.paused = false;
-    this.input.enabled = true;
-    this.levelUpDelay = -1;
-    if (this.tutorialPhase >= 0 && this.run.progression.level === 2) this.hud.toast('PODER ESCOLHIDO', 'Cada nível traz uma carta nova', 'info', 2);
+    // let the pick animation play, then roll the next set (or tuck the dock away)
+    setTimeout(() => {
+      if (this.state !== 'playing' && this.state !== 'paused') return;
+      if (this.run.progression.pendingLevelUps > 0) this.openEvolutionChoices();
+      else this.evoDock.close();
+    }, 300);
   }
 
   // ───────────────────────────────────────────── gameplay helpers
@@ -892,6 +892,7 @@ export class Game {
     if (this.run.extractionMultiplier <= 0 || this.run.channeling > 0) return;
     this.run.channeling = BALANCE.extraction.channelTime;
     this.state = 'extracting';
+    this.evoDock.close();
     this.abduction.dropAll();
     this.input.enabled = false;
     this.audio.extraction();
@@ -901,6 +902,7 @@ export class Game {
 
   private endRun(reason: 'extracted' | 'destroyed' | 'quit'): void {
     this.state = 'results';
+    this.evoDock.close();
     this.input.enabled = false;
     this.hud.show(false);
     this.hud.setTutorial(null);
@@ -987,7 +989,7 @@ export class Game {
     this.time.tick(rawDt);
     const dt = this.time.delta;
     const rdt = this.time.realDelta;
-    this.quality.sample(rdt, this.state === 'levelup' || this.state === 'menu' || this.state === 'results' || this.state === 'loading');
+    this.quality.sample(rdt, this.state === 'menu' || this.state === 'results' || this.state === 'loading');
     if (this.state === 'loading') {
       return;
     }
@@ -1014,8 +1016,9 @@ export class Game {
     }
     if (this.levelUpDelay >= 0 && this.state === 'playing') {
       this.levelUpDelay -= rdt;
-      if (this.levelUpDelay < 0) this.openUpgradeCards();
+      if (this.levelUpDelay < 0 && !this.evoDock.isOpen) this.openEvolutionChoices();
     }
+    this.evoDock.update(this.run.progression.pendingLevelUps - 1);
     this.renderFrame(dt, rdt);
     if (this.debugPanel) this.updateDebug(rdt);
     if (this.save.get().settings.showFps) this.fpsMeter.textContent = `${this.quality.fps.toFixed(0)} FPS · ${this.quality.current.name}`;
@@ -1143,6 +1146,7 @@ export class Game {
     }
     if (this.damage.dead && this.state === 'playing') {
       this.state = 'dying';
+      this.evoDock.close();
       this.endTimer = 2;
       this.input.enabled = false;
       this.abduction.dropAll();

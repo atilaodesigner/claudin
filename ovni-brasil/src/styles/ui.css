@@ -942,139 +942,216 @@
   color: var(--warning-orange);
 }
 
-/* ───────────────────────── Upgrade cards */
-.upgrades {
+/* ───────────────────────── Evolution dock (level up without pausing) */
+.evo-dock {
+  --evo-w: calc(150px * var(--ui-scale));
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--safe-bottom) + 14px);
+  transform: translateX(-50%);
+  display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 16px;
-  z-index: 20;
+  gap: 5px;
+  pointer-events: none;
+  visibility: hidden;
+  z-index: 6;
 }
-.upgrades .head {
-  text-align: center;
+.evo-dock.open {
+  visibility: visible;
 }
-.upgrades .head .title-xl {
-  font-size: calc(46px * var(--ui-scale));
-  color: #fff;
-  text-shadow: 0 0 24px rgba(93, 255, 160, 0.7);
+.hud.extract-on .evo-dock {
+  bottom: calc(var(--safe-bottom) + 96px);
 }
-.cards {
+.evo-top {
   display: flex;
-  gap: 14px;
-  justify-content: center;
-  align-items: stretch;
-  flex-wrap: nowrap;
-  max-width: 100%;
+  align-items: center;
+  gap: 8px;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.2s, transform 0.2s;
 }
-.card {
+.evo-dock.open .evo-top {
+  opacity: 1;
+  transform: none;
+}
+.evo-head {
+  font-size: calc(10px * var(--ui-scale));
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  color: var(--alien-green);
+  text-shadow: 0 0 10px rgba(93, 255, 160, 0.6), 0 1px 2px #000;
+}
+.evo-queue {
+  font-size: calc(10px * var(--ui-scale));
+  font-weight: 700;
+  padding: 1px 6px;
+  background: var(--alien-green);
+  color: #03140b;
+  letter-spacing: 0.08em;
+}
+.evo-list {
+  display: flex;
+  gap: 8px;
+}
+.evo-chip {
+  --cat: var(--alien-green);
   pointer-events: auto;
   cursor: pointer;
-  width: calc(200px * var(--ui-scale));
-  min-height: calc(250px * var(--ui-scale));
-  padding: 16px 14px 14px;
-  display: flex;
-  flex-direction: column;
+  position: relative;
+  width: var(--evo-w);
+  height: calc(48px * var(--ui-scale));
+  display: grid;
+  grid-template-columns: calc(30px * var(--ui-scale)) 1fr;
+  align-items: center;
   gap: 8px;
-  animation: cardIn 0.45s cubic-bezier(0.2, 1.3, 0.4, 1) both;
-  --cat: var(--alien-green);
-  border-color: color-mix(in srgb, var(--cat) 55%, transparent);
-  transition: transform 0.12s;
+  padding: 0 10px 0 9px;
+  font: inherit;
+  text-align: left;
+  color: #fff;
+  background: linear-gradient(180deg, rgba(8, 26, 30, 0.9), rgba(4, 12, 18, 0.9));
+  border: 1px solid color-mix(in srgb, var(--cat) 60%, transparent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--cat) 25%, transparent), inset 0 0 12px color-mix(in srgb, var(--cat) 12%, transparent);
+  clip-path: var(--clip);
+  touch-action: manipulation;
+  animation: evoIn 0.34s cubic-bezier(0.2, 1.3, 0.4, 1) both;
+  transition: transform 0.12s, filter 0.12s;
 }
-.card:nth-child(2) {
-  animation-delay: 0.07s;
+.evo-chip:hover {
+  transform: translateY(-3px);
+  filter: brightness(1.2);
 }
-.card:nth-child(3) {
-  animation-delay: 0.14s;
+.evo-chip:active {
+  transform: scale(0.95);
 }
-.card:hover {
-  transform: translateY(-4px);
+.evo-chip:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
 }
-.card.picked {
-  animation: cardPick 0.4s ease-out both;
-}
-.card.cat-defesa {
+.evo-chip.cat-defesa {
   --cat: var(--energy-cyan);
 }
-.card.cat-movimento {
+.evo-chip.cat-movimento {
   --cat: var(--gold);
 }
-.card.cat-economia {
+.evo-chip.cat-economia {
   --cat: var(--frenzy-violet);
 }
-.card .icon {
-  font-size: calc(38px * var(--ui-scale));
-  line-height: 1;
+.evo-chip.enhanced {
+  border-color: var(--gold);
+  box-shadow: 0 0 18px rgba(255, 207, 63, 0.55), inset 0 0 14px rgba(255, 207, 63, 0.2);
+}
+.evo-chip .ic {
+  width: calc(30px * var(--ui-scale));
+  height: calc(30px * var(--ui-scale));
   color: var(--cat);
-  text-shadow: 0 0 18px var(--cat);
-  font-family: var(--font-hud);
+  filter: drop-shadow(0 0 5px var(--cat));
 }
-.card .name {
-  font-family: var(--font-title);
-  font-weight: 900;
-  font-style: italic;
-  font-size: calc(24px * var(--ui-scale));
-  line-height: 0.95;
-  color: #fff;
-  text-transform: uppercase;
+.evo-chip .ic svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
-.card .pips {
+.evo-chip .tx {
   display: flex;
-  gap: 4px;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
 }
-.card .pips i {
-  width: 14px;
-  height: 5px;
-  background: rgba(255, 255, 255, 0.12);
+.evo-chip .nm {
+  font-family: var(--font-title);
+  font-weight: 800;
+  font-style: italic;
+  font-size: calc(14px * var(--ui-scale));
+  line-height: 0.95;
+  letter-spacing: 0.01em;
+  overflow-wrap: anywhere;
 }
-.card .pips i.on {
-  background: var(--cat);
-  box-shadow: 0 0 6px var(--cat);
-}
-.card .pips i.new {
-  background: #fff;
-  animation: blink 0.6s steps(2) infinite;
-}
-.card .desc {
-  font-size: calc(12px * var(--ui-scale));
-  line-height: 1.4;
-  color: var(--text-secondary);
-  flex: 1;
-}
-.card .badge {
-  align-self: flex-start;
-  font-size: 9px;
+.evo-chip .lv {
+  font-size: calc(8.5px * var(--ui-scale));
   letter-spacing: 0.18em;
-  padding: 3px 6px;
-  background: var(--gold);
-  color: #1b1200;
-  font-weight: 700;
+  color: color-mix(in srgb, var(--cat) 80%, #fff);
 }
-.card .syn {
-  font-size: calc(9.5px * var(--ui-scale));
-  letter-spacing: 0.12em;
+.evo-chip.enhanced .lv {
+  color: var(--gold);
+}
+.evo-chip .lv .syn {
+  font-style: normal;
   color: var(--frenzy-violet);
-  text-transform: uppercase;
 }
-.card .cat {
-  font-size: 9px;
-  letter-spacing: 0.24em;
-  color: var(--cat);
-  text-transform: uppercase;
+.evo-chip .key {
+  position: absolute;
+  top: 3px;
+  right: 7px;
+  font-size: 8px;
+  color: var(--text-dim);
 }
-@keyframes cardIn {
+.evo-chip.picked {
+  animation: evoPick 0.3s ease-out both;
+}
+.evo-chip.dropped {
+  animation: evoDrop 0.22s ease-in both;
+}
+.evo-dock.nudge .evo-chip {
+  animation: evoNudge 1.4s ease-in-out infinite;
+}
+.evo-tip {
+  max-width: min(420px, 90vw);
+  padding: 7px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: calc(11px * var(--ui-scale));
+  line-height: 1.35;
+  color: var(--text-secondary);
+  background: rgba(4, 12, 18, 0.92);
+  border: 1px solid var(--panel-border);
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.15s, transform 0.15s;
+}
+.evo-tip.on {
+  opacity: 1;
+  transform: none;
+}
+.evo-tip b {
+  font-family: var(--font-title);
+  font-style: italic;
+  font-size: calc(15px * var(--ui-scale));
+  color: #fff;
+}
+.evo-tip .syn {
+  color: var(--frenzy-violet);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-size: calc(9.5px * var(--ui-scale));
+}
+@keyframes evoIn {
   from {
     opacity: 0;
-    transform: translateY(40px) rotate(-3deg) scale(0.9);
+    transform: translateY(26px) scale(0.9);
   }
 }
-@keyframes cardPick {
+@keyframes evoPick {
   40% {
-    transform: scale(1.08);
-    filter: brightness(1.6);
+    transform: scale(1.1);
+    filter: brightness(1.8);
   }
   to {
-    transform: scale(0.9) translateY(-30px);
+    transform: translateY(-40px) scale(0.85);
     opacity: 0;
+  }
+}
+@keyframes evoDrop {
+  to {
+    transform: translateY(18px);
+    opacity: 0;
+  }
+}
+@keyframes evoNudge {
+  50% {
+    filter: brightness(1.35);
+    transform: translateY(-2px);
   }
 }
 
@@ -1677,19 +1754,26 @@
   .logo .ovni {
     font-size: calc(84px * var(--ui-scale));
   }
-  .cards {
-    flex-direction: column;
+  .evo-dock {
+    --evo-w: calc((100vw - 44px - var(--safe-left) - var(--safe-right)) / 3);
+    bottom: calc(var(--safe-bottom) + 112px);
+  }
+  .evo-list {
+    gap: 6px;
+  }
+  .evo-chip {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+    height: auto;
+    padding: 8px 4px 7px;
+    gap: 4px;
+  }
+  .evo-chip .tx {
     align-items: center;
   }
-  .card {
-    width: min(86vw, 360px);
-    min-height: 0;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-  }
-  .card .desc {
-    flex-basis: 100%;
+  .evo-chip .key {
+    display: none;
   }
   .results .wrap {
     grid-template-columns: 1fr;
@@ -1715,13 +1799,12 @@
     font-size: calc(28px * var(--ui-scale));
     padding: 10px 30px;
   }
-  .card {
-    min-height: calc(200px * var(--ui-scale));
-    width: calc(180px * var(--ui-scale));
-    padding: 12px;
+  .evo-dock {
+    --evo-w: calc(136px * var(--ui-scale));
+    bottom: calc(var(--safe-bottom) + 10px);
   }
-  .upgrades .head .title-xl {
-    font-size: calc(34px * var(--ui-scale));
+  .evo-chip {
+    height: calc(42px * var(--ui-scale));
   }
   .results .head .title-xl {
     font-size: calc(40px * var(--ui-scale));
@@ -1747,7 +1830,9 @@
 @media (prefers-reduced-motion: reduce) {
   .menu .primary,
   .ability.ready,
-  .extract-btn {
+  .extract-btn,
+  .evo-chip,
+  .evo-dock.nudge .evo-chip {
     animation: none;
   }
 }
