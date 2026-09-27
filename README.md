@@ -1,4 +1,4 @@
-> **Outros projetos neste repositório:** [`ovni-brasil/`](ovni-brasil/): jogo web em Three.js, *OVNI BRASIL — ABDUÇÃO TOTAL*.
+> **Outros projetos neste repositório:** [`abduziu/`](abduziu/): jogo web em Three.js, *ABDUZIU*.
 
 # Balanço do Barco: color grading
 
