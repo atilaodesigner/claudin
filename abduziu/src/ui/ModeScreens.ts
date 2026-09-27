@@ -1,6 +1,7 @@
 import { CAMPAIGN, getCity, type CityDef, type CityId } from '../config/cities';
 import { MODES, weekKey, type GameMode } from '../config/modes';
 import { citiesUnlocked, isUnlocked, starCount, totalStars } from '../progression/CampaignSystem';
+import { friendlyError, type Online } from '../online/Online';
 import { DIVISIONS, divisionFor } from '../progression/RankSystem';
 import type { SaveData } from '../save/SaveService';
 import { formatInt } from '../utils/math';
@@ -208,13 +209,15 @@ export class CityMapScreen extends Screen {
   }
 }
 
-/** Divisions, the week's map and the daily map. */
+/** Divisions, the week's map, the daily map and the online weekly leaderboard. */
 export class RankScreen extends Screen {
   private readonly body: HTMLDivElement;
+  private boardReq = 0;
   onStart: ((mode: GameMode) => void) | null = null;
   onClose: (() => void) | null = null;
+  onAccount: (() => void) | null = null;
 
-  constructor(parent: HTMLElement) {
+  constructor(parent: HTMLElement, private readonly online: Online) {
     super(parent, 'subscreen rank');
     const top = h('div', 'topbar');
     const title = h('div', 'title-xl', 'RANQUEADA');
@@ -276,7 +279,69 @@ export class RankScreen extends Screen {
       ladder.appendChild(row);
     }
     b.appendChild(ladder);
-    b.appendChild(h('div', 'note', 'Ranking online entre jogadores chega junto com o login. Por enquanto o RP fica salvo neste aparelho.'));
+    const board = h('div', 'board panel');
+    b.appendChild(board);
+    b.appendChild(
+      h(
+        'div',
+        'note',
+        this.online.enabled
+          ? 'Com conta, seu RP e suas partidas ranqueadas valem no ranking online (o servidor confere cada partida). Sem conta, o RP fica salvo só neste aparelho.'
+          : 'Esta cópia roda offline: o RP fica salvo neste aparelho.',
+      ),
+    );
     this.show();
+    void this.fillBoard(board, week.name.toUpperCase());
+  }
+
+  private async fillBoard(board: HTMLDivElement, cityName: string): Promise<void> {
+    const req = ++this.boardReq;
+    const o = this.online;
+    const head = h('div', 'board-head');
+    head.appendChild(h('div', 'label', `RANKING DA SEMANA · ${cityName}`));
+    const me = h('div', 'me', '');
+    head.appendChild(me);
+    board.appendChild(head);
+    const list = h('div', 'board-list');
+    board.appendChild(list);
+    if (!o.enabled) {
+      list.appendChild(h('div', 'empty', 'Ranking online indisponível nesta versão.'));
+      return;
+    }
+    list.appendChild(h('div', 'empty', 'Carregando o ranking...'));
+    try {
+      await o.init();
+      const wk = weekKey();
+      const [rows, mine] = await Promise.all([o.leaderboard(wk, 50), o.signedIn ? o.myStanding(wk) : Promise.resolve(null)]);
+      if (req !== this.boardReq) return;
+      list.innerHTML = '';
+      if (!o.signedIn) {
+        const cta = h('button', 'btn gold', 'ENTRAR PRA COMPETIR');
+        onTap(cta, () => this.onAccount?.());
+        me.appendChild(cta);
+      } else if (mine) me.textContent = `VOCÊ: #${mine.pos} DE ${formatInt(mine.players)}`;
+      else me.textContent = o.profile ? `${o.profile.nickname} · JOGUE PRA ENTRAR NO RANKING` : '';
+      if (!rows.length) {
+        list.appendChild(h('div', 'empty', 'Ninguém pontuou nessa semana ainda. O topo tá livre!'));
+        return;
+      }
+      for (const r of rows) {
+        const d = divisionFor(r.rp).division;
+        const row = h('div', `brow${r.user_id === o.userId ? ' mine' : ''}${r.pos <= 3 ? ` top${r.pos}` : ''}`);
+        row.style.setProperty('--div', d.color);
+        row.appendChild(h('span', 'pos', `${r.pos}`));
+        const who = h('span', 'who');
+        who.appendChild(h('i', 'dot'));
+        who.appendChild(document.createTextNode(r.nickname));
+        row.appendChild(who);
+        row.appendChild(h('span', 'div', d.name));
+        row.appendChild(h('b', 'score', formatInt(r.score)));
+        list.appendChild(row);
+      }
+    } catch (err) {
+      if (req !== this.boardReq) return;
+      list.innerHTML = '';
+      list.appendChild(h('div', 'empty', friendlyError(err)));
+    }
   }
 }

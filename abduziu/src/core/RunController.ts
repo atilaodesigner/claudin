@@ -59,6 +59,8 @@ export class RunController {
   daily = false;
   mode: GameMode = 'campanha';
   city: CityDef = getCity('nova_aurora');
+  /** Seed of the current run (ranked submissions carry it). */
+  seed = 0;
   rng = new Rng(1);
   chainStacks = 0;
   private chainTimer = 0;
@@ -125,6 +127,7 @@ export class RunController {
 
   start(seed: number, mode: GameMode, city: CityDef): void {
     this.rng = new Rng(seed);
+    this.seed = seed;
     this.mode = mode;
     this.city = city;
     this.daily = mode === 'diaria';

@@ -33,6 +33,7 @@ export interface ResultsData {
 export class ResultsScreen extends Screen {
   private readonly left: HTMLDivElement;
   private readonly side: HTMLDivElement;
+  private onlineLine: HTMLDivElement | null = null;
   onAgain: (() => void) | null = null;
   onMeta: (() => void) | null = null;
   onMenu: (() => void) | null = null;
@@ -44,6 +45,13 @@ export class ResultsScreen extends Screen {
     this.side = h('div', 'panel side');
     wrap.append(this.left, this.side);
     this.root.appendChild(wrap);
+  }
+
+  /** Ranked runs: live status of the online submission under the RP box. */
+  setOnline(text: string, tone: 'ok' | 'bad' | '' = ''): void {
+    if (!this.onlineLine) return;
+    this.onlineLine.textContent = text;
+    this.onlineLine.className = `online ${tone}`;
   }
 
   open(d: ResultsData): void {
@@ -81,9 +89,11 @@ export class ResultsScreen extends Screen {
       fill.style.transform = `scaleX(${r.progress.toFixed(3)})`;
       bar.appendChild(fill);
       info.appendChild(bar);
+      this.onlineLine = h('div', 'online', '');
+      info.appendChild(this.onlineLine);
       box.appendChild(info);
       this.left.appendChild(box);
-    }
+    } else this.onlineLine = null;
     const stats = h('div', 'stats');
     const rows: Array<[string, string]> = [
       ['PONTUAÇÃO', formatInt(d.score) + (d.newRecord ? '  ★ RECORDE' : '')],

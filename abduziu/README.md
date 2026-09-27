@@ -211,21 +211,36 @@ Pra modelos com textura própria, o caminho é criar um segundo material/batch (
 
 ---
 
-## Login e ranking online (próximo passo)
+## Login, ranking online e save na nuvem (Supabase)
 
-Hoje não existe login: tudo fica no aparelho. A arquitetura já separa o armazenamento (`SaveBackend`), então dá pra plugar contas sem mexer no jogo:
+Projeto Supabase **abduziu** (`dhdtawdkmzcuoklzyqig`). O jogo continua 100% jogável sem conta; logar é opcional.
 
-1. **Provedor de auth:** Supabase Auth (Google, Apple, e-mail) ou Firebase Auth. Os dois têm plano gratuito e SDK web leve.
-2. **Banco:** tabela `profiles` (apelido, avatar), `saves` (JSON do `SaveData`, com merge pelo campo mais recente) e `ranked_runs` (semana, cidade, seed, score, RP). O ranking semanal é uma consulta ordenada por score na semana.
-3. **Antitrapaça básica:** validar no servidor que a seed é a da semana, limitar score por duração da partida e guardar o resumo da run (objetos, tempo, combos) pra auditoria.
-4. **Hospedagem:** o jogo precisa de domínio próprio (Vercel, Netlify, Cloudflare Pages) pra falar com o backend; a página de preview no claude.ai bloqueia chamadas externas.
-5. **LGPD:** política de privacidade, botão de apagar conta e dados, login opcional (convidado continua jogando offline).
+**O que tem:**
+- **Login** com Google ou link/código por e-mail (`src/online/Online.ts`, tela `src/ui/AccountScreen.ts`, chip de conta no canto do menu). O SDK da Supabase é carregado sob demanda (chunk separado de ~55 kB gzip) e só no boot se já existir sessão ou retorno de login.
+- **Apelido:** todo cadastro nasce com um apelido provisório (`ET-1A2B3C`) e o jogador escolhe o dele (3–16 caracteres, único sem diferenciar maiúsculas).
+- **Ranking semanal:** a tela Ranqueada mostra o top 50 da semana (melhor partida de cada jogador) e a sua posição. O resultado da partida mostra "RANKING DA SEMANA: #N DE M".
+- **RP autoritativo no servidor:** a função `submit_ranked_run` recalcula o RP com a mesma fórmula do `RankSystem.ts` (testado lado a lado em `tests/online.test.ts`). Logado, o RP do servidor manda.
+- **Antitrapaça básica:** semana ISO válida, score ≤ 150 mil/s de partida e ≤ 60 mi, duração 15 s–60 min, 1 envio a cada 15 s. Cliente não tem permissão de escrever em `profiles`/`ranked_runs` direto.
+- **Save na nuvem:** tabela `saves` (JSON do `SaveData`, só o dono lê/escreve via RLS). No login vence o save com mais partidas (empate: mais cores ganhos); depois cada gravação local sobe pra nuvem com debounce de 4 s. Configurações ficam por aparelho.
+- **LGPD:** botão "Apagar conta e dados online" (RPC `delete_my_account`) remove usuário, perfil, partidas e save.
+
+**Banco:** migration em `supabase/migrations/20260927160000_abduziu_online.sql` (já aplicada no projeto).
+
+**Configurar no painel da Supabase (uma vez):**
+1. *Authentication → URL Configuration:* em **Site URL** coloque o domínio do jogo (ex.: `https://abduziu.vercel.app`) e em **Redirect URLs** adicione esse domínio + `http://localhost:5173` pro dev.
+2. *Authentication → Providers → Google:* ative e cole o Client ID/Secret criados no Google Cloud Console (OAuth "Web application", redirect `https://dhdtawdkmzcuoklzyqig.supabase.co/auth/v1/callback`).
+3. *Authentication → Email Templates → Magic Link:* acrescente `Código: {{ .Token }}` pra quem abre o e-mail em outro app/aparelho poder digitar o código no jogo.
+4. Pra volume real de e-mails, configure um SMTP próprio (o SMTP padrão da Supabase tem limite baixo por hora).
+
+**Hospedagem:** o login precisa de domínio próprio (Vercel, Netlify, Cloudflare Pages). A prévia no claude.ai bloqueia chamadas externas, então aquela cópia é gerada com `VITE_ONLINE=off` e mostra "versão demo".
+
+**Outros projetos/ambientes:** copie `.env.example` pra `.env` e troque URL/chave publicável. Nunca use a `service_role` no cliente.
 
 ## Roadmap
 
 **Cidades:** Porto Alegre, Belo Horizonte, Fortaleza, Belém, Curitiba · ciclo dia/noite por cidade · clima (garoa de verdade em SP, chuva de fim de tarde em Manaus).
 
-**Sistemas:** login + ranking online (ver acima) · skins de OVNI · novas naves · eventos semanais · replay/clipes a partir do `HighlightManager` · compartilhamento de clipes · multiplayer assíncrono (fantasma da Invasão do Dia) · OVNI rival · buraco negro instável como evento · mais chefes · regiões brasileiras · trilha com instrumentos gravados.
+**Sistemas:** login com Apple · skins de OVNI · novas naves · eventos semanais · replay/clipes a partir do `HighlightManager` · compartilhamento de clipes · multiplayer assíncrono (fantasma da Invasão do Dia) · OVNI rival · buraco negro instável como evento · mais chefes · regiões brasileiras · trilha com instrumentos gravados.
 
 **Técnico:** LOD por geometria nos prédios · atlas de janelas com iluminação noturna · ciclo dia/noite · áudio espacial com HRTF · worker pra geração da cidade · testes de integração com Playwright.
 

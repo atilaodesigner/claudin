@@ -167,10 +167,21 @@ export function migrate(raw: unknown): SaveData {
   return merged;
 }
 
+/**
+ * Cloud restore rule: the save with more played runs wins (ties: more cores ever
+ * earned). Progress only grows, so this never trades a long career for a new phone.
+ */
+export function cloudWins(local: SaveData, cloud: SaveData): boolean {
+  if (cloud.records.totalRuns !== local.records.totalRuns) return cloud.records.totalRuns > local.records.totalRuns;
+  return cloud.totalCoresEarned > local.totalCoresEarned;
+}
+
 export class SaveService {
   private data: SaveData;
   private dirty = false;
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Fired after every successful write (the cloud sync listens here). */
+  onFlush: (() => void) | null = null;
 
   constructor(private readonly backend: SaveBackend) {
     this.data = this.load();
@@ -216,7 +227,10 @@ export class SaveService {
     }
     if (!this.dirty) return true;
     const ok = this.backend.save(SAVE_KEY, JSON.stringify(this.data));
-    if (ok) this.dirty = false;
+    if (ok) {
+      this.dirty = false;
+      this.onFlush?.();
+    }
     return ok;
   }
 
@@ -224,6 +238,15 @@ export class SaveService {
     this.data = defaultSave();
     this.backend.remove(SAVE_KEY);
     this.dirty = false;
+  }
+
+  /** Replaces the whole save with a cloud copy, keeping this device's settings. */
+  adopt(raw: unknown): void {
+    const settings = this.data.settings;
+    this.data = migrate(raw);
+    this.data.settings = settings;
+    this.dirty = true;
+    this.flush();
   }
 
   export(): string {

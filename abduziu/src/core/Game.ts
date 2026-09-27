@@ -35,11 +35,13 @@ import { Clouds, Sky } from '../rendering/Sky';
 import { createNoiseTexture, TextureAtlas } from '../rendering/TextureAtlas';
 import { worldUniforms } from '../rendering/WorldMaterial';
 import { LocalStorageBackend, MemoryBackend } from '../save/SaveBackend';
-import { SaveService, type Settings } from '../save/SaveService';
+import { cloudWins, migrate, SaveService, type Settings } from '../save/SaveService';
 import { TractorBeam } from '../ufo/TractorBeam';
 import { UFOController } from '../ufo/UFOController';
 import { UFOStats } from '../ufo/UFOStats';
 import { UFOVisuals } from '../ufo/UFOVisuals';
+import { friendlyError, Online } from '../online/Online';
+import { AccountScreen } from '../ui/AccountScreen';
 import { DebugPanel } from '../ui/DebugPanel';
 import { DexScreen } from '../ui/DexScreen';
 import { h } from '../ui/dom';
@@ -143,6 +145,11 @@ export class Game {
   private readonly modeScreen: ModeScreen;
   private readonly mapScreen: CityMapScreen;
   private readonly rankScreen: RankScreen;
+  private readonly accountScreen: AccountScreen;
+  readonly online = new Online();
+  /** Cloud push is armed only after the first pull decided which save wins. */
+  private cloudReady = false;
+  private cloudTimer: ReturnType<typeof setTimeout> | null = null;
   private debugPanel: DebugPanel | null = null;
   private thumbs!: Thumbnails;
   private readonly fpsMeter: HTMLDivElement;
@@ -204,7 +211,8 @@ export class Game {
     this.intro = new IntroOverlay(this.ui);
     this.modeScreen = new ModeScreen(this.ui);
     this.mapScreen = new CityMapScreen(this.ui);
-    this.rankScreen = new RankScreen(this.ui);
+    this.rankScreen = new RankScreen(this.ui, this.online);
+    this.accountScreen = new AccountScreen(this.ui, this.online);
     this.fpsMeter = h('div', 'fps-meter');
     this.ui.appendChild(this.fpsMeter);
 
@@ -215,6 +223,7 @@ export class Game {
       this.input.touch.setRadius(Math.max(46, Math.min(80, Math.min(w, hgt) * 0.13)));
     });
     this.wireUI();
+    this.wireOnline();
     this.bus.on('object:destroyed', (e) => this.onObjectDestroyed(e.uid));
     this.applySettings(this.save.get().settings, false);
     this.renderer.resize();
@@ -290,6 +299,8 @@ export class Game {
     // the boot motion plays its outro over the menu, which is already alive behind it
     void this.loading.finish();
     this.enterMenu();
+    // restore a session / finish a login redirect without holding the boot
+    if (Online.shouldBootEagerly()) void this.online.init();
     if (params.has('autostart')) void this.startRun((params.get('mode') as GameMode | null) ?? 'campanha', params.get('city') as CityId | null);
   }
 
@@ -443,6 +454,103 @@ export class Game {
     };
   }
 
+  // ───────────────────────────────────────────── online (login, ranking, cloud save)
+
+  private wireOnline(): void {
+    this.accountScreen.onClose = () => {
+      this.audio.ui('back');
+      this.accountScreen.hide();
+    };
+    this.rankScreen.onAccount = () => {
+      this.audio.ui('tap');
+      this.accountScreen.open();
+    };
+    this.online.subscribe(() => this.refreshAccountChip());
+    this.online.onSignedIn = () => void this.syncCloud();
+    this.save.onFlush = () => this.scheduleCloudPush();
+    this.refreshAccountChip();
+  }
+
+  private refreshAccountChip(): void {
+    const o = this.online;
+    if (!o.enabled) {
+      this.menu.setAccount('OFFLINE', 'VERSÃO DEMO', null);
+      return;
+    }
+    if (o.signedIn && o.profile) {
+      const d = divisionFor(o.profile.rp).division;
+      this.menu.setAccount(o.profile.nickname, `${d.name} · ${formatInt(o.profile.rp)} RP`, d.color);
+    } else if (o.signedIn) this.menu.setAccount('CONECTADO', 'CARREGANDO PERFIL', 'var(--alien-green)');
+    else if (o.status === 'loading') this.menu.setAccount('CONECTANDO', 'RANKING ONLINE', null);
+    else this.menu.setAccount('ENTRAR', 'RANKING ONLINE', null);
+    if (!o.signedIn) {
+      this.cloudReady = false;
+      return;
+    }
+    // online RP is the source of truth while signed in
+    const p = o.profile;
+    if (p && this.save.get().rank.rp !== p.rp && this.state !== 'playing') {
+      this.save.update((d) => {
+        d.rank.rp = p.rp;
+        d.rank.peak = Math.max(d.rank.peak, p.peak_rp);
+      });
+    }
+  }
+
+  /** First sync after sign-in: the more progressed save wins, then pushes are armed. */
+  private async syncCloud(): Promise<void> {
+    this.cloudReady = false;
+    try {
+      const cloud = await this.online.pullSave();
+      const local = this.save.get();
+      if (cloud && cloudWins(local, migrate(cloud.data))) {
+        this.save.adopt(cloud.data);
+        this.applySettings(this.save.get().settings, false);
+        if (this.state === 'menu') this.refreshMenu();
+        this.hud.toast('PROGRESSO DA NUVEM', 'Seu save foi carregado', 'info', 2.5);
+      } else {
+        await this.online.pushSave(this.save.export());
+      }
+      this.cloudReady = true;
+      this.accountScreen.lastSync = Date.now();
+      this.refreshAccountChip();
+    } catch (err) {
+      console.warn('[online] save', friendlyError(err));
+    }
+  }
+
+  private scheduleCloudPush(): void {
+    if (!this.cloudReady || !this.online.signedIn) return;
+    if (this.cloudTimer) clearTimeout(this.cloudTimer);
+    this.cloudTimer = setTimeout(() => {
+      this.cloudTimer = null;
+      if (!this.cloudReady) return;
+      this.online
+        .pushSave(this.save.export())
+        .then(() => (this.accountScreen.lastSync = Date.now()))
+        .catch((err: unknown) => console.warn('[online] push', friendlyError(err)));
+    }, 4000);
+  }
+
+  private submitRankedOnline(run: { city: string; seed: number; score: number; objects: number; duration: number; extracted: boolean }): void {
+    if (!this.online.signedIn) {
+      this.results.setOnline(this.online.enabled ? 'SEM CONTA: ESSE RP FICOU SÓ NESTE APARELHO' : '');
+      return;
+    }
+    this.results.setOnline('ENVIANDO PRO RANKING ONLINE...');
+    this.online
+      .submitRanked({ week: weekKey(), ...run })
+      .then((res) => {
+        this.save.update((d) => {
+          d.rank.rp = res.rp;
+          d.rank.peak = Math.max(d.rank.peak, res.rp);
+          d.rank.lastDelta = res.delta;
+        }, true);
+        this.results.setOnline(res.weekPos ? `RANKING DA SEMANA: #${res.weekPos} DE ${formatInt(res.players ?? res.weekPos)}` : 'PARTIDA REGISTRADA NO RANKING', 'ok');
+      })
+      .catch((err: unknown) => this.results.setOnline(friendlyError(err).toUpperCase(), 'bad'));
+  }
+
   private openRank(): void {
     const s = this.save.get();
     const daily = s.daily[dailyKey()];
@@ -471,6 +579,9 @@ export class Game {
       case 'settings':
         this.settingsReturn = 'menu';
         this.settingsScreen.open(this.save.get().settings);
+        break;
+      case 'account':
+        this.accountScreen.open();
         break;
     }
   }
@@ -1082,6 +1193,7 @@ export class Game {
           })()
         : null,
     });
+    if (rank) this.submitRankedOnline({ city: r.city.id, seed: r.seed, score: s.score, objects: s.objects, duration: r.time, extracted });
     // cinematic: the city shrinks below the departing saucer
     const from = this.ufo.position.clone();
     this.cameraCtl.override = (cam, dt) => {
