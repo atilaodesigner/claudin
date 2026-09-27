@@ -200,6 +200,7 @@ export class Game {
       this.input.touch.setRadius(Math.max(46, Math.min(80, Math.min(w, hgt) * 0.13)));
     });
     this.wireUI();
+    this.bus.on('object:destroyed', (e) => this.onObjectDestroyed(e.uid));
     this.applySettings(this.save.get().settings, false);
     this.renderer.resize();
     document.addEventListener('visibilitychange', () => {
@@ -319,6 +320,19 @@ export class Game {
       onBuildingHit: (pos) => this.onMissileHitsBuilding(pos),
     });
     this.worldDirty = false;
+  }
+
+  /** Enemy wrecks that hit the ground explode (and count as kills if not yet counted). */
+  private onObjectDestroyed(uid: number): void {
+    const o = this.world.objects[uid];
+    if (!o || !o.enemyKind) return;
+    const size = o.enemyKind === 'boss' ? 6 : o.enemyKind === 'jet' ? 3.2 : o.enemyKind === 'helicopter' ? 2.6 : o.enemyKind === 'police' ? 1.5 : 1;
+    this.vfx.explosion(o.pos, size, this.world.groundAt(o.pos.x, o.pos.z));
+    this.audio.explosion(size, o.pos.x, o.pos.z);
+    if (o.eventTag !== 'counted' && this.state === 'playing') {
+      o.eventTag = 'counted';
+      this.run.onEnemyKilled(o.enemyKind, false, o.pos);
+    }
   }
 
   // ───────────────────────────────────────────── UI wiring

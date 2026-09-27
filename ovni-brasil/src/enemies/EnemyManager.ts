@@ -413,6 +413,7 @@ export class EnemyManager {
       o.enemyKind = e.kind;
       o.enemyId = e.id;
       o.tierOverride = stats.disabledTier;
+      if (destroyed) o.eventTag = 'counted';
       _v.copy(e.vel).multiplyScalar(e.kind === 'jet' ? 0.45 : 0.6);
       this.abduction.injectFalling(o, _v);
       this.wrecks.push(o);
@@ -421,7 +422,8 @@ export class EnemyManager {
       this.bossDefeated = true;
       this.bus.emit('boss:defeated', {});
     }
-    this.hooks.onEnemyDestroyed(e, e.killedBy === 'missile');
+    // EMP'd units are only counted when they crash or get abducted
+    if (destroyed) this.hooks.onEnemyDestroyed(e, e.killedBy === 'missile');
     e.alive = false;
     this.removeEnemy(e);
   }

@@ -178,7 +178,7 @@ export class RunController {
     });
     let threat = matter * BALANCE.threat.perMatter * district.threatMult;
     const enemyKind = obj.enemyKind as EnemyKind | null;
-    if (enemyKind) {
+    if (enemyKind && obj.eventTag !== 'counted') {
       const es = ENEMIES[enemyKind];
       score += es.scoreOnDestroy;
       threat += es.threatOnDestroy;
