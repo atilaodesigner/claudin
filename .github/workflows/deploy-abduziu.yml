@@ -1,0 +1,81 @@
+# Publica o ABDUZIU no Cloudflare Pages (abduziu.fun) a cada push.
+# Segredos do repositório necessários (Settings → Secrets and variables → Actions):
+#   CLOUDFLARE_API_TOKEN   token com permissão: Account › Cloudflare Pages › Edit  +  Zone › DNS › Edit (zona abduziu.fun)
+#   CLOUDFLARE_ACCOUNT_ID  ID da conta (lateral do painel da Cloudflare)
+name: Deploy ABDUZIU
+
+on:
+  push:
+    branches: [main, claude/lucid-wright-vi454a]
+    paths: ['abduziu/**', '.github/workflows/deploy-abduziu.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-abduziu
+  cancel-in-progress: true
+
+env:
+  PROJECT: abduziu
+  DOMAIN: abduziu.fun
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: abduziu/package-lock.json
+
+      - name: Instalar, testar e buildar
+        working-directory: abduziu
+        run: |
+          npm ci
+          npm test
+          npm run build
+
+      - name: Criar o projeto no Cloudflare Pages (se ainda não existir)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4 pages project create "$PROJECT" --production-branch=main || echo "projeto já existe"
+
+      - name: Publicar
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4 pages deploy abduziu/dist --project-name="$PROJECT" --branch=main --commit-dirty=true
+
+      - name: Ligar abduziu.fun e www ao projeto (idempotente)
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          api() { curl -sS -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" "$@"; }
+          ZONE=$(api "https://api.cloudflare.com/client/v4/zones?name=$DOMAIN" | jq -r '.result[0].id // empty')
+          for HOST in "$DOMAIN" "www.$DOMAIN"; do
+            api -X POST "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/pages/projects/$PROJECT/domains" -d "{\"name\":\"$HOST\"}" | jq -c '{host: "'"$HOST"'", success, errors: [.errors[]?.message]}'
+            if [ -n "$ZONE" ]; then
+              EXISTS=$(api "https://api.cloudflare.com/client/v4/zones/$ZONE/dns_records?name=$HOST" | jq -r '.result | length')
+              if [ "$EXISTS" = "0" ]; then
+                api -X POST "https://api.cloudflare.com/client/v4/zones/$ZONE/dns_records" \
+                  -d "{\"type\":\"CNAME\",\"name\":\"$HOST\",\"content\":\"$PROJECT.pages.dev\",\"proxied\":true}" | jq -c '{dns: "'"$HOST"'", success, errors: [.errors[]?.message]}'
+              else
+                echo "DNS de $HOST já existe"
+              fi
+            else
+              echo "::warning::zona $DOMAIN não encontrada (o token precisa de Zone › DNS › Edit)"
+            fi
+          done
+
+      - name: Conferir
+        run: |
+          sleep 20
+          for u in "https://$PROJECT.pages.dev" "https://$DOMAIN"; do
+            echo "$u → $(curl -s -o /dev/null -w '%{http_code}' "$u")"
+          done
