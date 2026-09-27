@@ -89,6 +89,9 @@ export class CameraController {
       if (this.dramaTimer <= 0) this.dramaZoom = 1;
     }
     this.distanceTarget = this.distanceFor(ufoScale, speedFactor) * extraZoom * this.dramaZoom;
+    // a giant saucer over a skyline needs a more top-down view so towers don't hide it
+    const pitchTarget = 0.94 + Math.min(0.32, Math.max(0, ufoScale - 1) * 0.075);
+    this.pitch = damp(this.pitch, pitchTarget, 1.5, realDt);
     // pull out faster than push in: growth must be felt immediately
     this.distance = damp(this.distance, this.distanceTarget, this.distanceTarget > this.distance ? 2.2 : 1.4, realDt);
 

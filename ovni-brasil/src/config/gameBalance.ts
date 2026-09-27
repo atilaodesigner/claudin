@@ -22,7 +22,7 @@ export const BALANCE = {
     maxScale: 9,
   },
   beam: {
-    baseRadius: 1.95,
+    baseRadius: 2.2,
     baseCapacity: 3,
     /** Beam pull is stronger when hovering still: skill expression for heavy objects. */
     stillPowerBonus: 0.35,
@@ -31,7 +31,7 @@ export const BALANCE = {
     /** Seconds of shaking before an object breaks free from the ground (scaled by tier). */
     breakBaseTime: 0.22,
     breakTimePerTier: 0.07,
-    liftBaseTime: 0.95,
+    liftBaseTime: 0.8,
     liftTimePerTier: 0.11,
     suckTime: 0.24,
     /** Objects within this ring outside the beam react (anticipation). */
@@ -49,7 +49,7 @@ export const BALANCE = {
   matterGrowth: 1.8,
   levels: {
     /** Cumulative XP to reach level L = a * (g^(L-1) - 1). */
-    a: 30,
+    a: 26,
     g: 1.25,
     maxLevel: 60,
   },

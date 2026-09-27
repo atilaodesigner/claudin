@@ -40,6 +40,7 @@ const _v2 = new Vector3();
 const _q = new Quaternion();
 const _q2 = new Quaternion();
 const _axis = new Vector3();
+const _pv = new Vector3();
 const _c = new Color();
 const UP = new Vector3(0, 1, 0);
 
@@ -59,6 +60,8 @@ export class AbductionSystem {
   strainTarget: Abductable | null = null;
   liftingCount = 0;
   orbitingCount = 0;
+  /** Lowest altitude the saucer may hover at so held objects never clip into it. */
+  minUfoAltitude = 0;
   private time = 0;
   private dustTimer = 0;
   private anticipateCount = 0;
@@ -124,9 +127,12 @@ export class AbductionSystem {
   private syncMesh(o: Abductable): void {
     if (o.dynamicIndex < 0) return;
     const dm = this.pool.get(o.dynamicIndex);
-    dm.mesh.position.copy(o.pos);
+    // o.pos is the base pivot; spin around the object's center so tall things tumble naturally
+    const hc = o.model.height * 0.5 * o.visualScale;
+    _pv.set(0, hc, 0).applyQuaternion(o.quat);
+    dm.mesh.position.set(o.pos.x, o.pos.y + hc, o.pos.z).sub(_pv);
     dm.mesh.quaternion.copy(o.quat);
-    dm.mesh.scale.setScalar(o.visualScale);
+    if (o.state !== AState.Straining) dm.mesh.scale.setScalar(o.visualScale);
   }
 
   /** External objects (enemy wrecks) join the simulation already detached and falling. */
@@ -206,6 +212,8 @@ export class AbductionSystem {
 
     // ── simulate
     let loadSum = 0;
+    let minAlt = 0;
+    const clearance = BALANCE.ufo.clearance * (ctx.ufoRadius / BALANCE.ufo.baseRadius);
     for (let i = this.active.length - 1; i >= 0; i--) {
       const o = this.active[i] as Abductable;
       o.stateTime += dt;
@@ -244,6 +252,13 @@ export class AbductionSystem {
         default:
           break;
       }
+      // keep the ship above whatever it is ripping out of the ground
+      if (o.state === AState.Shaking || o.state === AState.Straining) {
+        minAlt = Math.max(minAlt, o.home.y + o.model.height * o.scale + clearance + ctx.ufoRadius * 0.4);
+      } else if (o.state === AState.Lifting) {
+        // hold the altitude the ship had when the lift began: the object rises to it
+        minAlt = Math.max(minAlt, o.liftHeight, o.startY + o.model.height * o.visualScale + ctx.ufoRadius * 0.45 + 1.2);
+      }
       if (o.dynamicIndex >= 0) {
         const dm = this.pool.get(o.dynamicIndex);
         o.flash = Math.max(0, o.flash - dt * 3);
@@ -252,6 +267,7 @@ export class AbductionSystem {
       }
     }
     this.load = clamp(loadSum / Math.max(3, ctx.capacity), 0, 1.5);
+    this.minUfoAltitude = minAlt;
   }
 
   private buildZones(ctx: AbductionContext): void {
@@ -275,7 +291,7 @@ export class AbductionSystem {
   }
 
   private speedFactor(o: Abductable, ctx: AbductionContext): number {
-    return ctx.absorbSpeed * clamp(0.45 + 0.5 * (ctx.beamTier - o.tier), 0.45, 1.9);
+    return ctx.absorbSpeed * clamp(0.62 + 0.5 * (ctx.beamTier - o.tier), 0.62, 2.2);
   }
 
   private startShaking(o: Abductable, ctx: AbductionContext): void {
@@ -307,9 +323,10 @@ export class AbductionSystem {
     o.orbitAngle = Math.atan2(dz, dx);
     o.orbitSpeed = (1.3 + o.seed * 1.2) * (o.seed > 0.5 ? 1 : -1) / (1 + o.tier * 0.12);
     o.startY = o.pos.y;
+    o.liftHeight = o.model.height * o.scale > 6 ? ctx.ufoPos.y : 0;
     const dur = (B.liftBaseTime + o.tier * B.liftTimePerTier) / this.speedFactor(o, ctx);
     o.setState(AState.Lifting, dur);
-    const tumble = 1.6 / (1 + o.tier * 0.25);
+    const tumble = 1.7 / (1 + o.tier * 0.4);
     o.angVel.set((o.seed - 0.5) * tumble, (noise1(o.seed * 50) + 0.4) * tumble * 1.5, (0.5 - o.seed * 0.7) * tumble);
     o.flash = 0.8;
     // children (roof, water tank, people on the slab) ride along
@@ -454,7 +471,10 @@ export class AbductionSystem {
     // satellite captures drift toward the main beam while rising
     const cx = zone.x + (main.x - zone.x) * p;
     const cz = zone.z + (main.z - zone.z) * p;
-    const topY = ctx.ufoPos.y - ctx.ufoRadius * 0.35 - Math.min(o.model.height * o.scale * 0.5, ctx.ufoRadius * 0.6);
+    const shrink = o.tier >= 7 ? 0.45 : o.tier >= 5 ? 0.3 : 0.18;
+    const hangH = o.model.height * o.scale * (1 - shrink * p);
+    // the whole object hangs below the hatch (tall buildings never clip through the saucer)
+    const topY = ctx.ufoPos.y - ctx.ufoRadius * 0.4 - hangH - 0.2;
     const h = Math.pow(p, 1.6);
     o.orbitAngle += o.orbitSpeed * (1 + p * 3.2) * dt;
     const r = o.orbitRadius * (1 - easeInCubic(Math.min(1, p * 1.15))) * 0.9 + Math.sin(this.time * 2 + o.seed * 9) * 0.12 * (1 - p) * ctx.beamRadius * 0.2;
@@ -469,7 +489,7 @@ export class AbductionSystem {
     o.pos.addScaledVector(o.vel, dt);
     // tumble accelerates
     this.integrateSpin(o, dt, 1 + p * 2.2);
-    o.visualScale = o.scale * (1 - 0.18 * p);
+    o.visualScale = o.scale * (1 - shrink * p);
     if (o.dynamicIndex >= 0) this.pool.get(o.dynamicIndex).fx.uRim.value = 0.6 + p * 0.9;
     // energy sparkles streaming off
     if (Math.random() < dt * (6 + o.tier)) {
@@ -483,7 +503,7 @@ export class AbductionSystem {
         o.setState(AState.Orbiting, ctx.orbitTime * (0.7 + o.seed * 0.6));
         this.orbitingCount++;
       } else {
-        o.setState(AState.Sucking, BALANCE.beam.suckTime / Math.max(0.5, ctx.absorbSpeed));
+        o.setState(AState.Sucking, (BALANCE.beam.suckTime + o.tier * 0.035) / Math.max(0.5, ctx.absorbSpeed));
         o.startY = o.pos.y;
         o.localOffset.copy(o.pos);
       }
@@ -541,8 +561,13 @@ export class AbductionSystem {
       o.vel.copy(parent.vel);
       return;
     }
-    _v.copy(o.localOffset).multiplyScalar(parent.visualScale / Math.max(0.001, parent.scale)).applyQuaternion(parent.quat);
+    const k = parent.visualScale / Math.max(0.001, parent.scale);
+    const hc = parent.model.height * 0.5 * parent.visualScale;
+    _v.copy(o.localOffset).multiplyScalar(k);
+    _v.y -= hc;
+    _v.applyQuaternion(parent.quat);
     o.pos.copy(parent.pos).add(_v);
+    o.pos.y += hc;
     o.quat.copy(parent.quat).multiply(_q.setFromAxisAngle(UP, o.homeRotY - parent.homeRotY));
     o.visualScale = o.scale * (parent.visualScale / Math.max(0.001, parent.scale));
   }

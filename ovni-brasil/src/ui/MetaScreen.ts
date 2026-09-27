@@ -14,7 +14,7 @@ export class MetaScreen extends Screen {
     parent: HTMLElement,
     private readonly meta: MetaProgression,
   ) {
-    super(parent, 'sub');
+    super(parent, 'subscreen');
     const top = h('div', 'topbar');
     const title = h('div', 'title-xl', 'EVOLUÇÕES');
     title.appendChild(h('small', '', 'UPGRADES PERMANENTES DA NAVE'));

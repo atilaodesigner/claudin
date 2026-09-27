@@ -18,7 +18,7 @@ export class DexScreen extends Screen {
     parent: HTMLElement,
     private readonly thumbs: Thumbnails,
   ) {
-    super(parent, 'sub');
+    super(parent, 'subscreen');
     const top = h('div', 'topbar');
     const title = h('div', 'title-xl', 'COLEÇÃO');
     this.count = h('small', '', '');
@@ -52,7 +52,11 @@ export class DexScreen extends Screen {
       img.alt = known ? def.name : '???';
       const cached = this.thumbs.get(def.id);
       if (cached) img.src = cached;
-      else this.queue.push({ def, img });
+      else {
+        img.style.visibility = 'hidden';
+        img.onload = () => (img.style.visibility = '');
+        this.queue.push({ def, img });
+      }
       item.appendChild(img);
       item.appendChild(h('div', 'no', `#${def.dex.toString().padStart(3, '0')}`));
       item.appendChild(h('div', 'nm', known ? def.name : def.secret ? 'SECRETO' : '???'));

@@ -9,7 +9,7 @@ export class RecordsScreen extends Screen {
   onClose: (() => void) | null = null;
 
   constructor(parent: HTMLElement) {
-    super(parent, 'sub');
+    super(parent, 'subscreen');
     const top = h('div', 'topbar');
     const title = h('div', 'title-xl', 'RECORDES');
     title.appendChild(h('small', '', 'SALVO NESTE APARELHO'));

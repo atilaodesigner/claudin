@@ -1,6 +1,7 @@
 import { Color, PerspectiveCamera, Scene, Vector3, type Texture } from 'three';
 import { AbductionSystem } from '../abduction/AbductionSystem';
 import { DynamicObjectPool } from '../abduction/DynamicObjectPool';
+import { loadModelOverrides } from '../assets/AssetLoader';
 import { ModelLibrary } from '../assets/ModelLibrary';
 import { AudioManager } from '../audio/AudioManager';
 import { Haptics } from '../audio/Haptics';
@@ -52,6 +53,7 @@ import { UpgradeScreen } from '../ui/UpgradeScreen';
 import { clamp, damp, formatInt } from '../utils/math';
 import { dailyKey, dailySeed } from '../utils/rng';
 import { AState } from '../world/Abductable';
+import { BirdSystem } from '../world/BirdSystem';
 import { ChunkManager } from '../world/ChunkManager';
 import { NPCSystem } from '../world/NPCSystem';
 import { TrafficSystem } from '../world/TrafficSystem';
@@ -110,6 +112,7 @@ export class Game {
   abduction!: AbductionSystem;
   enemies!: EnemyManager;
   chunks!: ChunkManager;
+  birds!: BirdSystem;
   private dynPool!: DynamicObjectPool;
   private worldDirty = false;
 
@@ -154,6 +157,7 @@ export class Game {
   private autoEmpAccumulator = 0;
   private strainShownTime = 0;
   private wasDashReady = true;
+  private coordsTimer = 0;
 
   constructor(container: HTMLElement) {
     this.renderer = new Renderer(container.querySelector('#stage') as HTMLElement, {
@@ -219,6 +223,7 @@ export class Game {
     worldUniforms.uCloudTex.value = this.noise;
     this.atlas = new TextureAtlas();
     this.lib = new ModelLibrary(this.atlas);
+    await loadModelOverrides(this.lib);
     const keys = this.lib.keys();
     for (let i = 0; i < keys.length; i++) {
       this.lib.get(keys[i] as string);
@@ -273,12 +278,15 @@ export class Game {
     if (this.world) {
       this.abduction.reset();
       this.enemies.dispose();
+      this.birds.dispose();
       this.world.dispose();
     }
     const gen = new WorldGenerator(this.lib, this.atlas, seed).generate();
     this.world = new World(this.scene, this.lib, this.atlas, gen);
     this.chunks = new ChunkManager(this.world);
     this.world.onSpawn = (o) => this.chunks.register(o);
+    this.birds = new BirdSystem(this.scene, this.world);
+    this.birds.onFlee = (x, z) => this.audio.flutter(x, z);
     const q = this.quality.current;
     const npcSpawns = gen.npcs.filter((_, i) => q.npcDensity >= 1 || i % Math.round(1 / q.npcDensity) === 0);
     this.npcs = new NPCSystem(this.world, npcSpawns);
@@ -454,6 +462,7 @@ export class Game {
     this.ensureLateScreens();
     this.refreshMenu();
     this.menu.show();
+    this.ufoVisuals.root.visible = true;
     this.input.enabled = false;
     this.time.paused = false;
     this.run.hidePortal();
@@ -464,15 +473,33 @@ export class Game {
     this.audio.setHelicopter(0);
     this.audio.setSiren(0);
     this.ufo.frozen = true;
+    if (this.state === 'menu' && this.run.time > 0) {
+      // back from a run: a fresh small saucer hovering over the start district
+      this.run.progression.reset();
+      this.upgrades.reset();
+      this.computeStats(0);
+      this.ufo.spawnAt(this.world.start.x, this.world.start.z, this.stats.altitude);
+      this.ufoVisuals.body.rotation.set(0, 0, 0);
+      this.ufoVisuals.setLevel(1);
+      this.vfx.clear();
+      this.enemies.reset();
+      this.shield.mesh.visible = false;
+    }
     this.cameraCtl.override = (cam, dt) => {
       this.menuAngle += dt * 0.05;
       const p = this.ufo.position;
-      const d = 15;
+      const portrait = this.renderer.width < this.renderer.height;
+      const d = portrait ? 19 : 15;
       const a = this.menuAngle;
       cam.position.set(p.x + Math.sin(a) * d, p.y + 3.2, p.z + Math.cos(a) * d);
-      // look slightly to the side so the saucer sits in the right third, city behind
-      cam.lookAt(p.x - Math.cos(a) * 5.5 - Math.sin(a) * 4, p.y - 2.2, p.z + Math.sin(a) * 5.5 - Math.cos(a) * 4);
-      cam.fov = 50;
+      if (portrait) {
+        // portrait: saucer centered in the upper half, logo below
+        cam.lookAt(p.x - Math.sin(a) * 4, p.y - 4.5, p.z - Math.cos(a) * 4);
+      } else {
+        // look slightly to the side so the saucer sits in the right third, city behind
+        cam.lookAt(p.x - Math.cos(a) * 5.5 - Math.sin(a) * 4, p.y - 2.2, p.z + Math.sin(a) * 5.5 - Math.cos(a) * 4);
+      }
+      cam.fov = portrait ? 62 : 50;
       cam.updateProjectionMatrix();
     };
   }
@@ -641,6 +668,7 @@ export class Game {
     this.state = 'paused';
     this.time.paused = true;
     this.input.enabled = false;
+    this.pauseMenu.setObjectives(this.run.challenges.active);
     this.pauseMenu.show();
     this.audio.ui('tap');
     this.audio.setBeam(false, 0, 0, false);
@@ -690,8 +718,6 @@ export class Game {
     this.audio.setStrain(0);
     const levelShown = pr.level - pr.pendingLevelUps + 1;
     this.upgradeScreen.open(levelShown, offers, this.upgrades.levels, pr.pendingLevelUps - 1);
-    // hitch-free moment for expensive quality changes
-    this.quality.sample(0, true);
   }
 
   private onUpgradePicked(o: UpgradeOffer): void {
@@ -873,8 +899,12 @@ export class Game {
     this.bus.emit('run:end', { reason });
 
     const r = this.run;
+    r.stats.maxAlert = Math.max(r.stats.maxAlert, r.threat.alert);
     const extracted = reason === 'extracted';
     const cores = r.computeResults(extracted);
+    this.shield.mesh.visible = false;
+    this.ufoVisuals.root.visible = reason === 'quit';
+    this.beam.setActive(false);
     this.meta.addCores(cores.total);
     const s = r.stats;
     const prevBest = this.save.get().records.bestScore;
@@ -1051,7 +1081,7 @@ export class Game {
       }
     } else {
       this.ufo.controlsLocked = r.beamOffline > 0 ? 0.1 : 0;
-      this.ufo.update(dt, this.input.move, this.stats);
+      this.ufo.update(dt, this.input.move, this.stats, this.abduction.minUfoAltitude);
     }
 
     const beamOn = this.beamActive;
@@ -1157,7 +1187,11 @@ export class Game {
     if (dashReady && !this.wasDashReady && this.stats.dashUnlocked) this.haptics.light();
     this.wasDashReady = dashReady;
     const p = this.ufo.position;
-    hud.setCoords(`${this.world.districtName(p.x, p.z).toUpperCase()} · ${(-22.9 - p.z * 0.00009).toFixed(4)}° ${(-43.2 + p.x * 0.0001).toFixed(4)}°`);
+    this.coordsTimer -= dt;
+    if (this.coordsTimer <= 0) {
+      this.coordsTimer = 0.4;
+      hud.setCoords(`${this.world.districtName(p.x, p.z).toUpperCase()} · ${(-22.9 - p.z * 0.00009).toFixed(4)}° ${(-43.2 + p.x * 0.0001).toFixed(4)}°`);
+    }
     hud.showDistrict('', '', this.time.realDelta);
 
     // strain widget: anchored above the object that resists
@@ -1209,6 +1243,8 @@ export class Game {
     for (const e of this.enemies.enemies) if (e.alive) this.blips.push({ x: e.pos.x, z: e.pos.z, kind: e instanceof BossController ? 'boss' : 'enemy' });
     for (const m of this.missileScratch) this.blips.push({ x: m.pos.x, z: m.pos.z, kind: 'missile' });
     if (r.eventMarker) this.blips.push({ x: r.eventMarker.x, z: r.eventMarker.z, kind: 'event' });
+    const hint = r.tierHintTarget;
+    if (hint) this.blips.push({ x: hint.pos.x, z: hint.pos.z, kind: 'rare' });
     hud.drawRadar(dt, p.x, p.z, 110 + this.stats.radius * 10, this.blips, this.time.realElapsed);
     hud.updateFloats(this.time.realDelta, this.cameraCtl.camera, w, hh);
   }
@@ -1258,6 +1294,7 @@ export class Game {
 
     this.chunks.detailDistance = Math.max(80, this.cameraCtl.distance * 4.2) * (this.quality.level <= 1 ? 0.75 : 1);
     this.chunks.update(rdt, focus);
+    this.birds.update(dt, this.ufo.position, this.stats.radius);
     this.npcs.detailDistance = this.chunks.detailDistance * 1.1;
     const alert = r && this.state !== 'menu' ? r.threat.alert : 0;
     this.lighting.update(rdt, focus, this.cameraCtl.distance, alert, frenzy, this.state === 'extracting');

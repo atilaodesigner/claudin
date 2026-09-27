@@ -511,6 +511,14 @@ export class AudioManager {
     }
   }
 
+  flutter(x: number, z: number): void {
+    if (!this.ctx || !this.throttle('flutter', 1.5)) return;
+    const sp = this.spatial(x, z, 40);
+    if (!sp) return;
+    const t = this.ctx.currentTime;
+    for (let i = 0; i < 8; i++) this.synth.noiseBurst(t + i * 0.045 + Math.random() * 0.03, 0.04, sp.node, 0.05 * sp.gain, 'bandpass', 1400 + Math.random() * 800, undefined, 1.5);
+  }
+
   gunshot(x: number, z: number, heavy: boolean): void {
     if (!this.ctx || !this.throttle('gun', 0.045)) return;
     const sp = this.spatial(x, z, 60);

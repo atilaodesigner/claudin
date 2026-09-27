@@ -5,11 +5,14 @@ export class PauseMenu extends Screen {
   onSettings: (() => void) | null = null;
   onQuit: (() => void) | null = null;
   private readonly quitBtn: HTMLButtonElement;
+  private readonly objectives: HTMLDivElement;
   private confirmQuit = false;
 
   constructor(parent: HTMLElement) {
     super(parent, 'pause dim');
     this.root.appendChild(h('div', 'title-xl', 'PAUSA'));
+    this.objectives = h('div', 'objectives-list');
+    this.root.appendChild(this.objectives);
     const resume = h('button', 'btn', 'CONTINUAR');
     const settings = h('button', 'btn ghost', 'CONFIGURAÇÕES');
     this.quitBtn = h('button', 'btn ghost', 'ABANDONAR INVASÃO');
@@ -25,6 +28,14 @@ export class PauseMenu extends Screen {
       this.onQuit?.();
     });
     this.root.append(resume, settings, this.quitBtn);
+  }
+
+  setObjectives(list: ReadonlyArray<{ title: string; progress: number; goal: number; done: boolean }>): void {
+    this.objectives.innerHTML = '';
+    for (const c of list) {
+      const row = h('div', c.done ? 'done' : '', `${c.done ? '✔' : '○'} ${c.title}${c.goal > 1 && !c.done ? `  (${Math.floor(c.progress)}/${c.goal})` : ''}`);
+      this.objectives.appendChild(row);
+    }
   }
 
   override show(): void {

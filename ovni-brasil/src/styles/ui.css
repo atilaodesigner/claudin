@@ -648,7 +648,7 @@
 .toasts {
   position: absolute;
   left: 50%;
-  top: 30%;
+  top: calc(var(--safe-top) + 96px * var(--ui-scale));
   transform: translateX(-50%);
   display: flex;
   flex-direction: column;
@@ -667,7 +667,7 @@
   font-family: var(--font-title);
   font-weight: 900;
   font-style: italic;
-  font-size: calc(22px * var(--ui-scale));
+  font-size: calc(19px * var(--ui-scale));
   letter-spacing: 0.03em;
   color: #fff;
   text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5), 0 0 18px var(--tone);
@@ -716,18 +716,18 @@
   position: absolute;
   left: 0;
   right: 0;
-  top: 40%;
+  top: 25%;
   text-align: center;
   pointer-events: none;
   font-family: var(--font-title);
   font-weight: 900;
   font-style: italic;
-  font-size: calc(58px * var(--ui-scale));
+  font-size: calc(50px * var(--ui-scale));
   color: #fff;
   text-shadow: 0 4px 0 rgba(0, 0, 0, 0.4), 0 0 30px var(--tone, var(--alien-green));
   opacity: 0;
 }
-.banner .sub {
+.banner .bsub {
   display: block;
   font-size: 0.42em;
   color: var(--tone, var(--alien-green));
@@ -1079,23 +1079,23 @@
 }
 
 /* ───────────────────────── Generic sub-screens */
-.sub {
+.subscreen {
   flex-direction: column;
   gap: 12px;
   z-index: 30;
   background: linear-gradient(180deg, rgba(2, 8, 14, 0.94), rgba(2, 8, 14, 0.97));
 }
-.sub .topbar {
+.subscreen .topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
-.sub .topbar .title-xl {
+.subscreen .topbar .title-xl {
   font-size: calc(40px * var(--ui-scale));
   color: #fff;
 }
-.sub .topbar .title-xl small {
+.subscreen .topbar .title-xl small {
   display: block;
   font-size: 0.35em;
   font-family: var(--font-hud);
@@ -1105,7 +1105,7 @@
   color: var(--text-secondary);
   margin-top: 4px;
 }
-.sub .content {
+.subscreen .content {
   flex: 1;
   min-height: 0;
 }
@@ -1470,6 +1470,18 @@
 }
 
 /* Pause */
+.pause .objectives-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  text-align: left;
+}
+.pause .objectives-list .done {
+  color: var(--alien-green);
+}
 .pause {
   z-index: 40;
   flex-direction: column;
@@ -1620,6 +1632,38 @@
   .rotate-hint.touch {
     display: block;
   }
+  .hud .tl {
+    width: calc(150px * var(--ui-scale));
+  }
+  .hud .objectives {
+    display: none;
+  }
+  .hud .tc {
+    top: calc(var(--safe-top) + 118px);
+  }
+  .hud .combo-count {
+    font-size: calc(36px * var(--ui-scale));
+  }
+  .toasts {
+    top: calc(var(--safe-top) + 190px);
+  }
+  .banner {
+    font-size: calc(30px * var(--ui-scale));
+    top: 30%;
+  }
+  .tutorial .t {
+    font-size: calc(19px * var(--ui-scale));
+    max-width: 86vw;
+  }
+  .hud .bl {
+    width: calc(150px * var(--ui-scale));
+  }
+  .hud .coords {
+    display: none;
+  }
+  .pause .objectives-list {
+    max-width: 86vw;
+  }
   .menu {
     flex-direction: column;
     justify-content: flex-end;
@@ -1695,7 +1739,7 @@
     width: calc(66px * var(--ui-scale));
     height: calc(66px * var(--ui-scale));
   }
-  .sub .topbar .title-xl {
+  .subscreen .topbar .title-xl {
     font-size: calc(30px * var(--ui-scale));
   }
 }

@@ -318,7 +318,7 @@ export class HUD {
     t.appendChild(h('div', 't', title));
     if (subtitle) t.appendChild(h('div', 's', subtitle));
     this.toasts.appendChild(t);
-    while (this.toasts.children.length > 3) this.toasts.firstElementChild?.remove();
+    while (this.toasts.children.length > 2) this.toasts.firstElementChild?.remove();
     setTimeout(() => t.classList.add('out'), duration * 1000);
     setTimeout(() => t.remove(), duration * 1000 + 400);
   }
@@ -326,7 +326,7 @@ export class HUD {
   showBanner(title: string, sub = '', tone = 'var(--alien-green)'): void {
     this.banner.innerHTML = '';
     this.banner.appendChild(document.createTextNode(title));
-    if (sub) this.banner.appendChild(h('span', 'sub', sub));
+    if (sub) this.banner.appendChild(h('span', 'bsub', sub));
     this.banner.style.setProperty('--tone', tone);
     this.banner.classList.remove('show');
     void this.banner.offsetWidth;

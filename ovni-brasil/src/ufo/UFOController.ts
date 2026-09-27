@@ -64,7 +64,7 @@ export class UFOController {
     return true;
   }
 
-  update(dt: number, move: Vector2, stats: UFOStats): void {
+  update(dt: number, move: Vector2, stats: UFOStats, minAltitude = 0): void {
     this.time += dt;
     const B = BALANCE.ufo;
     const maxSpeed = stats.speed;
@@ -97,7 +97,7 @@ export class UFOController {
     // altitude: hover height, but always above rooftops under the hull
     const clearance = B.clearance * stats.scale;
     const roof = this.world.heightField.maxInRadius(this.position.x, this.position.z, stats.radius * 1.3);
-    const targetAlt = Math.max(stats.altitude, roof + clearance + stats.radius * 0.4);
+    const targetAlt = Math.max(stats.altitude, roof + clearance + stats.radius * 0.4, minAltitude);
     this.altitude = damp(this.altitude, targetAlt, targetAlt > this.altitude ? 5 : 1.5, dt);
 
     this.tug = Math.max(0, this.tug - dt * 3);

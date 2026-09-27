@@ -142,6 +142,8 @@ export class RunController {
     this.beacon.visible = false;
     this.portal.visible = false;
     this.legendary = null;
+    this.tierHint = null;
+    this.tierHintTimer = 0;
     for (const m of this.meteors) {
       m.active = false;
       m.mesh.visible = false;
@@ -379,7 +381,38 @@ export class RunController {
       g.audio.tierUp();
       g.vfx.tierUp(g.ufo.position, g.stats.radius);
       g.bus.emit('player:tierup', { tier: t });
+      this.showNewlyPossible(t);
     }
+  }
+
+  /** Points at the nearest thing that was impossible a second ago (the "now I can!" moment). */
+  private showNewlyPossible(tier: number): void {
+    const g = this.game;
+    const list: Abductable[] = [];
+    g.world.query(g.ufo.position.x, g.ufo.position.z, 140, list);
+    let best: Abductable | null = null;
+    let bd = Infinity;
+    for (const o of list) {
+      if (o.tier !== tier || o.state !== AState.Static) continue;
+      const d = o.pos.distanceToSquared(g.ufo.position);
+      if (d < bd) {
+        bd = d;
+        best = o;
+      }
+    }
+    if (!best) return;
+    this.tierHint = best;
+    this.tierHintTimer = 9;
+    setTimeout(() => {
+      if (best && best.alive) g.hud.floatText(_v.copy(best.pos).setY(best.pos.y + best.model.height + 2), `AGORA DÁ: ${best.def.name.toUpperCase()}`, 'var(--gold)', 22, 2.6);
+    }, 1900);
+  }
+
+  private tierHint: Abductable | null = null;
+  private tierHintTimer = 0;
+
+  get tierHintTarget(): Abductable | null {
+    return this.tierHintTimer > 0 && this.tierHint && this.tierHint.alive ? this.tierHint : null;
   }
 
   // ───────────────────────────────────────────── per-frame
@@ -398,6 +431,7 @@ export class RunController {
       if (this.chainTimer <= 0) this.chainStacks = 0;
     }
     this.perfectDodgeTimer = Math.max(0, this.perfectDodgeTimer - dt);
+    this.tierHintTimer = Math.max(0, this.tierHintTimer - dt);
     this.beamOffline = Math.max(0, this.beamOffline - dt);
 
     // extraction portal
@@ -440,8 +474,14 @@ export class RunController {
       this.beacon.position.set(this.legendary.pos.x, 80, this.legendary.pos.z);
       (this.beacon.material as MeshBasicMaterial).opacity = 0.25 + Math.sin(this.time * 4) * 0.1;
     }
-    g.hud.setObjectives(this.challenges.active);
+    this.objectivesTimer -= dt;
+    if (this.objectivesTimer <= 0) {
+      this.objectivesTimer = 0.25;
+      g.hud.setObjectives(this.challenges.active);
+    }
   }
+
+  private objectivesTimer = 0;
 
   private updateRareSparkles(dt: number): void {
     this.rareScanTimer -= dt;

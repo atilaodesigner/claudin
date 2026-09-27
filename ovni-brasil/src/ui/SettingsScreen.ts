@@ -10,7 +10,7 @@ export class SettingsScreen extends Screen {
   private settings!: Settings;
 
   constructor(parent: HTMLElement) {
-    super(parent, 'sub');
+    super(parent, 'subscreen');
     this.root.style.zIndex = '42';
     const top = h('div', 'topbar');
     const title = h('div', 'title-xl', 'CONFIGURAÇÕES');
