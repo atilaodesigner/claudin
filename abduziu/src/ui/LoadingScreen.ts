@@ -1,7 +1,12 @@
 import { h, Screen } from './dom';
+import { PORTAL_AT, StudioSting } from './StudioSting';
 
 /**
  * ABDUZIU boot motion (canvas 2D, no dependencies).
+ *
+ * Opens with the GUETO GAME STUDIO sting (StudioSting.ts), whose frame becomes a
+ * portal into this scene. Scene time starts at 0 when the sting ends; loading keeps
+ * running underneath the whole time. Tap or any key skips straight to the portal.
  *
  * A saucer flies in and parks over the title; its tractor beam pulls each letter of
  * ABDUZIU up from the city skyline as the real loading progresses. When everything is
@@ -53,6 +58,8 @@ export class LoadingScreen extends Screen {
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
   private readonly grain: HTMLCanvasElement;
+  private readonly grainPattern: CanvasPattern | null;
+  private readonly sting: StudioSting;
   private w = 0;
   private h = 0;
   private dpr = 1;
@@ -74,6 +81,7 @@ export class LoadingScreen extends Screen {
   private done: (() => void) | null = null;
   private readonly reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   private readonly onResize = () => this.resize();
+  private readonly onSkip = () => this.skipSting();
 
   constructor(parent: HTMLElement) {
     super(parent, 'loading');
@@ -82,7 +90,7 @@ export class LoadingScreen extends Screen {
     this.ctx = this.canvas.getContext('2d') as CanvasRenderingContext2D;
     this.root.appendChild(this.canvas);
     // accessible fallback text for screen readers
-    const sr = h('div', 'sr-only', 'ABDUZIU — carregando');
+    const sr = h('div', 'sr-only', 'Gueto Game Studio apresenta ABDUZIU — carregando');
     sr.setAttribute('role', 'status');
     this.root.appendChild(sr);
     this.grain = document.createElement('canvas');
@@ -95,6 +103,8 @@ export class LoadingScreen extends Screen {
       img.data[i + 3] = 255;
     }
     g.putImageData(img, 0, 0);
+    this.grainPattern = this.ctx.createPattern(this.grain, 'repeat');
+    this.sting = new StudioSting(this.reduced);
   }
 
   start(): void {
@@ -102,6 +112,8 @@ export class LoadingScreen extends Screen {
     this.root.classList.add('visible');
     this.resize();
     window.addEventListener('resize', this.onResize);
+    this.root.addEventListener('pointerdown', this.onSkip);
+    window.addEventListener('keydown', this.onSkip);
     try {
       void document.fonts?.load(`italic 900 80px ${TITLE_FONT}`);
       void document.fonts?.load(`500 14px ${HUD_FONT}`);
@@ -135,8 +147,21 @@ export class LoadingScreen extends Screen {
     this.labelAt = this.now();
   }
 
-  private now(): number {
+  /** Seconds since start (sting included). */
+  private realNow(): number {
     return performance.now() / 1000 - this.startAt;
+  }
+
+  /** ABDUZIU scene time: negative while the studio sting plays. */
+  private now(): number {
+    return this.realNow() - this.sting.duration;
+  }
+
+  /** Jumps to the moment the studio frame opens (the logo was seen, the player wants in). */
+  private skipSting(): void {
+    const target = this.reduced ? this.sting.duration - 0.45 : PORTAL_AT;
+    const r = this.realNow();
+    if (r < target) this.startAt -= target - r;
   }
 
   private resize(): void {
@@ -199,6 +224,12 @@ export class LoadingScreen extends Screen {
     this.flash = Math.max(0, this.flash - dt * 2.4);
 
     const out = this.outroAt >= 0 ? clamp01((t - this.outroAt) / OUTRO) : 0;
+    const r = this.realNow();
+    if (r < this.sting.duration) {
+      this.canvas.style.opacity = '1';
+      this.sting.draw(this.ctx, this.w, this.h, this.dpr, r, dt, this.reduced ? null : this.grainPattern, () => this.draw(t, dt, 0));
+      return;
+    }
     this.draw(t, dt, out);
     if (this.outroAt >= 0 && out >= 1) this.end();
   }
@@ -206,6 +237,8 @@ export class LoadingScreen extends Screen {
   private end(): void {
     cancelAnimationFrame(this.raf);
     window.removeEventListener('resize', this.onResize);
+    this.root.removeEventListener('pointerdown', this.onSkip);
+    window.removeEventListener('keydown', this.onSkip);
     this.hideNow();
     const d = this.done;
     this.done = null;
