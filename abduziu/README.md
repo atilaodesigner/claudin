@@ -227,12 +227,12 @@ Projeto Supabase **abduziu** (`dhdtawdkmzcuoklzyqig`). O jogo continua 100% jog�
 **Banco:** migration em `supabase/migrations/20260927160000_abduziu_online.sql` (já aplicada no projeto).
 
 **Configurar no painel da Supabase (uma vez):**
-1. *Authentication → URL Configuration:* em **Site URL** coloque o domínio do jogo (ex.: `https://abduziu.vercel.app`) e em **Redirect URLs** adicione esse domínio + `http://localhost:5173` pro dev.
+1. *Authentication → URL Configuration:* em **Site URL** coloque `https://abduziu.fun` e em **Redirect URLs** adicione `https://abduziu.fun/**`, `https://www.abduziu.fun/**`, `https://*.abduziu.pages.dev/**` (prévias da Cloudflare) e `http://localhost:5173/**` pro dev.
 2. *Authentication → Providers → Google:* ative e cole o Client ID/Secret criados no Google Cloud Console (OAuth "Web application", redirect `https://dhdtawdkmzcuoklzyqig.supabase.co/auth/v1/callback`).
 3. *Authentication → Email Templates → Magic Link:* acrescente `Código: {{ .Token }}` pra quem abre o e-mail em outro app/aparelho poder digitar o código no jogo.
 4. Pra volume real de e-mails, configure um SMTP próprio (o SMTP padrão da Supabase tem limite baixo por hora).
 
-**Hospedagem:** o login precisa de domínio próprio (Vercel, Netlify, Cloudflare Pages). A prévia no claude.ai bloqueia chamadas externas, então aquela cópia é gerada com `VITE_ONLINE=off` e mostra "versão demo".
+**Hospedagem:** Cloudflare Pages no domínio **abduziu.fun** (raiz `abduziu`, build `npm run build`, saída `dist`; cache em `public/_headers`). A prévia no claude.ai bloqueia chamadas externas, então aquela cópia é gerada com `VITE_ONLINE=off` e mostra "versão demo".
 
 **Outros projetos/ambientes:** copie `.env.example` pra `.env` e troque URL/chave publicável. Nunca use a `service_role` no cliente.
 
