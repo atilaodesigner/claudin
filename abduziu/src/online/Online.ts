@@ -219,6 +219,20 @@ export class Online {
     return window.location.origin + window.location.pathname;
   }
 
+  /** Provedores ligados no painel da Supabase (o botão do Google só aparece se estiver ativo). */
+  providers: { google: boolean; email: boolean } | null = null;
+  async loadProviders(): Promise<void> {
+    if (this.providers || !ONLINE_CONFIG.enabled) return;
+    try {
+      const r = await fetch(`${ONLINE_CONFIG.url}/auth/v1/settings`, { headers: { apikey: ONLINE_CONFIG.key } });
+      const j = (await r.json()) as { external?: Record<string, boolean> };
+      this.providers = { google: !!j.external?.google, email: j.external?.email !== false };
+    } catch {
+      this.providers = { google: false, email: true };
+    }
+    this.emit();
+  }
+
   // ───────────────────────────── auth
 
   async signInWithGoogle(): Promise<void> {

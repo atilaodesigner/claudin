@@ -39,6 +39,7 @@ export class AccountScreen extends Screen {
     this.render();
     this.show();
     if (this.online.enabled && this.online.status === 'idle') void this.online.init();
+    void this.online.loadProviders();
   }
 
   override hide(): void {
@@ -124,8 +125,11 @@ export class AccountScreen extends Screen {
       await o.signInWithGoogle();
       return 'Abrindo o Google...';
     }));
-    c.appendChild(google);
-    c.appendChild(h('div', 'acc-or', 'OU COM E-MAIL'));
+    const hasGoogle = !!o.providers?.google;
+    if (hasGoogle) {
+      c.appendChild(google);
+      c.appendChild(h('div', 'acc-or', 'OU COM E-MAIL'));
+    }
     const email = this.input('email', 'seu@email.com', this.pendingEmail);
     const send = h('button', 'btn ghost', this.pendingEmail ? 'REENVIAR' : 'RECEBER LINK DE ACESSO');
     onTap(send, () => void this.run(send, async () => {
