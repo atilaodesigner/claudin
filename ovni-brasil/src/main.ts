@@ -33,8 +33,14 @@ boot().catch((err: unknown) => {
   showFatal('Falha ao iniciar o jogo.');
 });
 
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
+// embedded copies (iframes) don't get offline mode
+if ('serviceWorker' in navigator && import.meta.env.PROD && window.self === window.top) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(() => undefined);
+    // sandboxed frames (embeds, previews) throw on access instead of rejecting
+    try {
+      navigator.serviceWorker.register('./sw.js').catch(() => undefined);
+    } catch {
+      /* offline mode unavailable here */
+    }
   });
 }
