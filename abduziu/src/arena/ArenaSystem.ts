@@ -756,7 +756,7 @@ export class ArenaSystem {
       const y = clamp((-_vis.y * 0.5 + 0.5) * hh, 40, hh - 10);
       b.label.style.transform = `translate(-50%,-100%) translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
       const danger = b.tier >= pt + EAT_MARGIN ? 'bad' : pt >= b.tier + EAT_MARGIN ? 'prey' : '';
-      const text = `${b.name} · ${formatInt(b.matter)}`;
+      const text = b.name;
       if (b.label.textContent !== text) b.label.textContent = text;
       if (b.label.dataset.k !== danger) {
         b.label.dataset.k = danger;

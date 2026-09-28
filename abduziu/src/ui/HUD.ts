@@ -392,7 +392,8 @@ export class HUD {
     f.max = duration;
     f.pos.copy(world);
     f.el.textContent = text;
-    f.el.style.fontSize = `${size}px`;
+    // everything that pops up over the saucer stays discreet: ~70% of the asked size
+    f.el.style.fontSize = `calc(${(size * 0.7).toFixed(1)}px * var(--ui-scale))`;
     f.el.style.setProperty('--tone', tone);
     f.el.style.display = '';
   }
@@ -409,12 +410,12 @@ export class HUD {
       }
       _v.copy(f.pos).project(camera);
       const x = (_v.x * 0.5 + 0.5) * w;
-      const y = (-_v.y * 0.5 + 0.5) * hgt - t * 60;
-      const s = t < 0.15 ? 0.6 + (t / 0.15) * 0.6 : 1.2 - Math.min(0.2, (t - 0.15) * 0.5);
+      const y = (-_v.y * 0.5 + 0.5) * hgt - t * 38;
+      const s = t < 0.12 ? 0.75 + (t / 0.12) * 0.3 : 1.05 - Math.min(0.1, (t - 0.12) * 0.3);
       f.el.style.transform = `translate(-50%,-50%) translate(${x.toFixed(1)}px,${y.toFixed(1)}px) scale(${s.toFixed(3)})`;
       f.el.style.left = '0';
       f.el.style.top = '0';
-      f.el.style.opacity = `${t > 0.7 ? (1 - t) / 0.3 : 1}`;
+      f.el.style.opacity = `${(t > 0.65 ? (1 - t) / 0.35 : 1) * 0.92}`;
     }
   }
 

@@ -464,10 +464,10 @@
   font-family: var(--font-title);
   font-weight: 900;
   font-style: italic;
-  font-size: calc(44px * var(--ui-scale));
+  font-size: calc(32px * var(--ui-scale));
   line-height: 0.95;
   color: #fff;
-  text-shadow: 0 3px 0 rgba(0, 0, 0, 0.45), 0 0 22px var(--combo-glow, rgba(93, 255, 160, 0.8));
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45), 0 0 12px var(--combo-glow, rgba(93, 255, 160, 0.7));
   transform: scale(var(--combo-punch, 1));
 }
 .hud .combo-label {
@@ -775,9 +775,9 @@
   font-family: var(--font-title);
   font-weight: 900;
   font-style: italic;
-  font-size: calc(50px * var(--ui-scale));
+  font-size: calc(36px * var(--ui-scale));
   color: #fff;
-  text-shadow: 0 4px 0 rgba(0, 0, 0, 0.4), 0 0 30px var(--tone, var(--alien-green));
+  text-shadow: 0 3px 0 rgba(0, 0, 0, 0.4), 0 0 16px var(--tone, var(--alien-green));
   opacity: 0;
 }
 .banner .bsub {
@@ -792,8 +792,8 @@
 @keyframes bannerIn {
   0% {
     opacity: 0;
-    transform: scale(1.8);
-    letter-spacing: 0.3em;
+    transform: scale(1.3);
+    letter-spacing: 0.15em;
   }
   12% {
     opacity: 1;
@@ -853,11 +853,11 @@
   transform: translate(-50%, -50%);
   pointer-events: none;
   font-family: var(--font-title);
-  font-weight: 900;
+  font-weight: 800;
   font-style: italic;
   white-space: nowrap;
   color: #fff;
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5), 0 0 14px var(--tone, var(--alien-green));
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.55), 0 0 7px var(--tone, var(--alien-green));
 }
 
 .missile-ind {
@@ -2316,13 +2316,13 @@ svg.brazil .pin.sel .dot {
     top: calc(var(--safe-top) + 118px);
   }
   .hud .combo-count {
-    font-size: calc(36px * var(--ui-scale));
+    font-size: calc(26px * var(--ui-scale));
   }
   .toasts {
     top: calc(var(--safe-top) + 190px);
   }
   .banner {
-    font-size: calc(30px * var(--ui-scale));
+    font-size: calc(22px * var(--ui-scale));
     top: 30%;
   }
   .tutorial .t {
@@ -2424,7 +2424,7 @@ svg.brazil .pin.sel .dot {
     font-size: 18px;
   }
   .hud .combo-count {
-    font-size: calc(36px * var(--ui-scale));
+    font-size: calc(26px * var(--ui-scale));
   }
   .ability {
     width: calc(66px * var(--ui-scale));
@@ -2843,20 +2843,27 @@ svg.brazil .pin.sel .dot {
   position: absolute;
   left: 0;
   top: 0;
-  padding: 2px 7px;
+  max-width: calc(120px * var(--ui-scale));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 4px 1px;
   font-family: var(--font-hud);
-  font-size: calc(10px * var(--ui-scale));
-  letter-spacing: 0.08em;
+  font-size: calc(8.5px * var(--ui-scale));
+  line-height: 1.35;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   white-space: nowrap;
-  color: #fff;
-  background: rgba(2, 10, 8, 0.55);
-  border-bottom: 2px solid var(--c);
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(2, 10, 8, 0.32);
+  border-bottom: 1px solid var(--c);
+  border-radius: 2px;
+  opacity: 0.85;
   pointer-events: none;
   will-change: transform;
 }
 .arena-tag.bad {
-  background: rgba(120, 10, 24, 0.7);
+  opacity: 1;
+  background: rgba(120, 10, 24, 0.55);
   border-bottom-color: #ff4d5e;
 }
 .arena-tag.bad::before {

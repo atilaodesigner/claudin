@@ -290,7 +290,7 @@ export class RunController {
     g.beam.onAbsorb();
     g.ufoVisuals.damageFlash = 0;
     if (tier >= 5 || obj.rarity !== 'normal' || enemyKind) {
-      g.hud.floatText(_v.copy(g.ufo.position).setY(g.ufo.position.y + g.stats.radius), `+${formatInt(score)}`, obj.rarity !== 'normal' ? `#${rarity.color.toString(16).padStart(6, '0')}` : 'var(--alien-green)', 18 + Math.min(16, tier * 2));
+      g.hud.floatText(_v.copy(g.ufo.position).setY(g.ufo.position.y + g.stats.radius), `+${formatInt(score)}`, obj.rarity !== 'normal' ? `#${rarity.color.toString(16).padStart(6, '0')}` : 'var(--alien-green)', 16 + Math.min(10, tier * 1.2));
     }
 
     if (res.milestone) {

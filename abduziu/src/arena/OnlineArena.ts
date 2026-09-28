@@ -349,12 +349,10 @@ export class OnlineArena {
       const y = clamp((-_p.y * 0.5 + 0.5) * hh, 40, hh - 10);
       r.label.style.transform = `translate(-50%,-100%) translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
       const danger = r.tier >= pt + EAT_MARGIN ? 'bad' : pt >= r.tier + EAT_MARGIN ? 'prey' : '';
-      // the room's #1 wears a crown; giants get a bigger name tag
+      // the room's #1 wears a crown; the tag itself stays small whatever the ship's size
       const crown = r.id === this.leaderId ? '♛ ' : '';
-      const text = `${crown}${r.bot ? '' : '● '}${r.name} · ${formatInt(r.m)}`;
+      const text = `${crown}${r.bot ? '' : '● '}${r.name}`;
       if (r.label.textContent !== text) r.label.textContent = text;
-      const fs = `${clamp(10 + r.radius * 0.45, 10, 26).toFixed(0)}px`;
-      if (r.label.style.fontSize !== fs) r.label.style.fontSize = fs;
       if (r.label.dataset.k !== danger) {
         r.label.dataset.k = danger;
         r.label.className = `arena-tag ${danger}`;
