@@ -1,0 +1,7 @@
+node_modules
+frames*/
+*.wav
+preview*/
+sheet_*.jpg
+p_*.log
+ff.txt
