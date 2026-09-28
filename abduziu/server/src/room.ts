@@ -14,6 +14,8 @@ export class ArenaRoom extends DurableObject {
   private loop: ReturnType<typeof setInterval> | null = null;
   private readonly city: string;
   private readonly seed: number;
+  /** Public name the router gave this room (friends use it to join each other). */
+  private name = '';
 
   constructor(ctx: DurableObjectState, env: unknown) {
     super(ctx, env);
@@ -27,6 +29,8 @@ export class ArenaRoom extends DurableObject {
 
   override async fetch(req: Request): Promise<Response> {
     const url = new URL(req.url);
+    const named = req.headers.get('X-Room');
+    if (named) this.name = named;
     if (url.pathname.endsWith('/count')) return Response.json({ players: this.sockets.size, city: this.city });
     if (req.headers.get('Upgrade') !== 'websocket') return new Response('expected websocket', { status: 426 });
     if (this.sockets.size >= MAX_PLAYERS) return new Response('room full', { status: 429 });
@@ -64,10 +68,12 @@ export class ArenaRoom extends DurableObject {
       const clean = (v: unknown, d: string) => (typeof v === 'string' && /^[a-z0-9_]{1,20}$/.test(v) ? v : d);
       this.sockets.set(id, ws);
       this.sim.addPlayer(id, name, color, now, clean(msg.skin, 'classico'), clean(msg.beam, 'verde'));
-      this.send(ws, { t: 'welcome', id, city: this.city, seed: this.seed, tile: TILE });
+      this.send(ws, { t: 'welcome', id, city: this.city, seed: this.seed, tile: TILE, room: this.name });
       this.ensureLoop();
     } else if (msg.t === 'st') {
       this.sim.playerState(id, Number(msg.x), Number(msg.z), Number(msg.vx), Number(msg.vz), Number(msg.m), !!msg.b, now);
+    } else if (msg.t === 'ping') {
+      this.sim.touch(id, now);
     } else if (msg.t === 'bye') {
       this.drop(id);
     }
@@ -111,10 +117,11 @@ export class ArenaRoom extends DurableObject {
     }
     // swallowed players and silent sockets leave the room
     for (const [id, at] of this.dead) if (now - at > 4000) this.drop(id);
-    for (const s of this.sim.players) if (now - s.seen > 12000) this.drop(s.id);
+    for (const id of this.sim.silent(now)) this.drop(id);
 
     const ships = [...this.sim.ships.values()]
-      .filter((s) => s.alive)
+      // players still loading/in their intro stay invisible until they start flying
+      .filter((s) => s.alive && (s.bot || s.flying))
       .map((s) => [s.id, s.name, s.color, +s.x.toFixed(2), +s.z.toFixed(2), +s.vx.toFixed(2), +s.vz.toFixed(2), Math.round(s.m), s.bot ? 1 : 0, s.skin, s.beamStyle]);
     const lb = this.sim.leaderboard(10);
     const players = this.sockets.size;

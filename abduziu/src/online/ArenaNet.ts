@@ -5,6 +5,8 @@ export interface Welcome {
   city: string;
   seed: number;
   tile: number;
+  /** Public room name (friends join it with ?room=). */
+  room?: string;
 }
 
 /** [id, name, color, x, z, vx, vz, matter, bot, skin, beam] */
@@ -35,9 +37,13 @@ export class ArenaNet {
   onEaten: ((by: string, byId: string) => void) | null = null;
   onClose: (() => void) | null = null;
   private closedByUs = false;
+  private pinger: ReturnType<typeof setInterval> | null = null;
 
-  /** Opens the socket and waits for the room's welcome. */
-  connect(name: string, color: number, skin = 'classico', beam = 'verde', timeoutMs = 7000): Promise<Welcome> {
+  /**
+   * Opens the socket and waits for the room's welcome. `room` joins a specific room
+   * (friends playing together); otherwise the server picks the first with free seats.
+   */
+  connect(name: string, color: number, skin = 'classico', beam = 'verde', room: string | null = null, timeoutMs = 7000): Promise<Welcome> {
     return new Promise((resolve, reject) => {
       let settled = false;
       const fail = (why: string) => {
@@ -49,17 +55,24 @@ export class ArenaNet {
       const timer = setTimeout(() => fail('timeout'), timeoutMs);
       let ws: WebSocket;
       try {
-        ws = new WebSocket(arenaUrl());
+        ws = new WebSocket(room ? `${arenaUrl()}?room=${encodeURIComponent(room)}` : arenaUrl());
       } catch {
         clearTimeout(timer);
         fail('unreachable');
         return;
       }
       this.ws = ws;
-      ws.onopen = () => ws.send(JSON.stringify({ t: 'hello', name, color, skin, beam }));
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ t: 'hello', name, color, skin, beam }));
+        // keep-alive while the city is still being built / the intro plays
+        this.pinger = setInterval(() => {
+          if (this.open) this.ws!.send('{"t":"ping"}');
+        }, 2000);
+      };
       ws.onerror = () => fail('unreachable');
       ws.onclose = () => {
         clearTimeout(timer);
+        this.stopPing();
         if (!settled) fail('closed');
         else if (!this.closedByUs) this.onClose?.();
       };
@@ -91,8 +104,14 @@ export class ArenaNet {
     this.ws!.send(JSON.stringify({ t: 'st', x: +x.toFixed(2), z: +z.toFixed(2), vx: +vx.toFixed(2), vz: +vz.toFixed(2), m: Math.round(m), b: beam ? 1 : 0 }));
   }
 
+  private stopPing(): void {
+    if (this.pinger) clearInterval(this.pinger);
+    this.pinger = null;
+  }
+
   close(): void {
     this.closedByUs = true;
+    this.stopPing();
     try {
       if (this.open) this.ws!.send(JSON.stringify({ t: 'bye' }));
       this.ws?.close();

@@ -3,6 +3,8 @@ import { AbductionSystem } from '../abduction/AbductionSystem';
 import { ArenaSystem } from '../arena/ArenaSystem';
 import { OnlineArena } from '../arena/OnlineArena';
 import { ArenaNet } from '../online/ArenaNet';
+import { randomCode, randomSecret, SocialNet } from '../online/SocialNet';
+import { LobbyScreen } from '../ui/LobbyScreen';
 import { ONLINE_MAX_SCALE } from '../arena/OnlineArena';
 import { DynamicObjectPool } from '../abduction/DynamicObjectPool';
 import { loadModelOverrides } from '../assets/AssetLoader';
@@ -206,6 +208,12 @@ export class Game {
   private diving = false;
   private readonly flashEl: HTMLDivElement;
   private flashOut = 0;
+  /** AMIGOS: friends hub connection and the online lobby. */
+  readonly social = new SocialNet();
+  private lobby!: LobbyScreen;
+  private inviteEl: HTMLDivElement | null = null;
+  /** Online room of the current/last online run (party replays go back there). */
+  private lastRoom: string | null = null;
   /** Extraction cinematic before the results: city → atmosphere → space. */
   private exitCine: { t: number; launched: boolean; open: () => void } | null = null;
 
@@ -350,6 +358,7 @@ export class Game {
     this.enterMenu();
     // restore a session / finish a login redirect without holding the boot
     if (Online.shouldBootEagerly()) void this.online.init();
+    this.startSocial();
     if (params.has('autostart')) void this.startRun((params.get('mode') as GameMode | null) ?? 'campanha', params.get('city') as CityId | null);
   }
 
@@ -429,7 +438,7 @@ export class Game {
     this.results.onAgain = () => {
       this.audio.ui('tap');
       this.results.hide();
-      if (this.run.mode === 'online') void this.joinOnline();
+      if (this.run.mode === 'online') void this.joinOnline(this.social.partySize > 1 ? this.lastRoom : null);
       else void this.startRun(this.run.mode, this.run.city.id);
     };
     this.results.onMeta = () => {
@@ -489,7 +498,7 @@ export class Game {
         const pool = CAMPAIGN.filter((c) => isUnlocked(this.save.get().campaign, c.id));
         const city = (pool[Math.floor(Math.random() * pool.length)] ?? CAMPAIGN[0]) as CityDef;
         void this.startRun('arena', city.id);
-      } else if (m === 'online') void this.joinOnline();
+      } else if (m === 'online') this.openLobby();
       else this.mapScreen.open(m, this.save.get());
     };
     this.mapScreen.onClose = () => {
@@ -548,6 +557,11 @@ export class Game {
     }
     // online RP is the source of truth while signed in
     const p = o.profile;
+    // a guest nick gives way to the account nickname
+    if (p && /^Visitante\d*$/.test(this.save.get().social.nick)) {
+      this.save.update((d) => (d.social.nick = p.nickname), true);
+      this.social.setNick(p.nickname);
+    }
     if (p && this.save.get().rank.rp !== p.rp && this.state !== 'playing') {
       this.save.update((d) => {
         d.rank.rp = p.rp;
@@ -563,7 +577,12 @@ export class Game {
       const cloud = await this.online.pullSave();
       const local = this.save.get();
       if (cloud && cloudWins(local, migrate(cloud.data))) {
+        const mine = { ...local.social };
         this.save.adopt(cloud.data);
+        if (!this.save.get().social.code && mine.code) this.save.update((d) => (d.social = mine), true);
+        // the account's friend identity follows it to this device
+        const id = this.save.get().social;
+        if (id.code !== mine.code && this.lobby) this.social.start(id.code, id.secret, id.nick || this.socialNick());
         this.applySettings(this.save.get().settings, false);
         this.applyLook();
         if (this.state === 'menu') this.refreshMenu();
@@ -648,7 +667,135 @@ export class Game {
       case 'account':
         this.accountScreen.open();
         break;
+      case 'friends':
+        this.openLobby();
+        break;
     }
+  }
+
+  // ───────────────────────────────────────────── friends & lobby
+
+  /** Nick shown to other players: the account nickname when signed in. */
+  private socialNick(): string {
+    const s = this.save.get().social;
+    return s.nick || this.online.profile?.nickname || 'Visitante';
+  }
+
+  private startSocial(): void {
+    const s = this.save.get().social;
+    if (!s.code || !s.secret || !s.nick) {
+      this.save.update((d) => {
+        if (!d.social.code) d.social.code = randomCode();
+        if (!d.social.secret) d.social.secret = randomSecret();
+        if (!d.social.nick) d.social.nick = this.online.profile?.nickname ?? `Visitante${Math.floor(1000 + Math.random() * 9000)}`;
+      }, true);
+    }
+    const lobby = (this.lobby = new LobbyScreen(this.ui));
+    const net = this.social;
+    lobby.onClose = () => {
+      this.audio.ui('back');
+      lobby.hide();
+      if (this.state === 'menu') this.menu.show();
+    };
+    lobby.onPlay = () => {
+      this.audio.ui('pick');
+      if (net.partySize > 1) {
+        if (net.isLeader) net.startParty();
+        return;
+      }
+      lobby.hide();
+      void this.joinOnline();
+    };
+    lobby.onNick = (nick) => {
+      this.save.update((d) => (d.social.nick = nick), true);
+      net.setNick(nick);
+    };
+    lobby.onAdd = (tag) => net.add(tag);
+    lobby.onAccept = (c) => net.accept(c);
+    lobby.onDecline = (c) => net.decline(c);
+    lobby.onRemove = (c) => net.remove(c);
+    lobby.onInvite = (c) => net.invite(c);
+    lobby.onJoin = (c) => net.joinFriend(c);
+    lobby.onLeaveParty = () => net.leaveParty();
+    net.onState = (st) => {
+      lobby.setState(st);
+      this.menu.setFriends(st.friends.filter((f) => f.online).length, st.requests.length);
+    };
+    net.onConnection = (up) => lobby.setConnected(up);
+    net.onToast = (text, ok) => {
+      if (lobby.visible || this.state === 'menu' || this.state === 'results') this.showNote(text, ok);
+    };
+    net.onInvite = (party, _from, nick) => this.showInvite(party, nick);
+    net.onGo = (room) => {
+      // the group leader started (or we asked to join a friend): straight into that room
+      if (this.state !== 'menu' && this.state !== 'results') return;
+      lobby.hide();
+      this.results.hide();
+      this.modeScreen.hide();
+      void this.joinOnline(room);
+    };
+    net.onTaken = () => {
+      // extremely rare: our random code was already someone else's
+      this.save.update((d) => {
+        d.social.code = randomCode();
+        d.social.secret = randomSecret();
+      }, true);
+      const n = this.save.get().social;
+      net.start(n.code, n.secret, n.nick);
+    };
+    const id = this.save.get().social;
+    net.start(id.code, id.secret, id.nick);
+  }
+
+  private openLobby(): void {
+    this.modeScreen.hide();
+    this.menu.hide();
+    this.lobby.open();
+  }
+
+  private showNote(text: string, ok: boolean): void {
+    const n = this.netNotice(text);
+    if (!ok) n.classList.add('bad');
+    setTimeout(() => n.remove(), 2600);
+  }
+
+  /** "X te chamou pro grupo" card with ACEITAR / AGORA NÃO. */
+  private showInvite(party: string, nick: string): void {
+    this.inviteEl?.remove();
+    if (this.state === 'playing' || this.state === 'extracting' || this.state === 'intro') {
+      this.hud.toast(`${nick.toUpperCase()} TE CHAMOU`, 'Aceite no lobby quando a partida acabar', 'info', 3);
+    }
+    const card = h('div', 'invite-card panel');
+    card.appendChild(h('div', 'ttl', 'CONVITE PRO GRUPO'));
+    card.appendChild(h('div', 'txt', `${nick} te chamou pra jogar online junto!`));
+    const row = h('div', 'row');
+    const yes = h('button', 'btn small', 'ACEITAR');
+    const no = h('button', 'btn ghost small', 'AGORA NÃO');
+    row.append(yes, no);
+    card.appendChild(row);
+    const close = () => {
+      card.remove();
+      if (this.inviteEl === card) this.inviteEl = null;
+    };
+    yes.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.audio.ui('pick');
+      this.social.joinParty(party);
+      close();
+      if (this.state === 'menu' || this.state === 'results') {
+        this.results.hide();
+        if (this.state === 'results') this.enterMenu();
+        this.openLobby();
+      }
+    });
+    no.addEventListener('click', (e) => {
+      e.stopPropagation();
+      close();
+    });
+    this.ui.appendChild(card);
+    this.inviteEl = card;
+    this.audio.ui('pick');
+    setTimeout(close, 20000);
   }
 
   private ensureLateScreens(): void {
@@ -747,6 +894,7 @@ export class Game {
 
   private enterMenu(): void {
     this.state = 'menu';
+    this.social.setRoom(null);
     this.exitCine = null;
     this.diving = false;
     this.setSpace(true);
@@ -1346,15 +1494,17 @@ export class Game {
   }
 
   /** ARENA ONLINE: joins a room first (the room decides the city and its seed). */
-  private async joinOnline(): Promise<void> {
-    const note = this.netNotice('CONECTANDO À ARENA ONLINE...');
+  private async joinOnline(room: string | null = null): Promise<void> {
+    const note = this.netNotice(room ? 'ENTRANDO NA SALA DO SEU GRUPO...' : 'CONECTANDO À ARENA ONLINE...');
     const net = new ArenaNet();
-    const name = this.online.profile?.nickname ?? `Visitante${Math.floor(1000 + Math.random() * 9000)}`;
+    const name = this.socialNick();
     try {
       const c = this.save.get().cosmetics;
-      const w = await net.connect(name, 0x5dffa0, c.skin, c.beam);
+      const w = await net.connect(name, 0x5dffa0, c.skin, c.beam, room);
       note.remove();
       this.pendingNet = net;
+      this.lastRoom = w.room ?? room;
+      this.social.setRoom(this.lastRoom);
       void this.startRun('online', w.city as CityId, w.seed);
     } catch {
       net.close();
@@ -1399,7 +1549,7 @@ export class Game {
       };
     }
     this.arenaSwallowed = false;
-    this.pvp.playerName = this.online.profile?.nickname ?? 'VOCÊ';
+    this.pvp.playerName = this.socialNick();
     this.pvp.start(net);
     this.hud.toast('PROTEÇÃO DE CHEGADA', '10 segundos sem poder ser engolido', 'info', 2.6);
   }
@@ -1417,6 +1567,7 @@ export class Game {
     this.audio.setSiren(0);
     this.audio.setMusic({ mode: 'menu', alert: 0, combo: 0, frenzy: false, boss: false });
     this.bus.emit('run:end', { reason });
+    if (this.run.mode === 'online') this.social.setRoom(null);
 
     const r = this.run;
     r.stats.maxAlert = Math.max(r.stats.maxAlert, r.threat.alert);

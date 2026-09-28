@@ -88,6 +88,8 @@ export interface SaveData {
   flags: { tutorialDone: boolean; introSeen: boolean; firstRunDone: boolean };
   /** LOJA: cosmetics owned and worn. */
   cosmetics: { owned: string[]; skin: string; beam: string };
+  /** AMIGOS: public friend code, the device secret that owns it and the nick. */
+  social: { code: string; secret: string; nick: string };
 }
 
 export const SAVE_VERSION = 1;
@@ -111,6 +113,7 @@ export function defaultSettings(): Settings {
 export function defaultSave(): SaveData {
   return {
     cosmetics: { owned: ['skin:classico', 'beam:verde'], skin: 'classico', beam: 'verde' },
+    social: { code: '', secret: '', nick: '' },
     version: SAVE_VERSION,
     cores: 0,
     totalCoresEarned: 0,

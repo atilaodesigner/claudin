@@ -12,3 +12,12 @@ class_name = "ArenaRoom"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["ArenaRoom"]
+
+# friends, invites and parties (one global object)
+[[durable_objects.bindings]]
+name = "HUB"
+class_name = "Hub"
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["Hub"]

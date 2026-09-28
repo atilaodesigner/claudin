@@ -1,13 +1,14 @@
 import { formatInt } from '../utils/math';
 import { h, onTap, Screen } from './dom';
 
-export type MenuAction = 'play' | 'daily' | 'meta' | 'shop' | 'dex' | 'records' | 'settings' | 'account';
+export type MenuAction = 'play' | 'daily' | 'meta' | 'shop' | 'friends' | 'dex' | 'records' | 'settings' | 'account';
 
 /** Cinematic title: the city and the saucer live behind it. */
 export class MainMenu extends Screen {
   private readonly cores: HTMLSpanElement;
   private readonly dailyBtn: HTMLButtonElement;
   private readonly metaBtn: HTMLButtonElement;
+  private readonly friendsBtn: HTMLButtonElement;
   private readonly coords: HTMLDivElement;
   private readonly account: HTMLButtonElement;
   private readonly accountName: HTMLSpanElement;
@@ -32,9 +33,11 @@ export class MainMenu extends Screen {
 
     const links = h('div', 'links');
     this.metaBtn = h('button', 'btn ghost', 'Evoluções');
+    this.friendsBtn = h('button', 'btn ghost friends', 'Amigos');
     const items: Array<[string, MenuAction, HTMLButtonElement?]> = [
       ['Evoluções', 'meta', this.metaBtn],
       ['Loja', 'shop'],
+      ['Amigos', 'friends', this.friendsBtn],
       ['Coleção', 'dex'],
       ['Recordes', 'records'],
       ['Configurações', 'settings'],
@@ -109,6 +112,12 @@ export class MainMenu extends Screen {
     this.accountSub.textContent = sub;
     this.account.classList.toggle('on', color !== null);
     this.account.style.setProperty('--div', color ?? 'var(--alien-green)');
+  }
+
+  /** "Amigos · 2 online", with a dot when friend requests are waiting. */
+  setFriends(online: number, requests: number): void {
+    this.friendsBtn.textContent = online > 0 ? `Amigos · ${online} on` : 'Amigos';
+    this.friendsBtn.classList.toggle('alert', requests > 0);
   }
 
   refresh(cores: number, dailyBest: number | null, canBuy: boolean): void {

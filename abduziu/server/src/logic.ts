@@ -82,6 +82,8 @@ export interface Ship {
   born: number;
   /** A player has sent its first state (left the intro). */
   flying?: boolean;
+  /** Last keep-alive (ms) while loading. */
+  lastPing?: number;
   /** Cosmetics (ids from the client's LOJA). */
   skin: string;
   beamStyle: string;
@@ -123,6 +125,25 @@ export class RoomSim {
 
   removeShip(id: string): void {
     if (this.ships.delete(id)) this.events.push({ k: 'leave', id });
+  }
+
+  /** Keep-alive from a client that is still loading or in its intro. */
+  touch(id: string, now: number): void {
+    const s = this.ships.get(id);
+    if (s && !s.bot) s.lastPing = now;
+  }
+
+  /**
+   * Players to drop for silence: flying ships must report every few seconds, while one
+   * still building the city / watching the intro only has to keep its socket alive.
+   */
+  silent(now: number): string[] {
+    const out: string[] = [];
+    for (const s of this.players) {
+      const heard = Math.max(s.seen, s.lastPing ?? 0);
+      if (now - heard > (s.flying ? 12000 : 45000)) out.push(s.id);
+    }
+    return out;
   }
 
   /** A player's own report: position/velocity/matter. Matter growth is rate-limited. */
