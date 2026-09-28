@@ -84,6 +84,14 @@
     origEmp(mult);
   };
 
+  // growth videos level up every half second: keep one level-up burst per 1.6 s
+  const origLevelFx = g.vfx.levelUp.bind(g.vfx);
+  g.vfx.levelUp = (...a) => {
+    if (D.t - (D.lastLevelFx ?? -9) < 1.6) return;
+    D.lastLevelFx = D.t;
+    origLevelFx(...a);
+  };
+
   function step(dt = 1 / FPS) {
     D.now += dt * 1000;
     g.frame(dt, D.now);
@@ -152,7 +160,7 @@
   }
   function maxOneBeam() {
     g.upgrades.maxAll();
-    g.upgrades.levels.set('trator_multiplo', 0);
+    g.upgrades.levels.set('feixe_duplo', 0);
     g.upgrades.version++;
   }
   /** Keeps the combo from turning into the (purple) frenzy look. */
@@ -259,24 +267,22 @@
           D.state.path = [[beach.cx + dir * 6, z], [beach.cx + dir * 50, z + 4], [beach.cx + dir * 100, z - 3], [beach.cx + dir * 160, z + 3]];
           D.state.pi = 0;
         }
-        if (D.state.play) followPath(D.state.path, 0.95);
+        if (D.state.play) followPath(D.state.path, 0.55);
       };
     },
 
     /** One continuous take: a tiny saucer ends up eating the São Paulo skyline. */
     async gigante() {
-      await startRun('casual', 'sao_paulo');
+      await startRun('casual', 'rio');
       boost(4);
       noFrenzy();
-      // row 3: R C F F F F C R — houses, then shops, then the towers
-      const row = [0, 1, 2, 3, 4, 5, 6].map((c) => blockAt(c, 3)).filter(Boolean);
+      // Rio row 2: V R C L F F C — the favela, houses, shops, the Arcos da Lapa, the towers
+      const row = [0, 1, 2, 3, 4, 5, 6].map((c) => blockAt(c, 2)).filter(Boolean);
       const first = row[0];
-      placeUfo(first.cx - 10, first.cz + 24);
+      placeUfo(first.cx - 14, first.cz + 4);
       preroll(0.4);
-      const path = [[first.cx, first.cz + 24]];
-      for (const b of row.slice(1)) path.push([b.cx, b.cz + (path.length % 2 ? 6 : -6)]);
-      const up = blockAt(5, 2);
-      if (up) path.push([up.cx, up.cz]);
+      const path = [[first.cx, first.cz + 4]];
+      for (const b of row.slice(1)) path.push([b.cx, b.cz + (path.length % 2 ? 5 : -5)]);
       chaseCam(1, 0.5, 52, 0.55);
       D.update = (lt) => {
         noFrenzy();
@@ -290,7 +296,6 @@
     async frenesi() {
       await startRun('casual', 'sao_paulo');
       maxOneBeam();
-      g.maxBeam = true;
       setMatter(11000);
       const b = nearest(blocksOf('F', 'C'), 40, -60);
       placeUfo(b.cx - 60, b.cz + 6);
@@ -364,11 +369,13 @@
 
     /** Arena .io: a chain of swallowed saucers, each bigger than the last. */
     async arena() {
-      await startRun('arena', 'salvador');
+      await startRun('arena', 'recife');
       boost(3);
       const a = g.arena;
       a.time = 30;
       setMatter(160);
+      const home = nearest(blocksOf('R', 'U'), g.world.start.x, g.world.start.z);
+      placeUfo(home.cx - 30, home.cz);
       const p = g.ufo.position;
       const bots = a.bots;
       const preyMatter = [22, 70, 190, 480, 1300];
@@ -395,12 +402,17 @@
         b.pos.set(p.x - 150 - i * 20, b.pos.y, p.z + 120);
       });
       const scripted = new Set(prey);
+      const idle = new Set(rest);
       const feed = a.feed.bind(a);
       a.feed = (b) => {
-        if (!scripted.has(b)) feed(b);
+        if (!scripted.has(b) && !idle.has(b)) feed(b);
       };
       const move = a.move.bind(a);
       a.move = (b, dt) => {
+        if (idle.has(b)) {
+          b.vel.set(0, 0, 0);
+          return;
+        }
         if (!scripted.has(b)) return move(b, dt);
         const i = prey.indexOf(b);
         const sp = spots[i];
@@ -424,8 +436,8 @@
       };
       const think = a.think.bind(a);
       a.think = (b, dt, pt) => {
-        if (scripted.has(b)) {
-          b.mode = 'flee';
+        if (scripted.has(b) || idle.has(b)) {
+          b.mode = 'wander';
           return;
         }
         think(b, dt, pt);
@@ -470,6 +482,7 @@
       D.dt = 1 / FPS;
       D.camZoom = 1;
       D.events = [];
+      D.lastLevelFx = -9;
       g.cameraCtl.override = null;
       await SETUP[id]();
       D.recording = true;
