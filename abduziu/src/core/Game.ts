@@ -37,6 +37,7 @@ import { Lighting } from '../rendering/Lighting';
 import { PostProcessing } from '../rendering/PostProcessing';
 import { Renderer } from '../rendering/Renderer';
 import { Clouds, Sky } from '../rendering/Sky';
+import { DIVE_TIME, SpaceScene } from '../rendering/SpaceScene';
 import { createNoiseTexture, TextureAtlas } from '../rendering/TextureAtlas';
 import { worldUniforms } from '../rendering/WorldMaterial';
 import { LocalStorageBackend, MemoryBackend } from '../save/SaveBackend';
@@ -199,6 +200,14 @@ export class Game {
   private landmarkTargets: Array<{ alive: boolean; pos: Vector3 }> = [];
   /** City the current world was generated for. */
   private city: CityDef = getCity('nova_aurora');
+  /** Orbit scene (menu, the dive into a city, the launch back to space). */
+  private space!: SpaceScene;
+  private spaceOn = false;
+  private diving = false;
+  private readonly flashEl: HTMLDivElement;
+  private flashOut = 0;
+  /** Extraction cinematic before the results: city → atmosphere → space. */
+  private exitCine: { t: number; launched: boolean; open: () => void } | null = null;
 
   constructor(container: HTMLElement) {
     this.renderer = new Renderer(container.querySelector('#stage') as HTMLElement, {
@@ -237,9 +246,16 @@ export class Game {
     this.accountScreen = new AccountScreen(this.ui, this.online);
     this.fpsMeter = h('div', 'fps-meter');
     this.ui.appendChild(this.fpsMeter);
+    this.flashEl = h('div', 'space-flash');
+    this.ui.appendChild(this.flashEl);
+    // a tap skips the launch cinematic straight to the results
+    window.addEventListener('pointerdown', () => {
+      if (this.exitCine && this.exitCine.t > 0.4) this.skipExitCine();
+    });
 
     this.renderer.onResize((w, hgt) => {
       this.cameraCtl.resize(w, hgt);
+      this.space?.resize(w, hgt);
       this.post.setSize(w, hgt, this.renderer.pixelRatio);
       this.vfx?.particles.setViewportHeight(hgt * this.renderer.pixelRatio);
       this.input.touch.setRadius(Math.max(46, Math.min(80, Math.min(w, hgt) * 0.13)));
@@ -298,6 +314,10 @@ export class Game {
     this.lookBeam = getBeam(this.save.get().cosmetics.beam);
     this.ufoVisuals.applySkin(this.lookSkin);
     this.scene.add(this.ufoVisuals.root);
+    this.loading.progress(0.52, 'MAPEANDO O PLANETA...');
+    await nextFrame();
+    this.space = new SpaceScene(!this.input.isTouchDevice && !this.renderer.isSoftware);
+    this.space.resize(this.renderer.width, this.renderer.height);
     this.beam = new TractorBeam(this.noise);
     this.scene.add(this.beam.group);
     this.scene.add(this.shield.mesh);
@@ -717,8 +737,21 @@ export class Game {
 
   // ───────────────────────────────────────────── states
 
+  /** Moves the saucer between the orbit scene and the city scene. */
+  private setSpace(on: boolean): void {
+    if (on === this.spaceOn) return;
+    this.spaceOn = on;
+    if (on) this.space.holdUfo(this.ufoVisuals.root, this.ufoVisuals.body, this.ufoVisuals.underglow);
+    else this.space.releaseUfo(this.scene);
+  }
+
   private enterMenu(): void {
     this.state = 'menu';
+    this.exitCine = null;
+    this.diving = false;
+    this.setSpace(true);
+    this.space.startMenu();
+    this.results.root.classList.remove('over-space');
     this.quality.setCap(null);
     this.regrowth.reset(false);
     this.arena?.clear();
@@ -798,8 +831,9 @@ export class Game {
     // online rooms: everyone must build exactly the same city
     const seeded = mode === 'ranqueada' || mode === 'diaria' || mode === 'online';
     const wrap = mode === 'arena' || mode === 'online';
+    this.exitCine = null;
     if (this.worldDirty || seeded || city.id !== this.city.id || wrap !== !!this.world.wrap) {
-      this.intro.setBlackout(true);
+      if (!this.spaceOn) this.intro.setBlackout(true);
       await nextFrame();
       this.buildWorld(setup.seed, city, wrap);
     }
@@ -860,11 +894,21 @@ export class Game {
   private beginIntro(): void {
     const s = this.save.get();
     this.state = 'intro';
-    this.introTime = s.settings.skipIntro || new URLSearchParams(location.search).has('skipintro') ? 4.2 : 0;
+    const skip = s.settings.skipIntro || new URLSearchParams(location.search).has('skipintro');
+    this.introTime = skip ? 4.2 : 0;
     this.introSkippable = s.flags.introSeen;
     this.intro.setSkippable(this.introSkippable);
     this.intro.show();
-    this.intro.setBlackout(!s.settings.skipIntro);
+    this.intro.setBlackout(!skip);
+    this.diving = !skip;
+    if (this.diving) {
+      // from orbit straight down to this city's spot on the globe
+      this.setSpace(true);
+      this.space.setTrailColor(beamColorAt(this.lookBeam, this.time.realElapsed));
+      this.space.startDive(this.city.lat, this.city.lon);
+      this.introTime = -DIVE_TIME;
+      this.intro.setBlackout(false);
+    } else this.setSpace(false);
     this.intro.showLocate(false);
     this.intro.clearRadio();
     this.hud.show(false);
@@ -885,6 +929,33 @@ export class Game {
 
   private updateIntro(dt: number): void {
     this.introTime += this.time.realDelta;
+    if (this.diving) {
+      const dt0 = this.introTime + DIVE_TIME;
+      if (this.introStep === 0) {
+        this.introStep = 1;
+        this.audio.radio();
+        this.audio.staticBurst(1.2);
+        this.intro.say(...this.city.radio[0]);
+      }
+      if (this.introStep === 1 && dt0 >= 1.7) {
+        this.introStep = 2;
+        this.audio.radio();
+        this.intro.say(...this.city.radio[1]);
+      }
+      this.ufoVisuals.update(this.time.realDelta, 0.15);
+      if (this.introTime > 50) {
+        // skipped
+        this.diving = false;
+        this.setSpace(false);
+      } else if (this.space.done || this.introTime >= 0) {
+        // through the atmosphere: the white flash fades into the cloud descent
+        this.diving = false;
+        this.setSpace(false);
+        this.introTime = 2.4;
+        this.introStep = 2;
+        this.flashOut = 1;
+      } else return;
+    }
     const t = this.introTime;
     const start = this.world.start;
     if (this.introStep === 0 && t >= 0) {
@@ -936,6 +1007,8 @@ export class Game {
   }
 
   private finishIntro(): void {
+    this.diving = false;
+    this.setSpace(false);
     this.intro.hide();
     this.intro.setBlackout(false);
     this.intro.showLocate(false);
@@ -1418,7 +1491,7 @@ export class Game {
       if (d.history.length > 30) d.history.shift();
     }, true);
     const goal = this.meta.nextGoal();
-    this.results.open({
+    const payload: Parameters<ResultsScreen['open']>[0] = {
       extracted,
       quit: reason === 'quit',
       score: s.score,
@@ -1452,7 +1525,11 @@ export class Game {
             return { delta: rank.delta, rp: rank.rp, division: b.division.name, color: b.division.color, promoted: b.division.min > a.min, demoted: b.division.min < a.min, progress: b.progress };
           })()
         : null,
-    });
+    };
+    const skipCine = this.save.get().settings.skipIntro || new URLSearchParams(location.search).has('skipintro');
+    if (reason === 'extracted' && !skipCine) {
+      this.exitCine = { t: 0, launched: false, open: () => this.openResults(payload) };
+    } else this.openResults(payload);
     if (rank) this.submitRankedOnline({ city: r.city.id, seed: r.seed, score: s.score, objects: s.objects, duration: r.time, extracted });
     // cinematic: the city shrinks below the departing saucer
     const from = this.ufo.position.clone();
@@ -1465,6 +1542,45 @@ export class Game {
     };
     this.ufo.frozen = true;
     this.run.hidePortal();
+  }
+
+  private openResults(payload: Parameters<ResultsScreen['open']>[0]): void {
+    this.results.root.classList.toggle('over-space', this.spaceOn);
+    this.results.open(payload);
+  }
+
+  /** City shrinks below (1 s), white-out, then the saucer leaves the atmosphere. */
+  private updateExitCine(rdt: number): void {
+    const c = this.exitCine;
+    if (!c) return;
+    c.t += rdt;
+    if (!c.launched) {
+      this.flashOut = Math.max(this.flashOut, clamp((c.t - 0.75) / 0.25, 0, 1));
+      if (c.t >= 1.0) {
+        c.launched = true;
+        this.setSpace(true);
+        this.space.setTrailColor(beamColorAt(this.lookBeam, this.time.realElapsed));
+        this.space.startLaunch(this.run.city.lat, this.run.city.lon);
+        this.flashOut = 0;
+      }
+    } else {
+      this.ufoVisuals.update(rdt, 0.15);
+      if (this.space.done) {
+        this.exitCine = null;
+        c.open();
+      }
+    }
+  }
+
+  private skipExitCine(): void {
+    const c = this.exitCine;
+    if (!c) return;
+    this.exitCine = null;
+    this.setSpace(true);
+    this.space.startLaunch(this.run.city.lat, this.run.city.lon);
+    this.space.skipToOrbit();
+    this.flashOut = 0.6;
+    c.open();
   }
 
   // ───────────────────────────────────────────── frame
@@ -1494,6 +1610,7 @@ export class Game {
         break;
       case 'results':
         this.updateAmbient(dt);
+        this.updateExitCine(rdt);
         break;
       default:
         break;
@@ -1813,6 +1930,19 @@ export class Game {
   }
 
   private renderFrame(dt: number, rdt: number): void {
+    this.flashOut = Math.max(0, this.flashOut - rdt * 1.8);
+    if (this.spaceOn) {
+      this.space.update(rdt, this.time.realElapsed);
+      this.flashEl.style.opacity = Math.max(this.space.flash, this.flashOut).toFixed(3);
+      const pre = this.post.prePass;
+      this.post.prePass = null;
+      this.post.update(rdt);
+      this.renderer.gl.info.reset();
+      this.post.render(this.space.scene, this.space.camera, this.time.realElapsed);
+      this.post.prePass = pre;
+      return;
+    }
+    this.flashEl.style.opacity = this.flashOut.toFixed(3);
     const r = this.run;
     const focus = this.state === 'menu' ? this.ufo.position : this.cameraCtl.focus;
     const frenzy = !!r && r.combo.frenzy && this.state === 'playing';

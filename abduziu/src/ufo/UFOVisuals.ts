@@ -54,6 +54,8 @@ export class UFOVisuals {
   private readonly ringMat: MeshStandardMaterial;
   private readonly finMat: MeshStandardMaterial;
   private readonly underglowMat: MeshBasicMaterial;
+  /** Light pool under the hull (reads as a glow on the ground; hidden in space). */
+  underglow!: Mesh;
   /** Super-class extras (built lazily). */
   private crown: Group | null = null;
   private corona: Mesh | null = null;
@@ -199,7 +201,7 @@ export class UFOVisuals {
     this.addStage(30, this.halo as unknown as Mesh);
 
     this.underglowMat = new MeshBasicMaterial({ color: 0x3dff9a, transparent: true, opacity: 0.18, blending: AdditiveBlending, depthWrite: false, side: DoubleSide });
-    const underglow = new Mesh(new CircleGeometry(1.1, 32), this.underglowMat);
+    const underglow = (this.underglow = new Mesh(new CircleGeometry(1.1, 32), this.underglowMat));
     underglow.rotation.x = Math.PI / 2;
     underglow.position.y = -0.36;
     this.body.add(underglow);
