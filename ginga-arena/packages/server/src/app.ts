@@ -1,4 +1,4 @@
-import { Server, WebSocketTransport } from 'colyseus';
+import { Server, WebSocketTransport, matchMaker } from 'colyseus';
 import { ROOM_NAME, initPhysics } from '@ginga/shared';
 import { MatchRoom } from './MatchRoom';
 
@@ -10,6 +10,11 @@ export async function startServer(port: number): Promise<Server> {
     express: (app) => {
       app.get('/health', (_req: unknown, res: { json(body: unknown): void }) => {
         res.json({ ok: true });
+      });
+      // diagnostics for the latency lab: per-room input stats (late / dropped frames)
+      app.get('/stats', async (_req: unknown, res: { json(body: unknown): void }) => {
+        const rooms = await matchMaker.query({});
+        res.json(rooms.map((r) => (matchMaker.getLocalRoomById(r.roomId) as MatchRoom | undefined)?.getStats()).filter(Boolean));
       });
     },
   });

@@ -17,6 +17,13 @@ const LEVELS: Record<BotLevel, { delay: number; readError: number; attackRisk: n
   hard: { delay: 10, readError: 0.12, attackRisk: 0.8 },
 };
 
+/** Ballistic projection `ticks` ahead (ignores the net and the sand). */
+function project(b: { x: number; y: number; vx: number; vy: number; held: boolean }, ticks: number): { x: number; y: number; vx: number; vy: number } {
+  if (b.held) return b;
+  const t = ticks / 60;
+  return { x: b.x + b.vx * t, y: Math.max(BALL.radius, b.y + b.vy * t - (BALL.gravity * t * t) / 2), vx: b.vx, vy: b.vy - BALL.gravity * t };
+}
+
 /** Where (x) the ball will be when it falls to height `h`, ignoring the net. */
 function landingX(b: { x: number; y: number; vx: number; vy: number }, h: number): number {
   const g = BALL.gravity;
@@ -50,7 +57,12 @@ export class Bot {
 
   /** Feed the current state every tick; returns this tick's buttons. */
   think(now: MatchState): number {
-    this.history.push(now);
+    // keep a light copy: the live state object is mutated in place every tick
+    this.history.push({
+      ...now,
+      ball: { ...now.ball },
+      players: now.players.map((p) => ({ ...p, act: p.act ? { ...p.act } : null })),
+    });
     if (this.history.length > this.cfg.delay + 1) this.history.shift();
     const s = this.history[0]!;
     const me = s.players[this.slot];
@@ -77,10 +89,14 @@ export class Bot {
       return 0;
     }
 
-    const ball = s.ball;
-    const mine = s.side === me.team || (ball.vx * f < 0 && Math.abs(ball.x) < 3);
+    // The ball is read with a delay, but motion is anticipated (projected to the present,
+    // plus the wind-up of the action); the bot's own body is known live.
+    const self = now.players[this.slot] ?? me;
+    const ahead = (ticks: number) => project(s.ball, ticks);
+    const ballNow = ahead(this.cfg.delay);
+    const mine = s.side === self.team || (ballNow.vx * f < 0 && Math.abs(ballNow.x) < 3);
     let targetX = -f * COURT.half * 0.5;
-    if (mine && !ball.held) {
+    if (mine && !s.ball.held) {
       if (this.plan.forPossessionTouch !== s.rallyContacts) {
         this.plan.forPossessionTouch = s.rallyContacts;
         this.plan.err = (this.rand() * 2 - 1) * this.cfg.readError;
@@ -88,27 +104,29 @@ export class Bot {
         this.plan.aimDir = r < 0.33 ? -1 : r < 0.66 ? 0 : 1;
         this.plan.jumpAttack = this.rand() < this.cfg.attackRisk;
       }
-      const contactH = this.plan.jumpAttack && s.touches === 2 ? 2.2 : 1.0;
-      targetX = landingX(ball, contactH) - f * CONTACT.ideal + this.plan.err;
-      const lo = me.team === 0 ? -(COURT.half + COURT.freeZone) : COURT.netGap;
-      const hi = me.team === 0 ? -COURT.netGap : COURT.half + COURT.freeZone;
+      const contactH = this.plan.jumpAttack && now.touches === 2 ? 2.2 : 1.0;
+      targetX = landingX(ballNow, contactH) - f * CONTACT.ideal + this.plan.err;
+      const lo = self.team === 0 ? -(COURT.half + COURT.freeZone) : COURT.netGap;
+      const hi = self.team === 0 ? -COURT.netGap : COURT.half + COURT.freeZone;
       targetX = Math.max(lo, Math.min(hi, targetX));
     }
-    const dx = targetX - me.x;
+    const dx = targetX - self.x;
     if (dx > 0.12) b |= Btn.Right;
     else if (dx < -0.12) b |= Btn.Left;
 
-    if (mine && !ball.held && s.side === me.team) {
-      const relX = (ball.x - me.x) * f;
-      const relY = ball.y - me.y;
-      const near = relX > -0.4 && relX < 1.1 && ball.vy < 1;
+    if (mine && !s.ball.held && now.side === self.team) {
       // the touch count is known for sure (it's on the HUD); only the ball read is delayed
-      const nextTouch = now.possession === me.team && now.side === me.team ? now.touches + 1 : 1;
+      const nextTouch = now.possession === self.team ? now.touches + 1 : 1;
       const wantAttack = nextTouch >= MATCH.maxTouches || (nextTouch === 2 && this.plan.jumpAttack);
+      const wind = wantAttack ? 6 : 3;
+      const at = ahead(this.cfg.delay + wind);
+      const relX = (at.x - self.x) * f;
+      const relY = at.y - self.y;
+      const near = relX > -0.4 && relX < 1.0 && at.vy < 1;
       if (nextTouch > MATCH.maxTouches) {
         // let it go: a fourth touch is a fault
-      } else if (wantAttack && this.plan.jumpAttack && me.grounded && near && relY > 2.3 && relY < 3.3) press(Btn.Jump);
-      else if (near && relY < (me.grounded ? 1.9 : 2.6) && relY > 0.1) {
+      } else if (wantAttack && this.plan.jumpAttack && self.grounded && near && relY > 2.3 && relY < 3.3) press(Btn.Jump);
+      else if (near && relY < (self.grounded ? 1.9 : 2.6) && relY > 0.1) {
         b &= ~(Btn.Left | Btn.Right);
         const aim = wantAttack ? this.plan.aimDir : nextTouch === 1 ? 0 : 1;
         if (aim === 1) b |= f > 0 ? Btn.Right : Btn.Left;

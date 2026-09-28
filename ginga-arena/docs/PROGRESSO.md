@@ -44,8 +44,69 @@ Legenda: ✅ executado (com evidência) · 🧪 medido · 📋 planejado · ⚠�
   | médio | 7,9 | 4,8 | 9 em 83 |
   | difícil | 6,6 | 2,8 | 8 em 71 |
 
+## 2026-09-28: B2 (servidor), B3/B4 (cliente jogável e netcode) e B5 (laboratório)
+
+**B2, servidor (executado):**
+- ✅ `MatchRoom`: código de 4 caracteres sem O/0/I/1 (é o próprio `roomId`), 2 vagas, apelido sanitizado, pronto/cancelar, contagem, simulação a 60 Hz, snapshots a 20 Hz com `ack`, eventos com id crescente mesmo entre revanches, revanche por votos, pausa na queda + `allowReconnection(15 s)`, limite de 3 quedas / 45 s, W.O. por saída ou tempo esgotado, log opcional de inputs + semente (`GINGA_LOG_DIR`), `/health` e `/stats`.
+- ✅ Validação de input: só bits, `seq` crescente, janela de tick [−6, +30], lote ≤ 8 frames, *token bucket* 90/s (rajada 30), 20 violações/min → desconecta. Inputs atrasados: movimento aplicado agora, toques/pulos mesclados (um toque atrasado não se perde).
+- 🐛 Achado e corrigido: `patchRate = null` antes do `setFixedTimestep` travava o relógio da sala (D-19).
+- ✅ `npm test` (server): **7 testes de integração com clientes reais do SDK**, todos passando: código e entrada; recusa de versão, sala cheia e código inexistente; apelido limpo; partida com os dois recebendo o mesmo ponto; input adulterado (posição, força, placar, bits inválidos, tick no futuro) sem efeito, com flood derrubando o cliente; W.O. ao sair; queda → pausa → reconexão por token na mesma vaga.
+
+**B3/B4, cliente (executado):**
+- ✅ Telas: abertura → título → Início (apelido, criar sala, entrar por código, treino, contra bot com nível, controles, reduzir movimento/efeitos, volume) → Sala (código grande, copiar link, compartilhar, vagas, pronto) → Partida → Resultado (estatísticas, revanche) + menu/pausa, sobreposição de reconexão, avisos de erro (sala cheia, código inválido, versão nova, servidor fora), convite por `?sala=`, volta automática à partida depois de recarregar a página (token em `sessionStorage`).
+- ✅ Arena "Orla do Posto 7½" em código: quadra com linhas, chinelos nos cantos, rede com fita, calçadão com ondas originais, quiosque Coco & Cia, guarda-sóis, cadeiras, caixa térmica, bicicletas, prédios, morro, torcida e o cachorro caramelo (abana o rabo, anima nos pontos). Avatares procedurais da Duda e do Juninho (silhuetas diferentes, olhar para a rede, pernas animadas pelas janelas de ação da simulação), bola maior que a física para leitura, sombra da bola sempre ativa, rastro em ataques, estrela no contato (dourada no perfeito), areia no chão, câmera lateral sem cortes com tremor opcional, indicador de bola acima da tela.
+- ✅ HUD: placar com ▲/●, quem saca, bolinhas de toques restantes (a última pisca), ponto de partida, contagem, "Sua vez de sacar · 5s", faltas ("Caiu!", "Pra fora!", "Quatro toques!"…), "De primeira!", "Boa!", "Essa foi bonita!", ping. F3 abre o painel de rede.
+- ✅ Som sintetizado (WebAudio), com panorâmica pela posição da jogada.
+- ✅ Controles: teclado, controle e toque (◀ ▶ + Pular/Toque/Ataque, com deslizar entre ◀ e ▶).
+- ✅ Netcode: relógio por mediana, adiantamento dinâmico, previsão do próprio avatar com reconciliação suavizada, interpolação do adversário, bola em duas linhas do tempo, toque previsto e confirmado pelo servidor, deduplicação de eventos.
+- ✅ Bundle: abertura **6,7 KB gzip** (aparece na hora); jogo em chunk separado de **~1,9 MB gzip** (1,68 MB é o WASM do Rapier embutido), carregado enquanto a vinheta roda.
+- ✅ Verificado no Chromium (Playwright): menu, partida contra bot, duas abas online na mesma sala (placar igual, lado espelhado certo para cada jogador), celular deitado (Pixel 7) com controles de toque. Sem erros de console.
+
+**B5, laboratório de latência (executado, com ressalvas):**
+- 🐛 Achados pelo laboratório e corrigidos:
+  - a URL da sala apagava os outros parâmetros;
+  - frames lentos pulavam a leitura de input (clientes lentos "congelavam");
+  - o adiantamento ignorava o tempo de frame (D-20);
+  - toques descobertos na re-simulação não eram contados (D-21);
+  - o histórico de reação do bot guardava referências vivas (o atraso de reação não valia).
+- 🧪 Medido: dois Chromium (renderização por software, ~10 fps por causa da CPU do sandbox), bot médio × bot médio, 90 s por perfil, pelo proxy TCP:
+
+```
+== RTT 40 ms ±5, perda 0.5% ==
+A: RTT 41 ms, jitter 4 ms, lead 9, interp 7 | toques previstos 24, confirmados 24, rejeitados 0 (0.0%), achados no replay 0 | correção da bola p95 0.0 cm | correções do avatar 3 (grandes 0)
+B: RTT 44 ms, jitter 5 ms, lead 9, interp 7 | toques previstos 29, confirmados 27, rejeitados 1 (3.4%), achados no replay 0 | correção da bola p95 0.0 cm | correções do avatar 12 (grandes 0)
+placar A 5×4 | B 4×5 → IGUAL
+servidor: vaga 0: 5319 frames, 104 atrasados aplicados, 6 descartados | vaga 1: 5270 frames, 67 atrasados aplicados, 10 descartados
+erros de página: nenhum
+== RTT 100 ms ±15, perda 1.0% ==
+A: RTT 100 ms, jitter 19 ms, lead 13, interp 9 | toques previstos 28, confirmados 28, rejeitados 0 (0.0%), achados no replay 0 | correção da bola p95 0.0 cm | correções do avatar 29 (grandes 0)
+B: RTT 98 ms, jitter 12 ms, lead 12, interp 8 | toques previstos 36, confirmados 34, rejeitados 2 (5.6%), achados no replay 2 | correção da bola p95 0.0 cm | correções do avatar 26 (grandes 0)
+placar A 2×5 | B 5×2 → IGUAL
+servidor: vaga 0: 5288 frames, 110 atrasados aplicados, 15 descartados | vaga 1: 5296 frames, 117 atrasados aplicados, 13 descartados
+erros de página: nenhum
+== RTT 180 ms ±30, perda 2.0% ==
+A: RTT 185 ms, jitter 15 ms, lead 15, interp 8 | toques previstos 23, confirmados 21, rejeitados 1 (4.3%), achados no replay 1 | correção da bola p95 0.0 cm | correções do avatar 33 (grandes 0)
+B: RTT 206 ms, jitter 58 ms, lead 21, interp 14 | toques previstos 28, confirmados 27, rejeitados 1 (3.6%), achados no replay 1 | correção da bola p95 0.0 cm | correções do avatar 30 (grandes 0)
+placar A 4×5 | B 5×4 → IGUAL
+servidor: vaga 0: 5238 frames, 102 atrasados aplicados, 3 descartados | vaga 1: 5210 frames, 92 atrasados aplicados, 14 descartados
+erros de página: nenhum
+```
+
+  | RTT (jitter, perda) | Toques rejeitados | Meta do plano | Placar igual |
+  |---|---|---|---|
+  | 40 ms (±5, 0,5%) | 0% e 3,4% | < 1% | sim |
+  | 100 ms (±15, 1%) | 0% e 5,6% | < 2% | sim |
+  | 180 ms (±30, 2%) | 4,3% e 3,6% | < 5% | sim |
+
+- ⚠️ **Limitações conhecidas:**
+  - Quem joga são bots, não pessoas, e os clientes rodam a ~10 fps no sandbox. O adiantamento fica maior do que num computador normal (8–21 ticks), o que é pior que o caso real.
+  - As rejeições vêm de inputs descartados por chegarem > 6 ticks atrasados durante as "travadas" que simulam perda (aparecem como `descartados` no `/stats`). O contato retroativo limitado (PLANO §7.6) **ainda não foi implementado**; é o próximo passo para bater a meta de 100 ms.
+  - A correção da bola no lado do jogador local deu 0,0 cm no p95. É esperado com simulação determinística: ali a bola só depende dos seus próprios inputs. As correções aparecem no avatar (inputs atrasados) e na bola vinda do adversário (suavizadas, fora da métrica).
+  - Ainda não testado: Firefox, Safari, celular real, duas redes diferentes, 10 partidas completas seguidas. Continuam pendentes no checklist da §11.
+
 ## Próximos passos
 
-1. Revisar o plano com a equipe e passar as decisões de `proposta` para `aceita` em `DECISOES.md`.
-2. Fechar a lista de dispositivos de teste reais (§2.3).
-3. Iniciar o Marco B pelo B0 (prompt pronto na §12 do plano).
+1. **B5, fechar a meta de 100 ms:** contato retroativo limitado no servidor (≤ 6 ticks, só com bola do próprio lado e sem contato no meio) e aceitar pressionamentos atrasados até ~30 ticks (movimento descartado, toque avaliado no tick original). Repetir o laboratório.
+2. **B6, staging:** cliente no Cloudflare Pages + servidor Node persistente em São Paulo. É custo, então precisa de confirmação antes de criar recurso pago.
+3. Checklist §11 com pessoas: dois aparelhos em redes diferentes, 10 partidas, Firefox/Safari/iPhone/Android.
+4. Marco C: playtests, ajuste de janelas e alcance, finta, tutorial de 5 passos, remapeamento, controles de toque ajustáveis (hoje os botões da direita cobrem um pouco o canto da quadra no celular).

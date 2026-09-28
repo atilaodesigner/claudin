@@ -262,10 +262,13 @@ export class MatchRoom extends Room {
   // ── match lifecycle ────────────────────────────────────────────────────────
 
   private startMatch(): void {
+    // event ids keep growing across rematches so clients never mistake a new event for a seen one
+    const evBase = this.match?.state.evSeq ?? 0;
     this.match?.dispose();
     const seed = randomInt(1, 2 ** 31 - 1);
     this.match = new Match({ players: 2, seed });
     this.match.state.tick = this.tick;
+    this.match.state.evSeq = evBase;
     this.log = { seed, startTick: this.tick, inputs: [] };
     for (const s of this.seats) {
       if (!s) continue;
