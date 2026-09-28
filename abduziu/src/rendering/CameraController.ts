@@ -52,6 +52,16 @@ export class CameraController {
     this.dramaTimer = seconds;
   }
 
+  /** Moves the rig by an offset without any easing (wrapping arena crossed its seam). */
+  shift(dx: number, dz: number): void {
+    this.focus.x += dx;
+    this.focus.z += dz;
+    this.desiredFocus.x += dx;
+    this.desiredFocus.z += dz;
+    this.camera.position.x += dx;
+    this.camera.position.z += dz;
+  }
+
   snapTo(target: Vector3, ufoScale: number): void {
     this.focus.set(target.x, target.y * 0.58, target.z);
     this.desiredFocus.copy(this.focus);

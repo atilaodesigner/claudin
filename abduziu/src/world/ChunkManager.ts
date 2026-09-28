@@ -51,7 +51,7 @@ export class ChunkManager {
     const batch = this.world.staticBatch;
     const reach = this.detailDistance + this.size * 0.71;
     for (const c of this.chunks.values()) {
-      const want = Math.hypot(c.cx - focus.x, c.cz - focus.z) < reach;
+      const want = Math.hypot(this.world.dx(focus.x, c.cx), this.world.dz(focus.z, c.cz)) < reach;
       if (want === c.visible) continue;
       c.visible = want;
       for (const o of c.detail) {

@@ -1,0 +1,10 @@
+# Cloudflare Pages: cache longo pros arquivos com hash, sempre fresco pro que muda a cada deploy
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+/sw.js
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin

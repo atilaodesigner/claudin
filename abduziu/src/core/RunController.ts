@@ -132,6 +132,14 @@ export class RunController {
     this.city = city;
     this.daily = mode === 'diaria';
     this.progression.reset();
+    // the whole city as it stands when the stage starts
+    this.cityTotal = Math.max(1, this.countCity(99).alive);
+    this.cityTimer = 0.5;
+    this.noLiftTimer = 0;
+    this.cityMilestone = 0;
+    this.cityCleared = 0;
+    this.cityDone = false;
+    this.autoExtract = -1;
     this.combo.reset();
     this.threat.reset();
     this.highlights.reset();
@@ -167,9 +175,70 @@ export class RunController {
     this.game.hud.setObjectives(this.challenges.active, this.mode === 'campanha', this.objectiveHeading);
   }
 
+  // ─── city cleared: nothing left to abduct ends the stage (no idle wait for the portal)
+  private cityTotal = 0;
+  private cityTimer = 0;
+  private noLiftTimer = 0;
+  private cityMilestone = 0;
+  /** Share of the city already abducted (0..1). */
+  cityCleared = 0;
+  /** The city ran out: the portal opens right away. */
+  cityDone = false;
+
   get extractionMultiplier(): number {
-    return extractionMultiplierAt(this.time);
+    // arena rounds end on the clock: no portal
+    if (this.mode === 'arena' || this.mode === 'online') return 0;
+    const t = extractionMultiplierAt(this.time);
+    return this.cityDone ? Math.max(1, t) : t;
   }
+
+  /** Objects of the city itself (enemy wrecks don't count). */
+  private countCity(liftTier: number): { alive: number; liftable: number } {
+    let alive = 0;
+    let liftable = 0;
+    for (const o of this.game.world.objects) {
+      if (!o.alive || o.enemyKind) continue;
+      alive++;
+      if (o.tier <= liftTier) liftable++;
+    }
+    return { alive, liftable };
+  }
+
+  private updateCityClear(dt: number): void {
+    if (this.mode === 'arena' || this.mode === 'online' || this.cityDone) return;
+    this.cityTimer -= dt;
+    if (this.cityTimer > 0) return;
+    this.cityTimer = 1;
+    const g = this.game;
+    const { alive, liftable } = this.countCity(Math.floor(g.stats.baseBeamTier + 0.5));
+    if (this.cityTotal <= 0) this.cityTotal = Math.max(1, alive);
+    this.cityCleared = Math.max(0, Math.min(1, 1 - alive / this.cityTotal));
+    for (const m of [0.5, 0.75, 0.9]) {
+      if (this.cityCleared >= m && this.cityMilestone < m) {
+        this.cityMilestone = m;
+        g.hud.toast(`${Math.round(m * 100)}% DA CIDADE ABDUZIDA`, m >= 0.9 ? 'Quase limpa! Pegue o que sobrou.' : '', 'gold', 2.4);
+      }
+    }
+    // what's left is too heavy for the beam: don't make the player hover around waiting
+    this.noLiftTimer = liftable === 0 ? this.noLiftTimer + 1 : 0;
+    if (this.cityCleared >= 0.97 || this.noLiftTimer >= 8) this.finishCity();
+  }
+
+  private finishCity(): void {
+    const g = this.game;
+    this.cityDone = true;
+    const bonus = Math.round(20000 + this.cityCleared * 30000);
+    this.stats.score += bonus;
+    this.stats.bonusCores += 60;
+    const clean = this.cityCleared >= 0.97;
+    g.hud.showBanner(clean ? 'CIDADE LIMPA!' : 'NADA MAIS PRA ABDUZIR', `BÔNUS +${bonus.toLocaleString('pt-BR')} · EXTRAINDO...`, 'var(--gold)');
+    g.audio.levelUp();
+    g.bus.emit('extraction:available', { multiplier: this.extractionMultiplier });
+    this.autoExtract = 2.6;
+  }
+
+  /** Seconds until the automatic extraction after the city is cleared (<0 = off). */
+  autoExtract = -1;
 
   // ───────────────────────────────────────────── reward pipeline
 
@@ -221,7 +290,7 @@ export class RunController {
     g.beam.onAbsorb();
     g.ufoVisuals.damageFlash = 0;
     if (tier >= 5 || obj.rarity !== 'normal' || enemyKind) {
-      g.hud.floatText(_v.copy(g.ufo.position).setY(g.ufo.position.y + g.stats.radius), `+${formatInt(score)}`, obj.rarity !== 'normal' ? `#${rarity.color.toString(16).padStart(6, '0')}` : 'var(--alien-green)', 18 + Math.min(16, tier * 2));
+      g.hud.floatText(_v.copy(g.ufo.position).setY(g.ufo.position.y + g.stats.radius), `+${formatInt(score)}`, obj.rarity !== 'normal' ? `#${rarity.color.toString(16).padStart(6, '0')}` : 'var(--alien-green)', 16 + Math.min(10, tier * 1.2));
     }
 
     if (res.milestone) {
@@ -437,6 +506,7 @@ export class RunController {
   update(dt: number): void {
     const g = this.game;
     this.time += dt;
+    this.updateCityClear(dt);
     const cu = this.combo.update(dt);
     if (cu.endedWith > 0) g.bus.emit('combo:ended', { combo: cu.endedWith });
     if (cu.frenzyEnded) g.bus.emit('combo:frenzy', { active: false });
@@ -468,7 +538,8 @@ export class RunController {
       this.portal.rotation.z += dt * 0.6;
       this.portal.lookAt(up);
       const next = nextExtractionTier(this.time);
-      g.hud.setExtraction(mult, next ? `PRÓXIMO x${next.multiplier} EM ${formatTime(next.time - this.time)}` : 'MULTIPLICADOR MÁXIMO', this.channeling > 0);
+      const hint = this.cityDone ? 'CIDADE LIMPA · SAINDO SOZINHO' : next ? `PRÓXIMO x${next.multiplier} EM ${formatTime(next.time - this.time)}` : 'MULTIPLICADOR MÁXIMO';
+      g.hud.setExtraction(mult, hint, this.channeling > 0);
     } else {
       g.hud.setExtraction(0, '', false);
     }

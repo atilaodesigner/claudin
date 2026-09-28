@@ -1,6 +1,7 @@
 import { Box3, type BufferGeometry } from 'three';
 import type { TextureAtlas } from '../rendering/TextureAtlas';
 import { ModelBuilder } from './ModelBuilder';
+import { BRASIL_MODELS } from './models/brasil';
 import { BUILDING_MODELS, MODEL_VARIANTS } from './models/buildings';
 import { COAST_MODELS } from './models/coast';
 import { LANDMARK_MODELS } from './models/landmarks';
@@ -32,6 +33,7 @@ const ALL_MODELS: Record<string, ModelFn> = {
   ...SPECIAL_MODELS,
   ...COAST_MODELS,
   ...LANDMARK_MODELS,
+  ...BRASIL_MODELS,
 };
 
 /**

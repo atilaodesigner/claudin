@@ -224,6 +224,111 @@ export const OBJECTS: readonly ObjectDef[] = [
   { id: 'boto', dex: 140, name: 'Boto Cor-de-rosa', tier: 3, massKg: 160, model: 'pink_dolphin', tags: ['animal', 'secreto'], rarity: 'epico', secret: true, matterMult: 18, description: 'Dizem que vira gente em noite de festa. Hoje virou tripulante.' },
   { id: 'pastel_gigante', dex: 141, name: 'Pastel Gigante', tier: 2, massKg: 90, model: 'giant_pastel', tags: ['secreto'], rarity: 'epico', secret: true, matterMult: 20, description: 'Um metro e meio de pastel de vento. Recorde da feira.' },
   { id: 'pequi_radioativo', dex: 142, name: 'Pequi Radioativo', tier: 0, massKg: 0.4, model: 'pequi_glow', tags: ['natureza', 'secreto'], rarity: 'alien', secret: true, matterMult: 45, description: 'Brilha no escuro. Continua proibido morder.' },
+
+  // ───────────── PACOTE BRASIL — comidinhas e miudezas
+  { id: 'pao_queijo', dex: 143, name: 'Cesta de Pão de Queijo', tier: 0, massKg: 0.8, model: 'pao_queijo', tags: ['lixo'], description: 'Saiu quentinho do forno. Esfriou na estratosfera.' },
+  { id: 'coxinha', dex: 144, name: 'Coxinha', tier: 0, massKg: 0.15, model: 'coxinha', tags: ['lixo'], description: 'Com catupiry. O formato aerodinâmico ajudou na subida.' },
+  { id: 'brigadeiro', dex: 145, name: 'Bandeja de Brigadeiro', tier: 0, massKg: 0.6, model: 'brigadeiro', tags: ['lixo'], description: 'Era pra festa das 15h. Ninguém cantou parabéns.' },
+  { id: 'guarana', dex: 146, name: 'Guaraná 2 Litros', tier: 0, massKg: 2.1, model: 'guarana', tags: ['lixo'], description: 'Estava sem gás desde domingo. Agora está sem gravidade também.' },
+  { id: 'marmita', dex: 147, name: 'Marmita de Alumínio', tier: 0, massKg: 0.7, model: 'marmita', tags: ['lixo'], description: 'Arroz, feijão, bife e ovo. O almoço mais disputado da galáxia.' },
+  { id: 'pipa', dex: 148, name: 'Pipa', tier: 0, massKg: 0.1, model: 'pipa', tags: ['movel'], paints: [0xe63946, 0x3a86ff, 0xffd23f, 0x2ec4b6, 0x8338ec, 0xf77f00], description: 'Cortaram a linha. Ela subiu, subiu, subiu...' },
+  { id: 'radinho', dex: 149, name: 'Radinho de Pilha', tier: 0, massKg: 0.9, model: 'radinho', tags: ['movel'], description: 'Transmitia o jogo do Brasileirão. Pegou sinal de Marte.' },
+  { id: 'vassoura', dex: 150, name: 'Vassoura de Piaçava', tier: 0, massKg: 1.2, model: 'vassoura', tags: ['movel'], description: 'Varria a calçada todo dia às 6h. Varreu o céu hoje.' },
+  { id: 'garrafa_cafe', dex: 151, name: 'Garrafa Térmica de Café', tier: 0, massKg: 1.5, model: 'garrafa_cafe', tags: ['movel'], description: 'Café passado no coador de pano. O ET pediu com açúcar. Muito açúcar.' },
+  { id: 'copo_acai', dex: 152, name: 'Copo de Açaí', tier: 0, massKg: 0.6, model: 'copo_acai', tags: ['lixo'], description: 'Setecentos mililitros com leite ninho e paçoca.' },
+  { id: 'abacaxi', dex: 153, name: 'Abacaxi', tier: 0, massKg: 1.6, model: 'abacaxi', tags: ['natureza'], description: 'Descascar isso é um abacaxi. Abduzir, nem tanto.' },
+  { id: 'melancia', dex: 154, name: 'Melancia', tier: 0, massKg: 9, model: 'melancia', tags: ['natureza'], description: 'Doce igual mel, garantiu o feirante. Vamos conferir lá em cima.' },
+  { id: 'pandeiro', dex: 155, name: 'Pandeiro', tier: 0, massKg: 0.8, model: 'pandeiro', tags: ['movel'], description: 'A roda de samba perdeu o ritmo. Por uns três segundos.' },
+  { id: 'berimbau', dex: 156, name: 'Berimbau', tier: 0, massKg: 1.1, model: 'berimbau', tags: ['movel'], description: 'Tocou "Paranauê" até sumir no céu.' },
+  { id: 'pombo', dex: 157, name: 'Pombo da Praça', tier: 0, massKg: 0.35, model: 'pombo', tags: ['animal'], description: 'Não voou. Nunca voa. Precisou de ajuda alienígena.' },
+  { id: 'rapadura', dex: 158, name: 'Rapadura', tier: 0, massKg: 0.5, model: 'rapadura', tags: ['lixo'], description: 'É doce, mas não é mole não.' },
+
+  // ───────────── PACOTE BRASIL — casa, quintal e bichos pequenos
+  { id: 'ventilador', dex: 159, name: 'Ventilador de Coluna', tier: 1, massKg: 5, model: 'ventilador', tags: ['movel'], description: 'Única arma contra os 40 graus. A casa vai sentir falta.' },
+  { id: 'filtro_barro', dex: 160, name: 'Filtro de Barro', tier: 1, massKg: 9, model: 'filtro_barro', tags: ['movel'], description: 'A água mais gelada do Brasil. Tecnologia que a NASA inveja.' },
+  { id: 'tv_tubo', dex: 161, name: 'TV de Tubo', tier: 1, massKg: 28, model: 'tv_tubo', tags: ['movel'], description: 'Com bombril na antena. Pegava todos os canais, menos o que você queria.' },
+  { id: 'carrinho_rolima', dex: 162, name: 'Carrinho de Rolimã', tier: 1, massKg: 6, model: 'carrinho_rolima', tags: ['movel'], description: 'Sem freio, ladeira abaixo. Agora ladeira acima.' },
+  { id: 'gaiola', dex: 163, name: 'Gaiola com Canário', tier: 1, massKg: 2, model: 'gaiola', tags: ['animal', 'movel'], description: 'O canário finalmente foi solto. Tecnicamente.' },
+  { id: 'tanque', dex: 164, name: 'Tanque de Lavar Roupa', tier: 1, massKg: 60, model: 'tanque', tags: ['movel'], description: 'Com sabão em barra e roupa de molho desde ontem.' },
+  { id: 'varal', dex: 165, name: 'Varal de Roupa', tier: 1, massKg: 12, model: 'varal', tags: ['movel'], description: 'Ia chover. Choveu disco voador.' },
+  { id: 'rede_dormir', dex: 166, name: 'Rede de Dormir', tier: 1, massKg: 15, model: 'rede_dormir', tags: ['movel'], description: 'O cochilo da tarde foi interrompido por uma leve abdução.' },
+  { id: 'papagaio', dex: 167, name: 'Papagaio Falante', tier: 1, massKg: 0.5, model: 'papagaio', tags: ['animal'], description: 'Só sabe falar "Corinthians" e "me leva". Pedido atendido.' },
+  { id: 'tucano', dex: 168, name: 'Tucano', tier: 1, massKg: 0.7, model: 'tucano', tags: ['animal'], description: 'O bico pesa menos que parece. O resto também.' },
+  { id: 'mico', dex: 169, name: 'Mico-leão-dourado', tier: 1, massKg: 0.6, model: 'mico', tags: ['animal'], description: 'Espécie protegida. Vai voltar com uma história incrível.' },
+  { id: 'tatu', dex: 170, name: 'Tatu-bola', tier: 1, massKg: 1.5, model: 'tatu', tags: ['animal'], description: 'Virou bola por reflexo. Rolou pro céu.' },
+  { id: 'tambor', dex: 171, name: 'Tambor de Bloco', tier: 1, massKg: 10, model: 'tambor', tags: ['movel'], paints: [0x1d4ed8, 0xe63946, 0x2a9d5a, 0xf77f00], description: 'O bloco saiu sem ele. O som continua ecoando lá em cima.' },
+
+  // ───────────── PACOTE BRASIL — ambulantes, móveis largados e bichos médios
+  { id: 'carrinho_churros', dex: 172, name: 'Carrinho de Churros', tier: 2, massKg: 80, model: 'carrinho_churros', tags: ['movel'], description: 'Doce de leite escorrendo em órbita baixa.' },
+  { id: 'carrinho_picole', dex: 173, name: 'Carrinho de Picolé', tier: 2, massKg: 45, model: 'carrinho_picole', tags: ['movel'], description: 'Picolé de coco derretendo em 3... 2... espaço sideral.' },
+  { id: 'carrinho_hotdog', dex: 174, name: 'Carrinho de Cachorro-Quente', tier: 2, massKg: 95, model: 'carrinho_hotdog', tags: ['movel'], description: 'Completo: purê, milho, batata palha e vinagrete. O ET quis dois.' },
+  { id: 'carrinho_caldo', dex: 175, name: 'Moenda de Caldo de Cana', tier: 2, massKg: 180, model: 'carrinho_caldo', tags: ['movel'], description: 'Moía cana na feira há 30 anos. Foi moído pelo destino.' },
+  { id: 'geladeira', dex: 176, name: 'Geladeira Retrô', tier: 2, massKg: 70, model: 'geladeira', tags: ['movel'], paints: [0x9ecae1, 0xf1a7b5, 0xf5f2ea, 0xa6d38b], description: 'Pote de sorvete dentro? Feijão. Sempre é feijão.' },
+  { id: 'sofa', dex: 177, name: 'Sofá na Calçada', tier: 2, massKg: 55, model: 'sofa', tags: ['movel'], paints: [0x8a5a2e, 0x6a4c93, 0x2a9d8f, 0x7a1f2b], description: 'Largado ali "pra alguém que precise". Alguém precisou.' },
+  { id: 'sinuca', dex: 178, name: 'Mesa de Sinuca do Bar', tier: 2, massKg: 250, model: 'sinuca', tags: ['movel'], description: 'Bola sete na caçapa do meio. A mesa inteira na caçapa do céu.' },
+  { id: 'cama_elastica', dex: 179, name: 'Cama Elástica', tier: 2, massKg: 90, model: 'cama_elastica', tags: ['movel'], description: 'Pulou tão alto que não voltou.' },
+  { id: 'bode', dex: 180, name: 'Bode', tier: 2, massKg: 60, model: 'bode', tags: ['animal'], description: 'Comeu o varal do vizinho. Agora está sendo comido pela curiosidade alienígena.' },
+  { id: 'jegue', dex: 181, name: 'Jegue', tier: 2, massKg: 200, model: 'jegue', tags: ['animal'], description: 'Teimoso. Levou dez minutos pra aceitar o feixe.' },
+  { id: 'porco', dex: 182, name: 'Porco', tier: 2, massKg: 120, model: 'porco', tags: ['animal'], description: 'Estava na lama feliz da vida. Continua feliz, só que voando.' },
+  { id: 'tamandua', dex: 183, name: 'Tamanduá-bandeira', tier: 2, massKg: 40, model: 'tamandua', tags: ['animal'], description: 'Abraço de tamanduá não se recusa. Nem se aceita.' },
+  { id: 'caixa_eletronico', dex: 184, name: 'Caixa Eletrônico', tier: 2, massKg: 400, model: 'caixa_eletronico', tags: ['estrutura'], matterMult: 3, description: 'Fora de serviço. Sempre esteve. Agora está fora do planeta.' },
+  { id: 'moto_entrega', dex: 185, name: 'Motoboy de Entrega', tier: 2, massKg: 190, model: 'moto_entrega', tags: ['moto', 'pessoa'], description: 'Seu pedido saiu para entrega. Destino atualizado: Órbita.' },
+  { id: 'canoa', dex: 186, name: 'Canoa', tier: 2, massKg: 90, model: 'canoa', tags: ['barco'], description: 'Remava devagarzinho no igarapé. Subiu rapidinho.' },
+  { id: 'mandacaru', dex: 187, name: 'Mandacaru', tier: 2, massKg: 250, model: 'mandacaru', tags: ['natureza'], description: 'Quando fulora na seca é sinal que a chuva chega no sertão. Chegou disco.' },
+
+  // ───────────── PACOTE BRASIL — carros de rua e bichos grandes
+  { id: 'quadradinho', dex: 188, name: 'Quadradinho Rebaixado', tier: 3, massKg: 900, model: 'quadradinho', tags: ['carro'], paints: CAR_PAINTS, description: 'Rebaixado, som no talo e película 5%. Raspava em lombada. Agora nem toca o chão.' },
+  { id: 'brasilia_amarela', dex: 189, name: 'Brasília Amarela', tier: 3, massKg: 890, model: 'brasilia_amarela', tags: ['carro'], description: 'Com roda gaúcha e alguém cantando que ia pro Guarujá.' },
+  { id: 'uno_escada', dex: 190, name: 'Popular com Escada', tier: 3, massKg: 850, model: 'uno_escada', tags: ['carro'], paints: CAR_PAINTS, description: 'Escada no teto: veículo mais resistente já feito pela humanidade.' },
+  { id: 'opala', dex: 191, name: 'Opalão Seis Cilindros', tier: 3, massKg: 1250, model: 'opala', tags: ['carro'], paints: [0x1d1d21, 0x7a1f2b, 0x1b4f9c, 0xf4f1e8, 0x2e8b57], description: 'Bebe mais que tio em churrasco. Ronca mais bonito também.' },
+  { id: 'carro_pamonha', dex: 192, name: 'Carro da Pamonha', tier: 3, massKg: 950, model: 'carro_pamonha', tags: ['carro'], description: '"Pamonhas, pamonhas, pamonhas! Pamonhas de Piracicaba!" — agora em estéreo espacial.' },
+  { id: 'jetski', dex: 193, name: 'Jet Ski', tier: 3, massKg: 400, model: 'jetski', tags: ['barco'], description: 'Fazia zerinho perto dos banhistas. Karma instantâneo.' },
+  { id: 'onca', dex: 194, name: 'Onça-pintada', tier: 3, massKg: 110, model: 'onca', tags: ['animal'], matterMult: 3, description: 'Rainha do Pantanal. Ninguém mandou mexer com ela. Mexeram.' },
+  { id: 'boi_bumba', dex: 195, name: 'Boi-bumbá', tier: 3, massKg: 180, model: 'boi_bumba', tags: ['marco'], matterMult: 2, description: 'Garantido ou Caprichoso? Agora é Abduzido.' },
+  { id: 'cajueiro', dex: 196, name: 'Cajueiro', tier: 3, massKg: 700, model: 'cajueiro', tags: ['natureza'], description: 'Caju, castanha e sombra fresca. Tudo em um pacote só.' },
+  { id: 'mangueira', dex: 197, name: 'Mangueira Carregada', tier: 3, massKg: 1200, model: 'mangueira', tags: ['natureza'], description: 'Dava manga pro bairro inteiro. Agora dá pra frota inteira.' },
+  { id: 'jaqueira', dex: 198, name: 'Jaqueira', tier: 3, massKg: 1500, model: 'jaqueira', tags: ['natureza'], description: 'Não estacione embaixo. Ninguém ouviu. A jaqueira foi junto.' },
+  { id: 'relogio_rua', dex: 199, name: 'Relógio-Termômetro de Rua', tier: 3, massKg: 600, model: 'relogio_rua', tags: ['estrutura'], description: 'Marcava 41 °C às 9 da manhã. Agora marca -270 °C.' },
+  { id: 'carroca', dex: 200, name: 'Carroça de Frutas', tier: 3, massKg: 700, model: 'carroca', tags: ['animal', 'movel'], description: 'Jegue, carroça e feira completa. Delivery raiz.' },
+
+  // ───────────── PACOTE BRASIL — utilitários e roça
+  { id: 'lotacao', dex: 201, name: 'Van de Lotação', tier: 4, massKg: 2200, model: 'lotacao', tags: ['van'], paints: [0xf4f1e8, 0x2a9d8f, 0xf2b705, 0x1b4f9c], description: 'Cabe mais um! Sempre cabe mais um. Até no espaço.' },
+  { id: 'trator', dex: 202, name: 'Trator', tier: 4, massKg: 4500, model: 'trator', tags: ['caminhao'], description: 'Arava a roça desde as 5h. Hora de arar as estrelas.' },
+  { id: 'cacamba', dex: 203, name: 'Caçamba de Entulho', tier: 4, massKg: 3500, model: 'cacamba', tags: ['estrutura'], description: 'Tinha um sofá, uma privada e três portas. Levamos tudo.' },
+  { id: 'araucaria', dex: 204, name: 'Araucária', tier: 4, massKg: 3000, model: 'araucaria', tags: ['natureza'], description: 'Pinhão pra fazer cozido. Direto do sul pro espaço.' },
+
+  // ───────────── PACOTE BRASIL — caminhões do dia a dia
+  { id: 'caminhao_gas', dex: 205, name: 'Caminhão do Gás', tier: 5, massKg: 7000, model: 'caminhao_gas', tags: ['caminhao'], description: 'Tocava "Pour Elise" pelas ruas. A música continua lá em cima.' },
+  { id: 'caminhao_pipa', dex: 206, name: 'Caminhão-pipa', tier: 5, massKg: 14000, model: 'caminhao_pipa', tags: ['caminhao'], description: 'Dez mil litros de água. O feixe deu uma lavada.' },
+  { id: 'caminhao_lixo', dex: 207, name: 'Caminhão do Lixo', tier: 5, massKg: 12000, model: 'caminhao_lixo', tags: ['caminhao'], description: 'Passava terça. Hoje passou pra cima. O gari veio junto.' },
+  { id: 'betoneira', dex: 208, name: 'Caminhão Betoneira', tier: 5, massKg: 15000, model: 'betoneira', tags: ['caminhao'], description: 'Girando sem parar. O concreto vai endurecer no espaço.' },
+  { id: 'onibus_excursao', dex: 209, name: 'Ônibus de Excursão', tier: 5, massKg: 14000, model: 'onibus_excursao', tags: ['onibus'], description: 'Excursão pra Aparecida com parada no Graal. Parada extra: Via Láctea.' },
+
+  // ───────────── PACOTE BRASIL — casinhas e comércio de bairro
+  { id: 'capela', dex: 210, name: 'Capela do Bairro', tier: 6, massKg: 60000, model: 'capela', tags: ['casa', 'estrutura'], description: 'Missa das sete, quermesse no sábado. Novena de 9 dias no espaço.' },
+  { id: 'borracharia', dex: 211, name: 'Borracharia 24h', tier: 6, massKg: 45000, model: 'borracharia', tags: ['predio'], description: 'Aberta 24 horas, mas o dono nunca está.' },
+  { id: 'pau_a_pique', dex: 212, name: 'Casa de Pau a Pique', tier: 6, massKg: 20000, model: 'pau_a_pique', tags: ['casa'], description: 'Barro, madeira e fogão a lenha. O café mais cheiroso do sertão.' },
+
+  // ───────────── PACOTE BRASIL — festa, praça e água
+  { id: 'coreto', dex: 213, name: 'Coreto da Praça', tier: 7, massKg: 90000, model: 'coreto', tags: ['estrutura'], description: 'A banda municipal tocava dobrado no domingo. Hoje toca em gravidade zero.' },
+  { id: 'carro_alegorico', dex: 214, name: 'Carro Alegórico', tier: 7, massKg: 60000, model: 'carro_alegorico', tags: ['estrutura'], matterMult: 3, description: 'Nota dez em alegoria. Nota zero em ficar no chão.' },
+  { id: 'balsa', dex: 215, name: 'Balsa com Carros', tier: 7, massKg: 400000, model: 'balsa', tags: ['barco'], matterMult: 2, description: 'Travessia de 40 minutos com oito carros e um vendedor de amendoim.' },
+  { id: 'escuna', dex: 216, name: 'Escuna de Passeio', tier: 7, massKg: 60000, model: 'escuna', tags: ['barco'], description: 'Passeio pelas ilhas com caipirinha liberada. O roteiro mudou.' },
+
+  // ───────────── PACOTE BRASIL — gigantes do bairro
+  { id: 'roda_gigante', dex: 217, name: 'Roda-gigante do Parque', tier: 8, massKg: 500000, model: 'roda_gigante', tags: ['estrutura'], matterMult: 2, description: 'Do alto dava pra ver a cidade toda. Agora dá pra ver o planeta todo.' },
+  { id: 'igreja_matriz', dex: 218, name: 'Igreja Matriz', tier: 8, massKg: 3_500_000, model: 'igreja_matriz', tags: ['predio'], description: 'Duas torres, um sino e 200 anos de casamentos. Ninguém disse "aceito" pra isso.' },
+  { id: 'mercadao', dex: 219, name: 'Mercadão Municipal', tier: 8, massKg: 4_000_000, model: 'mercadao', tags: ['predio'], matterMult: 2, description: 'Pastel de bacalhau e sanduíche de mortadela de meio metro. O sonho de todo ET.' },
+  { id: 'torre_celular', dex: 220, name: 'Torre de Celular', tier: 9, massKg: 800_000, model: 'torre_celular', tags: ['estrutura'], description: 'Finalmente 5G. Pena que só pega em órbita.' },
+
+  // ───────────── PACOTE BRASIL — secretos: folclore e lendas urbanas
+  { id: 'saci', dex: 221, name: 'Saci-Pererê', tier: 1, massKg: 25, model: 'saci', tags: ['secreto', 'pessoa'], rarity: 'alien', secret: true, matterMult: 35, description: 'Veio no redemoinho, de cachimbo aceso. Deu nó no rabo do disco.' },
+  { id: 'curupira', dex: 222, name: 'Curupira', tier: 1, massKg: 30, model: 'curupira', tags: ['secreto', 'pessoa'], rarity: 'alien', secret: true, matterMult: 35, description: 'Os pés virados confundiram o radar. Quase fugiu.' },
+  { id: 'mula_sem_cabeca', dex: 223, name: 'Mula sem Cabeça', tier: 3, massKg: 300, model: 'mula_sem_cabeca', tags: ['secreto', 'animal'], rarity: 'epico', secret: true, matterMult: 20, description: 'Solta fogo pelo pescoço. O feixe precisou de extintor.' },
+  { id: 'chupacabra', dex: 224, name: 'Chupa-cabra', tier: 2, massKg: 45, model: 'chupacabra', tags: ['secreto', 'animal'], rarity: 'epico', secret: true, matterMult: 22, description: 'Os bodes do sítio agradecem a abdução.' },
+  { id: 'et_varginha', dex: 225, name: 'ET de Varginha', tier: 1, massKg: 35, model: 'et_varginha', tags: ['secreto', 'pessoa'], rarity: 'alien', secret: true, matterMult: 50, description: 'Desaparecido desde 1996. Finalmente resgatado pelos parentes.' },
+  { id: 'boitata', dex: 226, name: 'Boitatá', tier: 3, massKg: 200, model: 'boitata', tags: ['secreto', 'animal'], rarity: 'alien', secret: true, matterMult: 30, description: 'Cobra de fogo azul que protege a mata. Agora protege a nave.' },
+  { id: 'caramelo_dourado', dex: 227, name: 'Caramelo Dourado', tier: 1, massKg: 18, model: 'caramelo_dourado', tags: ['secreto', 'animal'], rarity: 'epico', secret: true, matterMult: 25, description: 'O vira-lata mais valioso do Brasil. Estampa a nota de 200. Vai voltar. Prometemos.' },
 ];
 
 export const OBJECT_BY_ID: ReadonlyMap<string, ObjectDef> = new Map(OBJECTS.map((o) => [o.id, o]));

@@ -1,0 +1,15 @@
+# Cloudflare Pages config for abduziu.fun (deployed from this folder by CI).
+name = "abduziu"
+pages_build_output_dir = "./dist"
+compatibility_date = "2025-09-01"
+
+# arena rooms live in the separate "abduziu-arena" Worker (server/)
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "ArenaRoom"
+script_name = "abduziu-arena"
+
+[[durable_objects.bindings]]
+name = "HUB"
+class_name = "Hub"
+script_name = "abduziu-arena"

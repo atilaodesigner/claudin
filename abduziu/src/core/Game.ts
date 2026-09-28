@@ -1,5 +1,11 @@
 import { Color, PerspectiveCamera, Scene, Vector3, type Texture } from 'three';
 import { AbductionSystem } from '../abduction/AbductionSystem';
+import { ArenaSystem } from '../arena/ArenaSystem';
+import { OnlineArena } from '../arena/OnlineArena';
+import { ArenaNet } from '../online/ArenaNet';
+import { randomCode, randomSecret, SocialNet } from '../online/SocialNet';
+import { LobbyScreen } from '../ui/LobbyScreen';
+import { ONLINE_MAX_SCALE } from '../arena/OnlineArena';
 import { DynamicObjectPool } from '../abduction/DynamicObjectPool';
 import { loadModelOverrides } from '../assets/AssetLoader';
 import { ModelLibrary } from '../assets/ModelLibrary';
@@ -8,13 +14,14 @@ import { Haptics } from '../audio/Haptics';
 import { DamageSystem } from '../combat/DamageSystem';
 import { EMPSystem } from '../combat/EMPSystem';
 import { ShieldSystem } from '../combat/ShieldSystem';
-import { getCity, type CityDef, type CityId } from '../config/cities';
+import { CAMPAIGN, getCity, type CityDef, type CityId } from '../config/cities';
 import { BALANCE } from '../config/gameBalance';
 import { META_BY_ID } from '../config/meta';
 import { dailySetup, MODES, weekKey, weeklySetup, type GameMode } from '../config/modes';
 import { getObjectDef, TIER_NAMES } from '../config/objects';
 import { SYNERGY_BY_ID } from '../config/upgrades';
 import { VFXManager } from '../effects/VFXManager';
+import { WaterFX } from '../effects/WaterFX';
 import { BossController } from '../enemies/BossController';
 import { EnemyManager, type PlayerSnapshot } from '../enemies/EnemyManager';
 import type { Missile } from '../enemies/MissileController';
@@ -32,6 +39,7 @@ import { Lighting } from '../rendering/Lighting';
 import { PostProcessing } from '../rendering/PostProcessing';
 import { Renderer } from '../rendering/Renderer';
 import { Clouds, Sky } from '../rendering/Sky';
+import { DIVE_TIME, SpaceScene } from '../rendering/SpaceScene';
 import { createNoiseTexture, TextureAtlas } from '../rendering/TextureAtlas';
 import { worldUniforms } from '../rendering/WorldMaterial';
 import { LocalStorageBackend, MemoryBackend } from '../save/SaveBackend';
@@ -42,6 +50,8 @@ import { UFOStats } from '../ufo/UFOStats';
 import { UFOVisuals } from '../ufo/UFOVisuals';
 import { friendlyError, Online } from '../online/Online';
 import { AccountScreen } from '../ui/AccountScreen';
+import { ShopScreen } from '../ui/ShopScreen';
+import { beamColorAt, getBeam, getSkin, hslHex, type BeamStyle, type Skin } from '../config/cosmetics';
 import { DebugPanel } from '../ui/DebugPanel';
 import { DexScreen } from '../ui/DexScreen';
 import { h } from '../ui/dom';
@@ -65,6 +75,7 @@ import { ChunkManager } from '../world/ChunkManager';
 import { NPCSystem } from '../world/NPCSystem';
 import { TrafficSystem } from '../world/TrafficSystem';
 import { World } from '../world/World';
+import { CityRegrowth } from '../world/CityRegrowth';
 import { WorldGenerator } from '../world/WorldGenerator';
 import { EventBus } from './EventBus';
 import { GameLoop } from './GameLoop';
@@ -106,11 +117,21 @@ export class Game {
   // assets & rendering
   private atlas!: TextureAtlas;
   private noise!: Texture;
+  private envMap: Texture | null = null;
+  /** ABDUZIU.io round (created on the first arena run). */
+  arena: ArenaSystem | null = null;
+  /** ARENA ONLINE (PvP room on the server). */
+  pvp: OnlineArena | null = null;
+  /** Arena maps: abducted props grow back out of sight. */
+  readonly regrowth = new CityRegrowth();
+  private pendingNet: ArenaNet | null = null;
+  private arenaEndTimer = -1;
   lib!: ModelLibrary;
   sky!: Sky;
   clouds!: Clouds;
   lighting!: Lighting;
   vfx!: VFXManager;
+  waterFx!: WaterFX;
 
   // per-run world
   world!: World;
@@ -167,6 +188,10 @@ export class Game {
   private readonly missileScratch: Missile[] = [];
   private readonly blips: RadarBlip[] = [];
   private readonly accent = new Color(0x5dffa0);
+  private shopScreen!: ShopScreen;
+  /** Cosmetic look being shown (equipped, or a shop preview). */
+  private lookSkin: Skin = getSkin(null);
+  private lookBeam: BeamStyle = getBeam(null);
   private godMode = false;
   private maxBeam = false;
   private autoEmpAccumulator = 0;
@@ -177,6 +202,20 @@ export class Game {
   private landmarkTargets: Array<{ alive: boolean; pos: Vector3 }> = [];
   /** City the current world was generated for. */
   private city: CityDef = getCity('nova_aurora');
+  /** Orbit scene (menu, the dive into a city, the launch back to space). */
+  private space!: SpaceScene;
+  private spaceOn = false;
+  private diving = false;
+  private readonly flashEl: HTMLDivElement;
+  private flashOut = 0;
+  /** AMIGOS: friends hub connection and the online lobby. */
+  readonly social = new SocialNet();
+  private lobby!: LobbyScreen;
+  private inviteEl: HTMLDivElement | null = null;
+  /** Online room of the current/last online run (party replays go back there). */
+  private lastRoom: string | null = null;
+  /** Extraction cinematic before the results: city → atmosphere → space. */
+  private exitCine: { t: number; launched: boolean; open: () => void } | null = null;
 
   constructor(container: HTMLElement) {
     this.renderer = new Renderer(container.querySelector('#stage') as HTMLElement, {
@@ -215,9 +254,16 @@ export class Game {
     this.accountScreen = new AccountScreen(this.ui, this.online);
     this.fpsMeter = h('div', 'fps-meter');
     this.ui.appendChild(this.fpsMeter);
+    this.flashEl = h('div', 'space-flash');
+    this.ui.appendChild(this.flashEl);
+    // a tap skips the launch cinematic straight to the results
+    window.addEventListener('pointerdown', () => {
+      if (this.exitCine && this.exitCine.t > 0.4) this.skipExitCine();
+    });
 
     this.renderer.onResize((w, hgt) => {
       this.cameraCtl.resize(w, hgt);
+      this.space?.resize(w, hgt);
       this.post.setSize(w, hgt, this.renderer.pixelRatio);
       this.vfx?.particles.setViewportHeight(hgt * this.renderer.pixelRatio);
       this.input.touch.setRadius(Math.max(46, Math.min(80, Math.min(w, hgt) * 0.13)));
@@ -267,14 +313,25 @@ export class Game {
     this.lighting = new Lighting(this.scene, this.sky, this.post);
     this.vfx = new VFXManager(this.scene, this.cameraCtl, this.post, this.time, this.haptics);
     this.vfx.particles.setViewportHeight(this.renderer.height * this.renderer.pixelRatio);
+    this.waterFx = new WaterFX(this.noise, this.vfx.particles);
+    this.scene.add(this.waterFx.group);
     const env = createEnvironmentMap(this.renderer.gl);
+    this.envMap = env;
     this.ufoVisuals = new UFOVisuals(env);
+    this.lookSkin = getSkin(this.save.get().cosmetics.skin);
+    this.lookBeam = getBeam(this.save.get().cosmetics.beam);
+    this.ufoVisuals.applySkin(this.lookSkin);
     this.scene.add(this.ufoVisuals.root);
+    this.loading.progress(0.52, 'MAPEANDO O PLANETA...');
+    await nextFrame();
+    this.space = new SpaceScene(!this.input.isTouchDevice && !this.renderer.isSoftware);
+    this.space.resize(this.renderer.width, this.renderer.height);
     this.beam = new TractorBeam(this.noise);
     this.scene.add(this.beam.group);
     this.scene.add(this.shield.mesh);
     this.dynPool = new DynamicObjectPool(this.scene, this.atlas.texture, 90);
     this.run = new RunController(this, this.scene);
+    this.post.prePass = () => this.renderWrapCopies();
     this.thumbs = new Thumbnails(this.renderer.gl, this.lib, this.atlas);
 
     const params = new URLSearchParams(location.search);
@@ -301,21 +358,25 @@ export class Game {
     this.enterMenu();
     // restore a session / finish a login redirect without holding the boot
     if (Online.shouldBootEagerly()) void this.online.init();
+    this.startSocial();
     if (params.has('autostart')) void this.startRun((params.get('mode') as GameMode | null) ?? 'campanha', params.get('city') as CityId | null);
   }
 
-  private buildWorld(seed: number, city: CityDef = this.city): void {
+  private buildWorld(seed: number, city: CityDef = this.city, wrap = false): void {
     this.city = city;
     this.atlas.applyCity(city.signs, city.billboards, city.labels);
     this.lighting.setCity(city.look);
+    this.waterFx?.setWaterColor(city.look.water[1]);
+    this.waterFx?.clear();
     if (this.world) {
       this.abduction.reset();
       this.enemies.dispose();
       this.birds.dispose();
       this.world.dispose();
     }
-    const gen = new WorldGenerator(this.lib, this.atlas, seed, city).generate();
+    const gen = new WorldGenerator(this.lib, this.atlas, seed, city, wrap).generate();
     this.world = new World(this.scene, this.lib, this.atlas, gen);
+    this.regrowth.attach(this.world);
     this.chunks = new ChunkManager(this.world);
     this.world.onSpawn = (o) => this.chunks.register(o);
     this.birds = new BirdSystem(this.scene, this.world);
@@ -377,7 +438,8 @@ export class Game {
     this.results.onAgain = () => {
       this.audio.ui('tap');
       this.results.hide();
-      void this.startRun(this.run.mode, this.run.city.id);
+      if (this.run.mode === 'online') void this.joinOnline(this.social.partySize > 1 ? this.lastRoom : null);
+      else void this.startRun(this.run.mode, this.run.city.id);
     };
     this.results.onMeta = () => {
       this.audio.ui('tap');
@@ -431,6 +493,12 @@ export class Game {
       this.audio.ui('pick');
       this.modeScreen.hide();
       if (m === 'ranqueada') this.openRank();
+      else if (m === 'arena') {
+        // arena drops you in a random city: the round is about the other ships
+        const pool = CAMPAIGN.filter((c) => isUnlocked(this.save.get().campaign, c.id));
+        const city = (pool[Math.floor(Math.random() * pool.length)] ?? CAMPAIGN[0]) as CityDef;
+        void this.startRun('arena', city.id);
+      } else if (m === 'online') this.openLobby();
       else this.mapScreen.open(m, this.save.get());
     };
     this.mapScreen.onClose = () => {
@@ -489,6 +557,11 @@ export class Game {
     }
     // online RP is the source of truth while signed in
     const p = o.profile;
+    // a guest nick gives way to the account nickname
+    if (p && /^Visitante\d*$/.test(this.save.get().social.nick)) {
+      this.save.update((d) => (d.social.nick = p.nickname), true);
+      this.social.setNick(p.nickname);
+    }
     if (p && this.save.get().rank.rp !== p.rp && this.state !== 'playing') {
       this.save.update((d) => {
         d.rank.rp = p.rp;
@@ -504,8 +577,14 @@ export class Game {
       const cloud = await this.online.pullSave();
       const local = this.save.get();
       if (cloud && cloudWins(local, migrate(cloud.data))) {
+        const mine = { ...local.social };
         this.save.adopt(cloud.data);
+        if (!this.save.get().social.code && mine.code) this.save.update((d) => (d.social = mine), true);
+        // the account's friend identity follows it to this device
+        const id = this.save.get().social;
+        if (id.code !== mine.code && this.lobby) this.social.start(id.code, id.secret, id.nick || this.socialNick());
         this.applySettings(this.save.get().settings, false);
+        this.applyLook();
         if (this.state === 'menu') this.refreshMenu();
         this.hud.toast('PROGRESSO DA NUVEM', 'Seu save foi carregado', 'info', 2.5);
       } else {
@@ -570,6 +649,11 @@ export class Game {
       case 'meta':
         this.metaScreen.open();
         break;
+      case 'shop':
+        // the real saucer is the preview: only the menu panel steps aside
+        this.menu.hide();
+        this.shopScreen.open(this.save.get());
+        break;
       case 'dex':
         this.dexScreen.open(this.save.get().dex);
         break;
@@ -583,7 +667,135 @@ export class Game {
       case 'account':
         this.accountScreen.open();
         break;
+      case 'friends':
+        this.openLobby();
+        break;
     }
+  }
+
+  // ───────────────────────────────────────────── friends & lobby
+
+  /** Nick shown to other players: the account nickname when signed in. */
+  private socialNick(): string {
+    const s = this.save.get().social;
+    return s.nick || this.online.profile?.nickname || 'Visitante';
+  }
+
+  private startSocial(): void {
+    const s = this.save.get().social;
+    if (!s.code || !s.secret || !s.nick) {
+      this.save.update((d) => {
+        if (!d.social.code) d.social.code = randomCode();
+        if (!d.social.secret) d.social.secret = randomSecret();
+        if (!d.social.nick) d.social.nick = this.online.profile?.nickname ?? `Visitante${Math.floor(1000 + Math.random() * 9000)}`;
+      }, true);
+    }
+    const lobby = (this.lobby = new LobbyScreen(this.ui));
+    const net = this.social;
+    lobby.onClose = () => {
+      this.audio.ui('back');
+      lobby.hide();
+      if (this.state === 'menu') this.menu.show();
+    };
+    lobby.onPlay = () => {
+      this.audio.ui('pick');
+      if (net.partySize > 1) {
+        if (net.isLeader) net.startParty();
+        return;
+      }
+      lobby.hide();
+      void this.joinOnline();
+    };
+    lobby.onNick = (nick) => {
+      this.save.update((d) => (d.social.nick = nick), true);
+      net.setNick(nick);
+    };
+    lobby.onAdd = (tag) => net.add(tag);
+    lobby.onAccept = (c) => net.accept(c);
+    lobby.onDecline = (c) => net.decline(c);
+    lobby.onRemove = (c) => net.remove(c);
+    lobby.onInvite = (c) => net.invite(c);
+    lobby.onJoin = (c) => net.joinFriend(c);
+    lobby.onLeaveParty = () => net.leaveParty();
+    net.onState = (st) => {
+      lobby.setState(st);
+      this.menu.setFriends(st.friends.filter((f) => f.online).length, st.requests.length);
+    };
+    net.onConnection = (up) => lobby.setConnected(up);
+    net.onToast = (text, ok) => {
+      if (lobby.visible || this.state === 'menu' || this.state === 'results') this.showNote(text, ok);
+    };
+    net.onInvite = (party, _from, nick) => this.showInvite(party, nick);
+    net.onGo = (room) => {
+      // the group leader started (or we asked to join a friend): straight into that room
+      if (this.state !== 'menu' && this.state !== 'results') return;
+      lobby.hide();
+      this.results.hide();
+      this.modeScreen.hide();
+      void this.joinOnline(room);
+    };
+    net.onTaken = () => {
+      // extremely rare: our random code was already someone else's
+      this.save.update((d) => {
+        d.social.code = randomCode();
+        d.social.secret = randomSecret();
+      }, true);
+      const n = this.save.get().social;
+      net.start(n.code, n.secret, n.nick);
+    };
+    const id = this.save.get().social;
+    net.start(id.code, id.secret, id.nick);
+  }
+
+  private openLobby(): void {
+    this.modeScreen.hide();
+    this.menu.hide();
+    this.lobby.open();
+  }
+
+  private showNote(text: string, ok: boolean): void {
+    const n = this.netNotice(text);
+    if (!ok) n.classList.add('bad');
+    setTimeout(() => n.remove(), 2600);
+  }
+
+  /** "X te chamou pro grupo" card with ACEITAR / AGORA NÃO. */
+  private showInvite(party: string, nick: string): void {
+    this.inviteEl?.remove();
+    if (this.state === 'playing' || this.state === 'extracting' || this.state === 'intro') {
+      this.hud.toast(`${nick.toUpperCase()} TE CHAMOU`, 'Aceite no lobby quando a partida acabar', 'info', 3);
+    }
+    const card = h('div', 'invite-card panel');
+    card.appendChild(h('div', 'ttl', 'CONVITE PRO GRUPO'));
+    card.appendChild(h('div', 'txt', `${nick} te chamou pra jogar online junto!`));
+    const row = h('div', 'row');
+    const yes = h('button', 'btn small', 'ACEITAR');
+    const no = h('button', 'btn ghost small', 'AGORA NÃO');
+    row.append(yes, no);
+    card.appendChild(row);
+    const close = () => {
+      card.remove();
+      if (this.inviteEl === card) this.inviteEl = null;
+    };
+    yes.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.audio.ui('pick');
+      this.social.joinParty(party);
+      close();
+      if (this.state === 'menu' || this.state === 'results') {
+        this.results.hide();
+        if (this.state === 'results') this.enterMenu();
+        this.openLobby();
+      }
+    });
+    no.addEventListener('click', (e) => {
+      e.stopPropagation();
+      close();
+    });
+    this.ui.appendChild(card);
+    this.inviteEl = card;
+    this.audio.ui('pick');
+    setTimeout(close, 20000);
   }
 
   private ensureLateScreens(): void {
@@ -595,6 +807,42 @@ export class Game {
         this.refreshMenu();
       };
       this.metaScreen.onBuy = (ok) => this.audio.ui(ok ? 'buy' : 'deny');
+    }
+    if (!this.shopScreen) {
+      this.shopScreen = new ShopScreen(this.ui);
+      this.shopScreen.onClose = () => {
+        this.audio.ui('back');
+        this.shopScreen.hide();
+        this.refreshMenu();
+        if (this.state === 'menu') this.menu.show();
+      };
+      this.shopScreen.onPreview = (skin, beam) => {
+        const c = this.save.get().cosmetics;
+        this.applyLook(skin ?? c.skin, beam ?? c.beam);
+        if (skin || beam) this.audio.ui('hover');
+      };
+      this.shopScreen.onBuy = (kind, id, price) => {
+        const s = this.save.get();
+        if (s.cores < price) {
+          this.audio.ui('deny');
+          return false;
+        }
+        this.save.update((d) => {
+          d.cores -= price;
+          if (!d.cosmetics.owned.includes(`${kind}:${id}`)) d.cosmetics.owned.push(`${kind}:${id}`);
+        }, true);
+        this.audio.ui('buy');
+        this.vfx.levelUp(this.ufo.position, this.stats.radius);
+        return true;
+      };
+      this.shopScreen.onEquip = (kind, id) => {
+        this.save.update((d) => {
+          if (kind === 'skin') d.cosmetics.skin = id;
+          else d.cosmetics.beam = id;
+        }, true);
+        this.applyLook();
+        this.audio.ui('pick');
+      };
     }
     if (!this.dexScreen) {
       this.dexScreen = new DexScreen(this.ui, this.thumbs);
@@ -628,7 +876,7 @@ export class Game {
     this.renderer.setPostProcessingEnabled(this.post.enabled);
     this.post.setSize(this.renderer.width, this.renderer.height, this.renderer.pixelRatio);
     this.lighting?.setShadowQuality(q.shadows, q.shadowMap);
-    this.vfx?.particles.setBudgetScale(q.particles);
+    this.vfx?.particles.setBudgetScale(q.particles * (this.run?.mode === 'online' ? 0.55 : 1));
     this.beam?.setLowQuality(q.particles < 0.5);
     this.cameraCtl.camera.far = q.renderDistance * 3;
     this.bus.emit('quality:changed', { level: this.quality.level, renderScale: scale });
@@ -636,8 +884,29 @@ export class Game {
 
   // ───────────────────────────────────────────── states
 
+  /** Moves the saucer between the orbit scene and the city scene. */
+  private setSpace(on: boolean): void {
+    if (on === this.spaceOn) return;
+    this.spaceOn = on;
+    if (on) this.space.holdUfo(this.ufoVisuals.root, this.ufoVisuals.body, this.ufoVisuals.underglow);
+    else this.space.releaseUfo(this.scene);
+  }
+
   private enterMenu(): void {
     this.state = 'menu';
+    this.social.setRoom(null);
+    this.exitCine = null;
+    this.diving = false;
+    this.setSpace(true);
+    this.space.startMenu();
+    this.results.root.classList.remove('over-space');
+    this.quality.setCap(null);
+    this.regrowth.reset(false);
+    this.arena?.clear();
+    this.pvp?.clear();
+    this.pendingNet?.close();
+    this.pendingNet = null;
+    this.arenaEndTimer = -1;
     this.hud.show(false);
     this.intro.hideNow();
     this.intro.setBlackout(false);
@@ -695,7 +964,7 @@ export class Game {
   }
 
   /** Resolves mode + city into a concrete run (ranked/daily maps are the same for everyone). */
-  async startRun(mode: GameMode, cityId: CityId | null): Promise<void> {
+  async startRun(mode: GameMode, cityId: CityId | null, seedOverride?: number): Promise<void> {
     this.audio.unlock();
     this.requestFullscreen();
     this.menu.hide();
@@ -705,13 +974,16 @@ export class Game {
         ? weeklySetup()
         : mode === 'diaria'
           ? dailySetup(dailySeed())
-          : { mode, city: cityId ?? (this.save.get().last.city as CityId), seed: (Math.random() * 1e9) | 0 };
+          : { mode, city: cityId ?? (this.save.get().last.city as CityId), seed: seedOverride ?? (Math.random() * 1e9) | 0 };
     const city = getCity(setup.city);
-    const seeded = mode === 'ranqueada' || mode === 'diaria';
-    if (this.worldDirty || seeded || city.id !== this.city.id) {
-      this.intro.setBlackout(true);
+    // online rooms: everyone must build exactly the same city
+    const seeded = mode === 'ranqueada' || mode === 'diaria' || mode === 'online';
+    const wrap = mode === 'arena' || mode === 'online';
+    this.exitCine = null;
+    if (this.worldDirty || seeded || city.id !== this.city.id || wrap !== !!this.world.wrap) {
+      if (!this.spaceOn) this.intro.setBlackout(true);
       await nextFrame();
-      this.buildWorld(setup.seed, city);
+      this.buildWorld(setup.seed, city, wrap);
     }
     this.worldDirty = true;
     this.save.update((d) => {
@@ -738,6 +1010,11 @@ export class Game {
 
   private resetRunState(seed: number, mode: GameMode, city: CityDef): void {
     this.upgrades.reset();
+    this.regrowth.reset(mode === 'arena' || mode === 'online');
+    // online: no size ceiling worth mentioning, the big players must look huge
+    this.stats.maxScale = mode === 'online' ? ONLINE_MAX_SCALE : BALANCE.ufo.maxScale;
+    // online rooms: keep the frame light (effects cost, powers don't change)
+    this.quality.setCap(mode === 'online' ? (this.input.isTouchDevice ? 1 : 2) : null);
     this.run.start(seed, mode, city);
     const wanted = new Set(this.run.challenges.active.filter((c) => c.kind === 'abduct_id' && c.goal === 1).map((c) => c.template.objectId));
     this.landmarkTargets = this.world.objects.filter((o) => wanted.has(o.def.id));
@@ -765,11 +1042,21 @@ export class Game {
   private beginIntro(): void {
     const s = this.save.get();
     this.state = 'intro';
-    this.introTime = s.settings.skipIntro || new URLSearchParams(location.search).has('skipintro') ? 4.2 : 0;
+    const skip = s.settings.skipIntro || new URLSearchParams(location.search).has('skipintro');
+    this.introTime = skip ? 4.2 : 0;
     this.introSkippable = s.flags.introSeen;
     this.intro.setSkippable(this.introSkippable);
     this.intro.show();
-    this.intro.setBlackout(!s.settings.skipIntro);
+    this.intro.setBlackout(!skip);
+    this.diving = !skip;
+    if (this.diving) {
+      // from orbit straight down to this city's spot on the globe
+      this.setSpace(true);
+      this.space.setTrailColor(beamColorAt(this.lookBeam, this.time.realElapsed));
+      this.space.startDive(this.city.lat, this.city.lon);
+      this.introTime = -DIVE_TIME;
+      this.intro.setBlackout(false);
+    } else this.setSpace(false);
     this.intro.showLocate(false);
     this.intro.clearRadio();
     this.hud.show(false);
@@ -780,12 +1067,43 @@ export class Game {
     const start = this.world.start;
     this.ufo.spawnAt(start.x, start.z, 150);
     this.introStep = 0;
+    if (this.run.mode === 'arena') this.startArena();
+    else this.arena?.clear();
+    if (this.run.mode === 'online') this.startPvp();
+    else this.pvp?.clear();
   }
 
   private introStep = 0;
 
   private updateIntro(dt: number): void {
     this.introTime += this.time.realDelta;
+    if (this.diving) {
+      const dt0 = this.introTime + DIVE_TIME;
+      if (this.introStep === 0) {
+        this.introStep = 1;
+        this.audio.radio();
+        this.audio.staticBurst(1.2);
+        this.intro.say(...this.city.radio[0]);
+      }
+      if (this.introStep === 1 && dt0 >= 1.7) {
+        this.introStep = 2;
+        this.audio.radio();
+        this.intro.say(...this.city.radio[1]);
+      }
+      this.ufoVisuals.update(this.time.realDelta, 0.15);
+      if (this.introTime > 50) {
+        // skipped
+        this.diving = false;
+        this.setSpace(false);
+      } else if (this.space.done || this.introTime >= 0) {
+        // through the atmosphere: the white flash fades into the cloud descent
+        this.diving = false;
+        this.setSpace(false);
+        this.introTime = 2.4;
+        this.introStep = 2;
+        this.flashOut = 1;
+      } else return;
+    }
     const t = this.introTime;
     const start = this.world.start;
     if (this.introStep === 0 && t >= 0) {
@@ -837,6 +1155,8 @@ export class Game {
   }
 
   private finishIntro(): void {
+    this.diving = false;
+    this.setSpace(false);
     this.intro.hide();
     this.intro.setBlackout(false);
     this.intro.showLocate(false);
@@ -1082,6 +1402,158 @@ export class Game {
     this.bus.emit('extraction:start', {});
   }
 
+  private arenaSwallowed = false;
+
+  private shiftFollowers(dx: number, dz: number): void {
+    this.cameraCtl.shift(dx, dz);
+    for (const o of this.abduction.active) {
+      o.pos.x += dx;
+      o.pos.z += dz;
+      o.home.x += dx;
+      o.home.z += dz;
+      o.localOffset.x += dx;
+      o.localOffset.z += dz;
+    }
+  }
+
+  /**
+   * Endless arena: the city tile is drawn again on the sides the camera can see, so the
+   * seam never shows. Only the city itself is repeated (one draw per batch).
+   */
+  private renderWrapCopies(): void {
+    const w = this.world;
+    const wrap = w?.wrap;
+    if (!wrap) return;
+    const f = this.cameraCtl.focus;
+    const b = w.bounds;
+    const reach = 260 + this.cameraCtl.distance * 3;
+    const gl = this.renderer.gl;
+    const cam = this.cameraCtl.camera;
+    let hidden: Array<{ visible: boolean }> | null = null;
+    for (let i = -1; i <= 1; i++) {
+      for (let j = -1; j <= 1; j++) {
+        if (i === 0 && j === 0) continue;
+        const ox = i * wrap.w;
+        const oz = j * wrap.h;
+        // distance from the camera focus to that neighbour tile
+        const ddx = Math.max(b.minX + ox - f.x, 0, f.x - (b.maxX + ox));
+        const ddz = Math.max(b.minZ + oz - f.z, 0, f.z - (b.maxZ + oz));
+        if (Math.hypot(ddx, ddz) > reach) continue;
+        if (!hidden) {
+          hidden = [];
+          for (const c of this.scene.children) {
+            if (c === w.root || !c.visible || (c as { isLight?: boolean }).isLight) continue;
+            c.visible = false;
+            hidden.push(c);
+          }
+          gl.autoClear = false;
+          gl.shadowMap.autoUpdate = false;
+        }
+        w.root.position.set(ox, 0, oz);
+        w.root.updateMatrixWorld(true);
+        gl.render(this.scene, cam);
+      }
+    }
+    if (!hidden) return;
+    w.root.position.set(0, 0, 0);
+    w.root.updateMatrixWorld(true);
+    for (const c of hidden) c.visible = true;
+    gl.shadowMap.autoUpdate = true;
+  }
+
+  /** ABDUZIU.io: bots spawn around the city once the saucer arrives. */
+  private startArena(): void {
+    if (!this.arena) {
+      this.arena = new ArenaSystem(this, this.scene, this.envMap, this.noise);
+      this.arena.onPlayerEaten = (by) => {
+        if (this.state !== 'playing') return;
+        this.state = 'dying';
+        this.arenaSwallowed = true;
+        this.evoDock.close();
+        this.endTimer = 1.4;
+        this.input.enabled = false;
+        this.abduction.dropAll();
+        this.audio.crash();
+        this.haptics.light();
+        this.time.slowMo(0.4, 0.6);
+        this.hud.showBanner('ABDUZIDO!', `${by.toUpperCase()} ENGOLIU SUA NAVE`, 'var(--warning-red)');
+      };
+      this.arena.onRoundEnd = (place, total) => {
+        this.arenaEndTimer = 2.4;
+        this.input.enabled = false;
+        this.evoDock.close();
+        this.abduction.dropAll();
+        this.audio.levelUp();
+        this.hud.showBanner('FIM DA RODADA', `VOCÊ FICOU EM #${place} DE ${total}`, place === 1 ? 'var(--gold)' : 'var(--alien-green)');
+      };
+    }
+    this.arenaSwallowed = false;
+    this.arenaEndTimer = -1;
+    this.arena.playerName = this.online.profile?.nickname ?? 'VOCÊ';
+    this.arena.start(this.quality.level <= 1);
+  }
+
+  /** ARENA ONLINE: joins a room first (the room decides the city and its seed). */
+  private async joinOnline(room: string | null = null): Promise<void> {
+    const note = this.netNotice(room ? 'ENTRANDO NA SALA DO SEU GRUPO...' : 'CONECTANDO À ARENA ONLINE...');
+    const net = new ArenaNet();
+    const name = this.socialNick();
+    try {
+      const c = this.save.get().cosmetics;
+      const w = await net.connect(name, 0x5dffa0, c.skin, c.beam, room);
+      note.remove();
+      this.pendingNet = net;
+      this.lastRoom = w.room ?? room;
+      this.social.setRoom(this.lastRoom);
+      void this.startRun('online', w.city as CityId, w.seed);
+    } catch {
+      net.close();
+      note.textContent = 'ARENA ONLINE INDISPONÍVEL AGORA. TENTE A ARENA CONTRA BOTS.';
+      note.classList.add('bad');
+      setTimeout(() => note.remove(), 3500);
+      this.modeScreen.open(this.save.get());
+    }
+  }
+
+  private netNotice(text: string): HTMLDivElement {
+    const el = h('div', 'net-notice', text);
+    this.ui.appendChild(el);
+    return el;
+  }
+
+  private startPvp(): void {
+    const net = this.pendingNet;
+    this.pendingNet = null;
+    if (!net) return;
+    if (!this.pvp) {
+      this.pvp = new OnlineArena(this, this.scene, this.envMap, this.noise);
+      this.pvp.onPlayerEaten = (by) => {
+        if (this.state !== 'playing' && this.state !== 'intro') return;
+        this.state = 'dying';
+        this.arenaSwallowed = true;
+        this.evoDock.close();
+        this.endTimer = 1.4;
+        this.input.enabled = false;
+        this.abduction.dropAll();
+        this.audio.crash();
+        this.haptics.light();
+        this.time.slowMo(0.4, 0.6);
+        this.hud.showBanner('ABDUZIDO!', `${by.toUpperCase()} ENGOLIU SUA NAVE`, 'var(--warning-red)');
+      };
+      this.pvp.onDisconnect = () => {
+        if (this.state !== 'playing') return;
+        this.hud.showBanner('CONEXÃO PERDIDA', 'VOLTANDO PRO MENU', 'var(--warning-orange)');
+        setTimeout(() => {
+          if (this.state === 'playing') this.endRun('quit');
+        }, 1800);
+      };
+    }
+    this.arenaSwallowed = false;
+    this.pvp.playerName = this.socialNick();
+    this.pvp.start(net);
+    this.hud.toast('PROTEÇÃO DE CHEGADA', '10 segundos sem poder ser engolido', 'info', 2.6);
+  }
+
   private endRun(reason: 'extracted' | 'destroyed' | 'quit'): void {
     this.state = 'results';
     this.evoDock.close();
@@ -1095,6 +1567,7 @@ export class Game {
     this.audio.setSiren(0);
     this.audio.setMusic({ mode: 'menu', alert: 0, combo: 0, frenzy: false, boss: false });
     this.bus.emit('run:end', { reason });
+    if (this.run.mode === 'online') this.social.setRoom(null);
 
     const r = this.run;
     r.stats.maxAlert = Math.max(r.stats.maxAlert, r.threat.alert);
@@ -1102,6 +1575,16 @@ export class Game {
     const extracted = reason === 'extracted' || (reason === 'quit' && r.mode === 'casual');
     if (extracted) r.challenges.onExtracted();
     const modeInfo = MODES[r.mode];
+    let arenaInfo: { place: number; total: number; eatenBy: string | null } | undefined;
+    if (r.mode === 'arena' && this.arena) {
+      arenaInfo = { place: this.arena.place || this.arena.playerPlace(), total: this.arena.total, eatenBy: this.arena.eatenBy };
+      this.arena.clear();
+    } else if (r.mode === 'online' && this.pvp) {
+      arenaInfo = { place: this.pvp.place || this.pvp.playerPlace(), total: this.pvp.total, eatenBy: this.pvp.eatenBy };
+      this.pvp.clear();
+    }
+    this.arenaEndTimer = -1;
+    this.arenaSwallowed = false;
     const raw = r.computeResults(extracted);
     const cores = { ...raw, total: Math.round(raw.total * modeInfo.coreMult) };
     // campaign stars / ranked points
@@ -1159,7 +1642,7 @@ export class Game {
       if (d.history.length > 30) d.history.shift();
     }, true);
     const goal = this.meta.nextGoal();
-    this.results.open({
+    const payload: Parameters<ResultsScreen['open']>[0] = {
       extracted,
       quit: reason === 'quit',
       score: s.score,
@@ -1181,6 +1664,7 @@ export class Game {
       newRecord: s.score > prevBest && prevBest > 0,
       daily: r.daily,
       modeName: modeInfo.name,
+      arena: arenaInfo,
       cityName: r.city.name.toUpperCase(),
       campaign: campaign
         ? { stars: campaign.progress.stars, earnedNow: r.challenges.active.map((c) => c.done), newStars: campaign.newStars, unlocked: campaign.unlocked ? campaign.unlocked.name.toUpperCase() : null, bonusCores: campaign.bonusCores }
@@ -1192,7 +1676,11 @@ export class Game {
             return { delta: rank.delta, rp: rank.rp, division: b.division.name, color: b.division.color, promoted: b.division.min > a.min, demoted: b.division.min < a.min, progress: b.progress };
           })()
         : null,
-    });
+    };
+    const skipCine = this.save.get().settings.skipIntro || new URLSearchParams(location.search).has('skipintro');
+    if (reason === 'extracted' && !skipCine) {
+      this.exitCine = { t: 0, launched: false, open: () => this.openResults(payload) };
+    } else this.openResults(payload);
     if (rank) this.submitRankedOnline({ city: r.city.id, seed: r.seed, score: s.score, objects: s.objects, duration: r.time, extracted });
     // cinematic: the city shrinks below the departing saucer
     const from = this.ufo.position.clone();
@@ -1205,6 +1693,45 @@ export class Game {
     };
     this.ufo.frozen = true;
     this.run.hidePortal();
+  }
+
+  private openResults(payload: Parameters<ResultsScreen['open']>[0]): void {
+    this.results.root.classList.toggle('over-space', this.spaceOn);
+    this.results.open(payload);
+  }
+
+  /** City shrinks below (1 s), white-out, then the saucer leaves the atmosphere. */
+  private updateExitCine(rdt: number): void {
+    const c = this.exitCine;
+    if (!c) return;
+    c.t += rdt;
+    if (!c.launched) {
+      this.flashOut = Math.max(this.flashOut, clamp((c.t - 0.75) / 0.25, 0, 1));
+      if (c.t >= 1.0) {
+        c.launched = true;
+        this.setSpace(true);
+        this.space.setTrailColor(beamColorAt(this.lookBeam, this.time.realElapsed));
+        this.space.startLaunch(this.run.city.lat, this.run.city.lon);
+        this.flashOut = 0;
+      }
+    } else {
+      this.ufoVisuals.update(rdt, 0.15);
+      if (this.space.done) {
+        this.exitCine = null;
+        c.open();
+      }
+    }
+  }
+
+  private skipExitCine(): void {
+    const c = this.exitCine;
+    if (!c) return;
+    this.exitCine = null;
+    this.setSpace(true);
+    this.space.startLaunch(this.run.city.lat, this.run.city.lon);
+    this.space.skipToOrbit();
+    this.flashOut = 0.6;
+    c.open();
   }
 
   // ───────────────────────────────────────────── frame
@@ -1234,6 +1761,7 @@ export class Game {
         break;
       case 'results':
         this.updateAmbient(dt);
+        this.updateExitCine(rdt);
         break;
       default:
         break;
@@ -1249,7 +1777,24 @@ export class Game {
     if (this.save.get().settings.showFps) this.fpsMeter.textContent = `${this.quality.fps.toFixed(0)} FPS · ${this.quality.current.name}`;
   }
 
+  /** Wears the equipped look (or the given preview ids). */
+  applyLook(skinId?: string, beamId?: string): void {
+    const c = this.save.get().cosmetics;
+    this.lookSkin = getSkin(skinId ?? c.skin);
+    this.lookBeam = getBeam(beamId ?? c.beam);
+    this.ufoVisuals?.applySkin(this.lookSkin);
+  }
+
+  /** Rim-light colour of the current look (the royal ones cycle through the rainbow). */
+  private lookAccent(): number {
+    const fx = this.lookSkin.fx;
+    if (fx === 'royal' || fx === 'mothership') return hslHex((this.time.realElapsed * 0.15) % 1, 0.85, 0.65);
+    return this.lookSkin.accent;
+  }
+
   private updateMenu(dt: number): void {
+    this.ufoVisuals.setAccent(this.lookAccent());
+    this.beam.setColor(beamColorAt(this.lookBeam, this.time.realElapsed));
     this.computeStats(dt);
     this.ufo.update(dt, this.input.move, this.stats);
     this.updateAmbient(dt);
@@ -1289,6 +1834,11 @@ export class Game {
       }
     }
     if (playing && this.input.consume('extract')) this.startExtraction();
+    // city cleared: the portal opens and the saucer leaves on its own
+    if (playing && r.autoExtract >= 0) {
+      r.autoExtract -= dt;
+      if (r.autoExtract < 0) this.startExtraction();
+    }
 
     // EMP
     this.autoEmpAccumulator = Math.max(0, this.autoEmpAccumulator - dt);
@@ -1308,6 +1858,19 @@ export class Game {
         this.endRun('extracted');
         return;
       }
+    } else if (this.state === 'dying' && this.arenaSwallowed) {
+      // swallowed by a bigger ship: dragged up into its hatch, shrinking
+      this.endTimer -= dt;
+      const c = this.run.mode === 'online' ? this.pvp?.captorPosition : this.arena?.captorPosition;
+      if (c) this.ufo.position.lerp(c, 1 - Math.exp(-4 * dt));
+      this.ufoVisuals.root.position.copy(this.ufo.position);
+      this.ufoVisuals.root.scale.setScalar(this.stats.radius * Math.max(0.02, this.endTimer / 1.4));
+      this.ufoVisuals.body.rotation.y += dt * 12;
+      if (this.endTimer <= 0) {
+        this.ufoVisuals.root.visible = false;
+        this.endRun('destroyed');
+        return;
+      }
     } else if (this.state === 'dying') {
       this.endTimer -= dt;
       this.ufo.position.y = Math.max(this.world.groundAt(this.ufo.position.x, this.ufo.position.z) + 1, this.ufo.position.y - dt * (6 + (2 - this.endTimer) * 12));
@@ -1323,7 +1886,16 @@ export class Game {
       }
     } else {
       this.ufo.controlsLocked = r.beamOffline > 0 ? 0.1 : 0;
+      const px = this.ufo.position.x;
+      const pz = this.ufo.position.z;
       this.ufo.update(dt, this.input.move, this.stats, this.abduction.minUfoAltitude);
+      const wrap = this.world.wrap;
+      if (wrap) {
+        // crossed the seam of the endless arena: everything that follows the saucer jumps with it
+        const sx = Math.abs(this.ufo.position.x - px) > wrap.w / 2 ? Math.sign(this.ufo.position.x - px) * wrap.w : 0;
+        const sz = Math.abs(this.ufo.position.z - pz) > wrap.h / 2 ? Math.sign(this.ufo.position.z - pz) * wrap.h : 0;
+        if (sx || sz) this.shiftFollowers(sx, sz);
+      }
     }
 
     const beamOn = this.beamActive;
@@ -1363,6 +1935,18 @@ export class Game {
     this.traffic.update(dt, this.ufo.position, this.stats.radius);
     this.enemies.spawningEnabled = playing && MODES[this.run.mode].enemies;
     this.enemies.update(dt, r.time, this.playerSnapshot(), r.threat.alert);
+    if (this.pvp?.active) this.pvp.update(dt, playing, beamOn);
+    this.regrowth.update(dt, this.cameraCtl.focus, 60 + this.cameraCtl.distance * 1.6);
+    if (this.arena?.active) {
+      this.arena.update(dt, playing && this.arenaEndTimer < 0, beamOn);
+      if (this.arenaEndTimer >= 0) {
+        this.arenaEndTimer -= dt;
+        if (this.arenaEndTimer < 0) {
+          this.endRun('extracted');
+          return;
+        }
+      }
+    }
 
     // shield / hull
     if (this.shield.update(dt, this.ufo.position, this.stats.radius, this.stats.maxShield, this.stats.shieldRegen)) {
@@ -1383,8 +1967,8 @@ export class Game {
     this.updateTutorial(dt);
     this.updateAudioState(dt);
     this.updateHUD(dt);
-    this.ufoVisuals.setAccent(r.combo.frenzy ? 0xc28bff : this.state === 'extracting' ? 0xffffff : 0x5dffa0);
-    this.beam.setColor(r.combo.frenzy ? 0xb36bff : this.state === 'extracting' ? 0xffffff : 0x4dffa0);
+    this.ufoVisuals.setAccent(r.combo.frenzy ? 0xc28bff : this.state === 'extracting' ? 0xffffff : this.lookAccent());
+    this.beam.setColor(r.combo.frenzy ? 0xb36bff : this.state === 'extracting' ? 0xffffff : beamColorAt(this.lookBeam, this.time.realElapsed));
     this.ufoVisuals.update(dt, this.abduction.load + (r.combo.frenzy ? 0.6 : 0));
   }
 
@@ -1490,11 +2074,26 @@ export class Game {
     if (hint) this.blips.push({ x: hint.pos.x, z: hint.pos.z, kind: 'rare' });
     // landmark objectives always show on the radar
     for (const o of this.landmarkTargets) if (o.alive) this.blips.push({ x: o.pos.x, z: o.pos.z, kind: 'event' });
+    this.arena?.blips(this.blips);
+    this.pvp?.blips(this.blips);
     hud.drawRadar(dt, p.x, p.z, 110 + this.stats.radius * 10, this.blips, this.time.realElapsed);
     hud.updateFloats(this.time.realDelta, this.cameraCtl.camera, w, hh);
   }
 
   private renderFrame(dt: number, rdt: number): void {
+    this.flashOut = Math.max(0, this.flashOut - rdt * 1.8);
+    if (this.spaceOn) {
+      this.space.update(rdt, this.time.realElapsed);
+      this.flashEl.style.opacity = Math.max(this.space.flash, this.flashOut).toFixed(3);
+      const pre = this.post.prePass;
+      this.post.prePass = null;
+      this.post.update(rdt);
+      this.renderer.gl.info.reset();
+      this.post.render(this.space.scene, this.space.camera, this.time.realElapsed);
+      this.post.prePass = pre;
+      return;
+    }
+    this.flashEl.style.opacity = this.flashOut.toFixed(3);
     const r = this.run;
     const focus = this.state === 'menu' ? this.ufo.position : this.cameraCtl.focus;
     const frenzy = !!r && r.combo.frenzy && this.state === 'playing';
@@ -1521,6 +2120,10 @@ export class Game {
 
     const beamPower = (r ? Math.min(3, r.combo.count / 15) : 0) + (this.ufo.stillFactor ?? 0) * 0.8 + (frenzy ? 2 : 0);
     this.beam.update(dt, this.ufo.position, ground, this.stats.radius, this.stats.beamRadius, beamPower, this.stats.satellites, this.stats.beamRadius * this.stats.satelliteRadiusMult, (x, z) => this.world.groundAt(x, z));
+    // flying over the sea/river: ripples, wake and a column of water in the beam
+    const up = this.ufo.position;
+    const overWater = this.state !== 'results' && this.ufoVisuals.root.visible && this.world.grid.isWaterAt(up.x, up.z);
+    this.waterFx.update(dt, overWater, up, this.ufo.velocity, this.stats.radius, this.stats.beamRadius, this.beam.intensity > 0.3);
     if (this.beam.intensity > 0.2 && (this.state === 'playing' || this.state === 'menu')) {
       this.vfx.beamParticles(this.ufo.position, ground, this.ufo.position.y - this.stats.radius * 0.3, this.stats.beamRadius, this.beam.color, 14 + this.stats.beamRadius * 3 + (this.abduction?.load ?? 0) * 25, dt);
       // anticipation: dust converging into the beam

@@ -68,6 +68,8 @@ export interface GenResult {
   bounds: { minX: number; maxX: number; minZ: number; maxZ: number };
   start: { x: number; z: number };
   roadLines: { xs: number[]; zs: number[] };
+  /** Tile size when the city wraps around (arena): leaving one edge enters the opposite one. */
+  wrap: { w: number; h: number } | null;
 }
 
 const B = GRID.blockSize;
@@ -98,6 +100,8 @@ export class WorldGenerator {
   private radioTowerPlaced = false;
   private statuePlaced = false;
   private trioPlaced = false;
+  private mercadaoPlaced = false;
+  private festaPlaced = 0;
   private readonly grid: CityGrid;
 
   constructor(
@@ -105,6 +109,8 @@ export class WorldGenerator {
     private readonly atlas: TextureAtlas,
     seed: number,
     private readonly city: CityDef,
+    /** Seamless tile (arena): no outskirts/backdrop, ground and water end exactly at the tile edge. */
+    private readonly wrap = false,
   ) {
     this.rng = new Rng(seed);
     this.grid = new CityGrid(city);
@@ -194,7 +200,7 @@ export class WorldGenerator {
       this.rng = prev;
     }
     this.genCityFeatures();
-    this.genOutskirts(halfW, halfH);
+    if (!this.wrap) this.genOutskirts(halfW, halfH);
     this.buildWires();
 
     const start = this.city.start;
@@ -212,9 +218,11 @@ export class WorldGenerator {
       ground: this.buildGround(halfW, halfH, cols, rows),
       calcada: this.buildCalcada(),
       water: this.buildWater(),
-      backdrop: this.backdrop(),
+      backdrop: this.wrap ? [] : this.backdrop(),
       grid: this.grid,
-      bounds: { minX: -halfW - 30, maxX: halfW + 30, minZ: -halfH - 30, maxZ: halfH + 30 },
+      // a wrapping tile spans the city plus one road width, so the seam is a double avenue
+      bounds: this.wrap ? { minX: -halfW - ROAD / 2, maxX: halfW + ROAD / 2, minZ: -halfH - ROAD / 2, maxZ: halfH + ROAD / 2 } : { minX: -halfW - 30, maxX: halfW + 30, minZ: -halfH - 30, maxZ: halfH + 30 },
+      wrap: this.wrap ? { w: halfW * 2 + ROAD, h: halfH * 2 + ROAD } : null,
       start: { x: startBlock.cx, z: startBlock.cz + HB + ROAD / 2 },
       roadLines: { xs, zs },
     };
@@ -307,6 +315,8 @@ export class WorldGenerator {
           { item: 'hatch', weight: 3 },
           { item: 'seda', weight: 2 },
           { item: 'food_truck', weight: 0.6 },
+          { item: 'lotacao', weight: 1.2 },
+          { item: 'uno_escada', weight: 0.8 },
         ]
       : [
           { item: 'hatch', weight: 5 },
@@ -316,6 +326,12 @@ export class WorldGenerator {
           { item: 'perua', weight: 0.8 },
           { item: 'caminhonete', weight: 0.8 },
           { item: 'moto', weight: 1.4 },
+          { item: 'quadradinho', weight: 1.4 },
+          { item: 'brasilia_amarela', weight: 0.5 },
+          { item: 'uno_escada', weight: 0.7 },
+          { item: 'opala', weight: 0.6 },
+          { item: 'carro_pamonha', weight: 0.35 },
+          { item: 'moto_entrega', weight: 0.6 },
         ];
     this.place(r.weighted(table), x, 0, z, rotY + (r.chance(0.5) ? Math.PI : 0), d);
   }
@@ -408,7 +424,7 @@ export class WorldGenerator {
       this.place('piscina', yx, 0, yz, rotY + Math.PI / 2, d);
       if (r.chance(0.6)) this.place('piscina_boia', yx + r.range(-1, 1), 0.25, yz + r.range(-1, 1), r.range(0, 6), d);
     } else {
-      const items = ['churrasqueira', 'cadeira', 'cadeira', 'mesa_bar', 'bicicleta', 'vaso', 'isopor', 'caixa', 'guarda_sol'];
+      const items = ['churrasqueira', 'cadeira', 'cadeira', 'mesa_bar', 'bicicleta', 'vaso', 'isopor', 'caixa', 'guarda_sol', 'tanque', 'varal', 'rede_dormir', 'filtro_barro', 'gaiola', 'ventilador', 'cama_elastica', 'carrinho_rolima'];
       const n = r.int(2, 4);
       for (let i = 0; i < n; i++) {
         const [px, pz] = this.local(x, z, rotY, r.range(-3, 3), -7.2 + r.range(-1.5, 1.5));
@@ -417,7 +433,7 @@ export class WorldGenerator {
       if (r.chance(0.3)) this.animal('dog', yx, yz, d, 3);
       if (r.chance(0.25)) {
         const [tx, tz] = this.local(x, z, rotY, r.chance(0.5) ? -3.4 : 3.4, -8.5);
-        this.place(r.chance(0.5) ? 'coqueiro' : 'arvore', tx, 0, tz, r.range(0, 6), d);
+        this.place(r.pick(['coqueiro', 'arvore', 'mangueira', 'jaqueira', 'cajueiro']), tx, 0, tz, r.range(0, 6), d);
       }
     }
     // front yard
@@ -430,11 +446,13 @@ export class WorldGenerator {
     const { cx, cz, district: d } = blk;
     const r = this.rng;
     const lotW = (HL * 2) / 3;
+    const church = r.chance(0.12) ? (r.chance(0.35) ? 'igreja_matriz' : 'capela') : null;
     for (let i = 0; i < 3; i++) {
       const lx = cx - HL + lotW * (i + 0.5);
       // south row faces +Z, north row faces -Z
       this.house(lx + r.range(-0.6, 0.6), cz + HL - 6.2, 0, d);
-      this.house(lx + r.range(-0.6, 0.6), cz - HL + 6.2, Math.PI, d);
+      if (church && i === 1) this.place(church, lx, 0, cz - HL + (church === 'capela' ? 5.2 : 10.2), Math.PI, d);
+      else this.house(lx + r.range(-0.6, 0.6), cz - HL + 6.2, Math.PI, d);
     }
     // corner bar with plastic chairs (the Brazilian classic)
     if (r.chance(0.4)) {
@@ -489,7 +507,9 @@ export class WorldGenerator {
       this.shop(lx, cz - HL + 5.2, Math.PI, d);
     }
     // central plaza: feira, food trucks and kiosks (Salvador: a trio elétrico and its pipoca)
-    const mode = r.int(0, 2);
+    let mode = r.int(0, 4);
+    if (mode === 4 && this.mercadaoPlaced) mode = 0;
+    if (mode === 3 && this.festaPlaced >= 2) mode = 1;
     if (this.has('trio') && !this.trioPlaced) {
       this.trioPlaced = true;
       this.place('trio_eletrico', cx, 0, cz, HALF_PI, d);
@@ -514,6 +534,18 @@ export class WorldGenerator {
         this.place('cadeira', cx + r.range(-6, 6), 0, cz + r.range(-6, 6), r.range(0, 6), d);
       }
       for (let i = 0; i < 5; i++) this.person(cx + r.range(-6, 6), cz + r.range(-6, 6), d, undefined, 4);
+    } else if (mode === 3) {
+      // festa: a carnival float in the carnival capitals, a ferris wheel elsewhere
+      this.festaPlaced++;
+      const carnaval = this.city.id === 'rio' || this.city.id === 'recife' || this.city.id === 'salvador';
+      this.place(carnaval ? 'carro_alegorico' : 'roda_gigante', cx, 0, cz, HALF_PI, d);
+      for (const [x, z] of [[-15, -6], [15, 6], [-15, 6]] as const) this.place(r.pick(['carrinho_churros', 'carrinho_picole', 'carrinho_hotdog', 'carrinho_pipoca']), cx + x, 0, cz + z, r.range(0, 6), d);
+      for (let i = 0; i < 8; i++) this.person(cx + r.range(-14, 14), cz + r.range(-8, 8), d, i % 3 === 0 ? 'filmer' : 'dancer', 4);
+    } else if (mode === 4) {
+      this.mercadaoPlaced = true;
+      this.place('mercadao', cx, 0, cz - 1, 0, d);
+      this.place('carroca', cx - 15, 0, cz + 8, 0.3, d);
+      for (let i = 0; i < 4; i++) this.person(cx + r.range(-10, 10), cz + 9 + r.range(-1, 1), d, 'calm', 3);
     } else {
       for (let i = 0; i < 8; i++) {
         const x = cx - 14 + (i % 4) * 9.2;
@@ -531,6 +563,10 @@ export class WorldGenerator {
 
   private shop(x: number, z: number, rotY: number, d: DistrictId): void {
     const r = this.rng;
+    if (r.chance(0.08)) {
+      this.place('borracharia', x, 0, z - Math.cos(rotY) * 0.6, rotY, d);
+      return;
+    }
     const idx = this.place('loja', x, 0, z, rotY, d);
     const [tx, tz] = this.local(x, z, rotY, r.range(-3, 3), -2);
     this.place('caixa_dagua', tx, 7.3, tz, r.range(0, 6), d, idx);
@@ -552,7 +588,7 @@ export class WorldGenerator {
     this.place('posto', cx, 0, cz + 6, 0, d);
     this.parkedCar(cx - 3.2, cz + 8, 0, d);
     this.parkedCar(cx + 3.2, cz + 5, 0, d);
-    this.place('caminhao', cx - 12, 0, cz - 10, Math.PI / 2, d);
+    this.place(this.rng.pick(['caminhao', 'caminhao_gas', 'caminhao_pipa', 'onibus_excursao']), cx - 12, 0, cz - 10, Math.PI / 2, d);
     this.place('outdoor', cx + 13, 0, cz - 12, -0.4, d, -1, 0);
     this.place('lixeira', cx + 5, 0, cz - 2, 0, d);
     this.place('botijao', cx + 6, 0, cz - 2.5, 0, d);
@@ -566,6 +602,8 @@ export class WorldGenerator {
     if (!this.statuePlaced) {
       this.place('estatua', cx, 0, cz, 0, d);
       this.statuePlaced = true;
+    } else if (r.chance(0.7)) {
+      this.place('coreto', cx, 0, cz, r.range(0, 6), d);
     }
     for (let i = 0; i < 8; i++) {
       const a = (i / 8) * Math.PI * 2;
@@ -596,6 +634,7 @@ export class WorldGenerator {
     }
     this.scatterProps(d, cx, cz, HL, HL, 6);
     for (let i = 0; i < 3; i++) this.place('moto', cx - 18, 0, cz - 8 + i * 2.2, Math.PI / 2, d);
+    this.maybeRare(d, cx, cz, 12);
   }
 
   private genIndustrial(blk: BlockInfo): void {
@@ -619,6 +658,8 @@ export class WorldGenerator {
       this.place('caixa_elevada', cx - 12, 0, cz + 14, 0, d);
     }
     for (let i = 0; i < 3; i++) this.place(r.chance(0.5) ? 'empilhadeira' : 'caminhonete', cx + r.range(-16, 16), 0, cz + r.range(-16, 16), r.range(0, 6), d);
+    this.place(r.pick(['caminhao_lixo', 'betoneira', 'caminhao_pipa', 'caminhao_gas']), cx + r.range(-6, 6), 0, cz + 16, HALF_PI, d);
+    if (r.chance(0.6)) this.place('cacamba', cx - 16, 0, cz + r.range(-6, 6), 0, d);
     this.scatterProps(d, cx, cz, HL, HL, 12);
     for (let i = 0; i < 3; i++) this.person(cx + r.range(-16, 16), cz + r.range(-16, 16), d, undefined, 5);
     this.maybeRare(d, cx, cz, 12);
@@ -723,7 +764,19 @@ export class WorldGenerator {
     this.place('telhado', hx, 2.9, hz, (this.placements[hIdx] as Placement).rotY, d, hIdx);
     for (let i = 0; i < 4; i++) this.animal('cow', cx + r.range(-18, 18), cz + r.range(-18, 18), d, 8);
     for (let i = 0; i < 7; i++) this.animal('chicken', hx + r.range(-8, 8), hz + r.range(-8, 8), d, 4);
-    for (let i = 0; i < 6; i++) this.place(r.pick(['coqueiro', 'arvore', 'ipe']), cx + r.range(-19, 19), 0, cz + r.range(-19, 19), r.range(0, 6), d);
+    const ruralTrees = this.city.id === 'nova_aurora' || this.city.id === 'sao_paulo' ? ['arvore', 'ipe', 'araucaria', 'mangueira', 'jaqueira'] : ['coqueiro', 'arvore', 'ipe', 'mangueira', 'cajueiro', 'jaqueira'];
+    for (let i = 0; i < 6; i++) this.place(r.pick(ruralTrees), cx + r.range(-19, 19), 0, cz + r.range(-19, 19), r.range(0, 6), d);
+    // the sítio's extras: a mud hut, a tractor, a chapel or a phone tower on the corner
+    const ex = hx > cx ? cx - 13 : cx + 13;
+    const ez = hz > cz ? cz - 13 : cz + 13;
+    const extra = r.weighted([
+      { item: 'pau_a_pique', weight: 3 },
+      { item: 'torre_celular', weight: 2 },
+      { item: 'capela', weight: 1 },
+      { item: 'trator', weight: 2 },
+      { item: 'none', weight: 2 },
+    ]);
+    if (extra !== 'none') this.place(extra, ex, 0, ez, r.int(0, 3) * HALF_PI, d);
     this.parkedCar(hx + 8, hz, 0, d, true);
     this.animal('dog', hx + 3, hz + 5, d, 5);
     this.scatterProps(d, cx, cz, HL, HL, 7);
@@ -836,8 +889,10 @@ export class WorldGenerator {
       this.place('sobrado_colonial', cx + edge, 0, z, HALF_PI, d);
       this.place('sobrado_colonial', cx - edge, 0, z, -HALF_PI, d);
     }
-    // largo: tables, vendors, tourists
-    for (let i = 0; i < 4; i++) {
+    // largo: a bandstand or tables, vendors, tourists
+    const coreto = r.chance(0.45);
+    if (coreto) this.place('coreto', cx, 0, cz, r.range(0, 6), d);
+    for (let i = 0; i < (coreto ? 0 : 4); i++) {
       const x = cx + r.range(-6, 6);
       const z = cz + r.range(-5, 5);
       this.place('mesa_bar', x, 0, z, 0, d);
@@ -887,7 +942,7 @@ export class WorldGenerator {
     const { cx, cz, district: d } = blk;
     const r = this.rng;
     if (r.chance(0.55)) this.place('samauma', cx + r.range(-6, 6), 0, cz + r.range(-6, 6), r.range(0, 6), d);
-    const trees = ['arvore', 'arvore', 'palmeira_acai', 'bananeira', 'coqueiro', 'ipe'];
+    const trees = ['arvore', 'arvore', 'palmeira_acai', 'bananeira', 'coqueiro', 'ipe', 'jaqueira', 'mangueira'];
     for (let i = 0; i < 24; i++) this.place(r.pick(trees), cx + r.range(-HB + 2, HB - 2), 0, cz + r.range(-HB + 2, HB - 2), r.range(0, 6), d);
     this.scatterProps(d, cx, cz, HL, HL, 6);
     if (r.chance(0.5)) this.place('preguica', cx + r.range(-12, 12), 0, cz + r.range(-12, 12), r.range(0, 6), d);
@@ -986,8 +1041,8 @@ export class WorldGenerator {
   private buildGround(halfW: number, halfH: number, cols: number, rows: number): BufferGeometry {
     const g = new ModelBuilder(this.atlas.white);
     const grid = this.grid;
-    const ext = 700;
-    g.box(ext * 2, 0.2, ext * 2, this.city.look.grass, 0, -0.12, 0);
+    if (this.wrap) g.box(halfW * 2 + ROAD, 0.2, halfH * 2 + ROAD, this.city.look.grass, 0, -0.12, 0);
+    else g.box(1400, 0.2, 1400, this.city.look.grass, 0, -0.12, 0);
     g.box(halfW * 2 + ROAD, 0.1, halfH * 2 + ROAD, 0x45474d, 0, -0.03, 0);
     for (const blk of this.blocks) {
       const d = blk.district;
@@ -1130,11 +1185,28 @@ export class WorldGenerator {
       if (blk.district === 'W') rects.push(this.grid.waterRect(blk.col, blk.row, true));
       else if (blk.district === 'A') rects.push(...this.grid.seaBeyondBeach(blk.col, blk.row));
     }
+    if (this.wrap) {
+      // clip the sea to the tile so copies side by side don't overlap
+      const ex = this.halfW + ROAD / 2;
+      const ez = this.halfH + ROAD / 2;
+      for (const r of rects) {
+        r.x0 = Math.max(-ex, r.x0);
+        r.x1 = Math.min(ex, r.x1);
+        r.z0 = Math.max(-ez, r.z0);
+        r.z1 = Math.min(ez, r.z1);
+      }
+      for (let i = rects.length - 1; i >= 0; i--) {
+        const r = rects[i] as Rect;
+        if (r.x1 - r.x0 < 0.5 || r.z1 - r.z0 < 0.5) rects.splice(i, 1);
+      }
+    }
     if (rects.length === 0) return null;
     const west = new Color(this.city.look.water[0]);
     const east = new Color(this.city.look.water[1]);
     const col = new Color();
     const tint = (x: number) => {
+      // a wrapping tile needs one flat tone, or the seam shows as a colour step
+      if (this.wrap) return col.copy(west).lerp(east, 0.5);
       const t = Math.min(1, Math.max(0, (x + B * 0.5) / (B * 2)));
       return col.copy(west).lerp(east, t * t * (3 - 2 * t));
     };
@@ -1156,10 +1228,15 @@ export class WorldGenerator {
     const geo = new BufferGeometry();
     geo.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
     geo.setAttribute('color', new BufferAttribute(new Float32Array(colors), 3));
+    // streak texture repeats every ~24 m; on a wrapping tile it must repeat a whole number of times
+    const pw = this.halfW * 2 + ROAD;
+    const ph = this.halfH * 2 + ROAD;
+    const ux = this.wrap ? pw / Math.round(pw / 24) : 24;
+    const uz = this.wrap ? ph / Math.round(ph / 24) : 24;
     const uvs = new Float32Array((pos.length / 3) * 2);
     for (let i = 0; i < pos.length / 3; i++) {
-      uvs[i * 2] = (pos[i * 3] as number) / 24;
-      uvs[i * 2 + 1] = (pos[i * 3 + 2] as number) / 24;
+      uvs[i * 2] = (pos[i * 3] as number) / ux;
+      uvs[i * 2 + 1] = (pos[i * 3 + 2] as number) / uz;
     }
     geo.setAttribute('uv', new BufferAttribute(uvs, 2));
     geo.computeVertexNormals();

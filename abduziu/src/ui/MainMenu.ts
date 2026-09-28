@@ -1,13 +1,14 @@
 import { formatInt } from '../utils/math';
 import { h, onTap, Screen } from './dom';
 
-export type MenuAction = 'play' | 'daily' | 'meta' | 'dex' | 'records' | 'settings' | 'account';
+export type MenuAction = 'play' | 'daily' | 'meta' | 'shop' | 'friends' | 'dex' | 'records' | 'settings' | 'account';
 
 /** Cinematic title: the city and the saucer live behind it. */
 export class MainMenu extends Screen {
   private readonly cores: HTMLSpanElement;
   private readonly dailyBtn: HTMLButtonElement;
   private readonly metaBtn: HTMLButtonElement;
+  private readonly friendsBtn: HTMLButtonElement;
   private readonly coords: HTMLDivElement;
   private readonly account: HTMLButtonElement;
   private readonly accountName: HTMLSpanElement;
@@ -32,8 +33,11 @@ export class MainMenu extends Screen {
 
     const links = h('div', 'links');
     this.metaBtn = h('button', 'btn ghost', 'Evoluções');
+    this.friendsBtn = h('button', 'btn ghost friends', 'Amigos');
     const items: Array<[string, MenuAction, HTMLButtonElement?]> = [
       ['Evoluções', 'meta', this.metaBtn],
+      ['Loja', 'shop'],
+      ['Amigos', 'friends', this.friendsBtn],
       ['Coleção', 'dex'],
       ['Recordes', 'records'],
       ['Configurações', 'settings'],
@@ -61,8 +65,39 @@ export class MainMenu extends Screen {
     this.coords = h('div', 'coords', '');
     right.appendChild(this.coords);
     this.root.append(left, right);
-    const hint = h('div', 'rotate-hint', '↻ GIRE O CELULAR PARA A MELHOR EXPERIÊNCIA');
-    if (navigator.maxTouchPoints > 0) hint.classList.add('touch');
+    // portrait phones: a small pill up top (tap = try landscape, X = hide for this session)
+    const hint = h('button', 'rotate-hint');
+    hint.setAttribute('aria-label', 'Girar para paisagem');
+    const icon = h('span', 'phone');
+    const txt = h('span', 'txt');
+    txt.append(h('b', '', 'GIRE O CELULAR'), h('small', '', 'Melhor na horizontal'));
+    const close = h('span', 'x', '✕');
+    close.setAttribute('aria-label', 'Fechar aviso');
+    hint.append(icon, txt, close);
+    let dismissed = false;
+    try {
+      dismissed = sessionStorage.getItem('abduziu.rotateHint') === '0';
+    } catch {
+      /* private mode */
+    }
+    if (navigator.maxTouchPoints > 0 && !dismissed) hint.classList.add('touch');
+    close.addEventListener('pointerup', (e) => {
+      e.stopPropagation();
+      hint.classList.remove('touch');
+      try {
+        sessionStorage.setItem('abduziu.rotateHint', '0');
+      } catch {
+        /* private mode */
+      }
+    });
+    onTap(hint, () => {
+      // Android can rotate for us once in fullscreen; iOS just keeps the hint
+      const el = document.documentElement;
+      const o = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> };
+      const lock = () => o.lock?.('landscape').catch(() => undefined);
+      if (!document.fullscreenElement && el.requestFullscreen) void el.requestFullscreen({ navigationUI: 'hide' }).then(lock).catch(() => undefined);
+      else void lock();
+    });
     this.root.appendChild(hint);
   }
 
@@ -77,6 +112,12 @@ export class MainMenu extends Screen {
     this.accountSub.textContent = sub;
     this.account.classList.toggle('on', color !== null);
     this.account.style.setProperty('--div', color ?? 'var(--alien-green)');
+  }
+
+  /** "Amigos · 2 online", with a dot when friend requests are waiting. */
+  setFriends(online: number, requests: number): void {
+    this.friendsBtn.textContent = online > 0 ? `Amigos · ${online} on` : 'Amigos';
+    this.friendsBtn.classList.toggle('alert', requests > 0);
   }
 
   refresh(cores: number, dailyBest: number | null, canBuy: boolean): void {

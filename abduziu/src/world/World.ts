@@ -62,6 +62,8 @@ export class World {
   readonly groundMaterial: MeshStandardMaterial;
   readonly wires: Wires;
   readonly bounds: GenResult['bounds'];
+  /** Tile size when the city wraps around (arena), else null. */
+  readonly wrap: GenResult['wrap'];
   readonly start: GenResult['start'];
   readonly blocks: GenResult['blocks'];
   readonly roadLines: GenResult['roadLines'];
@@ -82,6 +84,7 @@ export class World {
     gen: GenResult,
   ) {
     this.bounds = gen.bounds;
+    this.wrap = gen.wrap;
     this.start = gen.start;
     this.blocks = gen.blocks;
     this.roadLines = gen.roadLines;
@@ -316,6 +319,16 @@ export class World {
   }
 
   clampToBounds(v: Vector3, margin = 0): void {
+    const w = this.wrap;
+    if (w) {
+      // torus: leaving one edge enters the opposite one
+      const b = this.bounds;
+      if (v.x < b.minX) v.x += w.w;
+      else if (v.x >= b.maxX) v.x -= w.w;
+      if (v.z < b.minZ) v.z += w.h;
+      else if (v.z >= b.maxZ) v.z -= w.h;
+      return;
+    }
     v.x = Math.max(this.bounds.minX + margin, Math.min(this.bounds.maxX - margin, v.x));
     v.z = Math.max(this.bounds.minZ + margin, Math.min(this.bounds.maxZ - margin, v.z));
   }
@@ -341,6 +354,22 @@ export class World {
     });
     this.waterMat?.dispose();
     this.hash.clear();
+  }
+
+  /** Shortest signed offset from a to b along x (torus-aware). */
+  dx(a: number, b: number): number {
+    let d = b - a;
+    const w = this.wrap;
+    if (w) d -= Math.round(d / w.w) * w.w;
+    return d;
+  }
+
+  /** Shortest signed offset from a to b along z (torus-aware). */
+  dz(a: number, b: number): number {
+    let d = b - a;
+    const w = this.wrap;
+    if (w) d -= Math.round(d / w.h) * w.h;
+    return d;
   }
 
   get halfSize(): { w: number; h: number } {

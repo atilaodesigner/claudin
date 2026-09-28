@@ -67,8 +67,19 @@ export class AdaptiveQualityManager {
     this.scale = QUALITY_LEVELS[this.level]!.maxScale;
   }
 
+  /** Upper bound for the level (online rooms keep the frame light), null = none. */
+  private cap: number | null = null;
+
   get current(): QualityLevel {
-    return QUALITY_LEVELS[this.level] as QualityLevel;
+    return QUALITY_LEVELS[this.cap === null ? this.level : Math.min(this.level, this.cap)] as QualityLevel;
+  }
+
+  /** Limits (or releases, with null) the quality level; applies right away. */
+  setCap(cap: number | null): void {
+    if (cap === this.cap) return;
+    this.cap = cap;
+    this.scale = Math.min(this.scale, this.current.maxScale);
+    this.onApply?.(this.current, this.scale, true);
   }
 
   setPreset(p: QualityPreset): void {

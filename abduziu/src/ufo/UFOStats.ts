@@ -18,6 +18,8 @@ export interface StatInputs {
 /** Derived UFO numbers. Recomputed every frame (cheap) from upgrades + meta + progression. */
 export class UFOStats {
   scale = 1;
+  /** Size ceiling (the online arena lets big players keep growing). */
+  maxScale: number = BALANCE.ufo.maxScale;
   radius: number = BALANCE.ufo.baseRadius;
   altitude: number = BALANCE.ufo.baseAltitude;
   speed: number = BALANCE.ufo.baseSpeed;
@@ -57,7 +59,7 @@ export class UFOStats {
 
     const startTier = m('nave_tamanho') * META_VALUES.startTierPerLevel;
     const sizeTier = Math.max(0, i.matterTier - 1 + startTier);
-    let scale = Math.min(B.ufo.maxScale, Math.pow(B.ufo.scaleBase, sizeTier));
+    let scale = Math.min(this.maxScale, Math.pow(B.ufo.scaleBase, sizeTier));
     if (i.frenzy) scale *= F.scaleMult;
     this.scale = scale;
 

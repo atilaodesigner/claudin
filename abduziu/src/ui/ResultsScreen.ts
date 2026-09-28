@@ -24,6 +24,8 @@ export interface ResultsData {
   newRecord: boolean;
   daily: boolean;
   modeName: string;
+  /** Arena round: placement replaces the extraction story. */
+  arena?: { place: number; total: number; eatenBy: string | null };
   cityName: string;
   campaign: { stars: readonly boolean[]; earnedNow: readonly boolean[]; newStars: number; unlocked: string | null; bonusCores: number } | null;
   rank: { delta: number; rp: number; division: string; color: string; promoted: boolean; demoted: boolean; progress: number } | null;
@@ -58,9 +60,11 @@ export class ResultsScreen extends Screen {
     this.left.innerHTML = '';
     this.side.innerHTML = '';
     const head = h('div', 'head');
-    const title = d.extracted ? 'INVASÃO CONCLUÍDA' : d.quit ? 'SINAL PERDIDO' : 'NAVE ABATIDA';
+    const ar = d.arena;
+    const title = ar ? (ar.eatenBy ? 'ABDUZIDO!' : ar.place === 1 ? 'DONO DA ARENA' : d.quit ? 'SINAL PERDIDO' : 'FIM DA RODADA') : d.extracted ? 'INVASÃO CONCLUÍDA' : d.quit ? 'SINAL PERDIDO' : 'NAVE ABATIDA';
     head.appendChild(h('div', `title-xl${d.extracted ? '' : ' bad'}`, title));
-    head.appendChild(h('div', 'label', `${d.modeName} · ${d.cityName}${d.extracted ? ' · EXTRAÇÃO BEM-SUCEDIDA' : ' · A CIDADE RESISTIU... DESSA VEZ'}`));
+    const story = ar ? (ar.eatenBy ? ` · ENGOLIDO POR ${ar.eatenBy.toUpperCase()}` : ` · #${ar.place} DE ${ar.total}`) : d.extracted ? ' · EXTRAÇÃO BEM-SUCEDIDA' : ' · A CIDADE RESISTIU... DESSA VEZ';
+    head.appendChild(h('div', 'label', `${d.modeName} · ${d.cityName}${story}`));
     this.left.appendChild(head);
     if (d.campaign) {
       const c = d.campaign;
@@ -121,7 +125,7 @@ export class ResultsScreen extends Screen {
     cores.appendChild(h('div', 'label', 'ALIEN CORES'));
     const big = h('div', 'big', '0');
     cores.appendChild(big);
-    const multText = d.extracted ? `BASE ${formatInt(d.coresBase)} × EXTRAÇÃO x${d.multiplier}` : `BASE ${formatInt(d.coresBase)} × ${Math.round(d.multiplier * 100)}% (SEM EXTRAÇÃO)`;
+    const multText = ar ? `BASE ${formatInt(d.coresBase)} × ${Math.round(d.multiplier * 100)}%${ar.eatenBy ? ' (ABDUZIDO)' : ''}` : d.extracted ? `BASE ${formatInt(d.coresBase)} × EXTRAÇÃO x${d.multiplier}` : `BASE ${formatInt(d.coresBase)} × ${Math.round(d.multiplier * 100)}% (SEM EXTRAÇÃO)`;
     cores.appendChild(h('div', 'mult', multText + (d.campaign && d.campaign.bonusCores > 0 ? ` + ${formatInt(d.campaign.bonusCores)} ESTRELAS` : '')));
     this.side.appendChild(cores);
     this.countUp(big, d.coresTotal);

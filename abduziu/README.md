@@ -73,6 +73,8 @@ EXPLORAR → ABDUZIR → GANHAR MATÉRIA → COMBO → LEVEL UP → EVOLUÇÃO (
 | **Passeio** (casual) | quem quer relaxar | sem inimigos, sem alerta, sem dano; encerre quando quiser (conta como extração). Desafios que dependem de inimigos não aparecem. Rende 50% das cores. Cidades liberadas na campanha. |
 | **Invasão do Brasil** (progresso) | campanha | 7 cidades em ordem, cada uma com 3 estrelas fixas: extrair com vida, um objetivo local e abduzir o cartão-postal. Extrair libera a próxima cidade. Estrela nova vale +40 cores, primeira extração +60. |
 | **Ranqueada** (rank) | competitivo | mesma cidade e mesma seed para todos na semana (`weeklySetup`). A pontuação comparada ao "par" da sua divisão dá ou tira RP (escala log: dobrar o par = +25 RP; extrair +10, morrer -10). Divisões: Bronze, Prata, Ouro, Platina, Diamante, Mestre Alienígena. |
+| **Arena Online** (PvP) | jogadores reais | salas no Cloudflare (Durable Objects, `server/`), acessadas por `abduziu.fun/api/arena` (Pages Function em `functions/api/arena.ts`). A sala escolhe cidade e seed pra todo mundo ver o mesmo mapa sem fim; cada jogador abduz a própria cópia da cidade e reporta posição e matéria 10x/s (crescimento limitado no servidor); a sala roda os bots que completam os 12 lugares (tubarões seguem o maior jogador, peixes pequenos seguem o menor) e decide quem segura e engole quem. 10 s de proteção ao começar a voar. Lógica pura em `server/src/logic.ts`, testada em `tests/arenaServer.test.ts`. |
+| **Arena** (.io) | contra bots | rodada de 4 min estilo slither.io (`src/arena/ArenaSystem.ts`) num **mapa infinito**: a cidade da arena é gerada como um ladrilho que dá a volta (`WorldGenerator` com `wrap`), e `Game.renderWrapCopies` desenha cópias dela do lado que a câmera vê, então não existe borda. 9 a 15 naves-bot, algumas já grandes no começo, crescem abduzindo e comem mais rápido conforme o tempo passa. Uma nave 0,6 classe maior segura a outra no feixe e engole (1 s entre bots, 0,85 s pra te engolir), ficando com 60% da matéria; o resto cai como sucata. Bots te preferem como alvo, caçam em arrancadas curtas e só dão 8 s de carência. Placar ao vivo, nome sobre cada nave (vermelho = te engole, roxo = dá pra engolir), radar colorido. |
 | **Invasão do Dia** | todo dia | seed diária, cidade do dia em rodízio. Não mexe no RP. |
 
 Fluxo no menu: **INVADIR → escolha o modo → mapa do Brasil (campanha/passeio) ou tela da ranqueada**.
@@ -227,12 +229,12 @@ Projeto Supabase **abduziu** (`dhdtawdkmzcuoklzyqig`). O jogo continua 100% jog�
 **Banco:** migration em `supabase/migrations/20260927160000_abduziu_online.sql` (já aplicada no projeto).
 
 **Configurar no painel da Supabase (uma vez):**
-1. *Authentication → URL Configuration:* em **Site URL** coloque o domínio do jogo (ex.: `https://abduziu.vercel.app`) e em **Redirect URLs** adicione esse domínio + `http://localhost:5173` pro dev.
+1. *Authentication → URL Configuration:* em **Site URL** coloque `https://abduziu.fun` e em **Redirect URLs** adicione `https://abduziu.fun/**`, `https://www.abduziu.fun/**`, `https://*.abduziu.pages.dev/**` (prévias da Cloudflare) e `http://localhost:5173/**` pro dev.
 2. *Authentication → Providers → Google:* ative e cole o Client ID/Secret criados no Google Cloud Console (OAuth "Web application", redirect `https://dhdtawdkmzcuoklzyqig.supabase.co/auth/v1/callback`).
 3. *Authentication → Email Templates → Magic Link:* acrescente `Código: {{ .Token }}` pra quem abre o e-mail em outro app/aparelho poder digitar o código no jogo.
 4. Pra volume real de e-mails, configure um SMTP próprio (o SMTP padrão da Supabase tem limite baixo por hora).
 
-**Hospedagem:** o login precisa de domínio próprio (Vercel, Netlify, Cloudflare Pages). A prévia no claude.ai bloqueia chamadas externas, então aquela cópia é gerada com `VITE_ONLINE=off` e mostra "versão demo".
+**Hospedagem:** Cloudflare Pages no domínio **abduziu.fun** (raiz `abduziu`, build `npm run build`, saída `dist`; cache em `public/_headers`). A prévia no claude.ai bloqueia chamadas externas, então aquela cópia é gerada com `VITE_ONLINE=off` e mostra "versão demo".
 
 **Outros projetos/ambientes:** copie `.env.example` pra `.env` e troque URL/chave publicável. Nunca use a `service_role` no cliente.
 
