@@ -222,6 +222,14 @@ export class TextureAtlas {
     label('trio', 'TRIO ELÉTRICO ALIENÍGENA', '#111111', '#ffbe0b', 512, 64, 44);
     label('salva', 'SALVA-VIDAS', '#e63946', '#ffffff');
     label('lacerda', 'ELEVADOR LACERDA', '#f1e3c6', '#1d3557');
+    label('churros', 'CHURROS', '#e63946', '#fff1c1');
+    label('picole', 'PICOLÉ', '#3a86ff', '#ffffff', 256, 64, 46);
+    label('caldo', 'CALDO DE CANA', '#ffd23f', '#1e5a2e');
+    label('pamonha', 'PAMONHAS • PAMONHAS', '#f4f1e8', '#1e7a2e', 512, 48, 38);
+    label('lotacao', 'LOTAÇÃO', '#111111', '#ffd23f', 256, 64, 44);
+    label('borracharia', 'BORRACHARIA 24H', '#1d1d21', '#ffd23f', 512, 80, 60);
+    label('atm', 'BANCO 24H', '#1d4ed8', '#ffffff');
+    label('excursao', 'EXCURSÃO APARECIDA', '#f4f6f8', '#e67e22', 512, 48, 38);
 
     // stadium-ish flag / bunting strip (festas)
     this.region('bunting', 256, 32, (ctx, w, h) => {
