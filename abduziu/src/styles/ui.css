@@ -2898,6 +2898,28 @@ svg.brazil .pin.sel .dot {
   transform-origin: left;
   transform: scaleX(0);
 }
+@media (orientation: portrait) {
+  /* phone upright: compact board on the left (objectives are hidden in the arena) */
+  .arena-panel {
+    position: fixed;
+    left: calc(var(--safe-left) + 14px);
+    top: calc(var(--safe-top) + 96px);
+    width: calc(128px * var(--ui-scale));
+  }
+  .arena-clock {
+    align-self: flex-start;
+    font-size: calc(18px * var(--ui-scale));
+  }
+  .arena-row {
+    grid-template-columns: calc(12px * var(--ui-scale)) 1fr auto;
+    gap: 4px;
+    padding: 2px 6px;
+    font-size: calc(9px * var(--ui-scale));
+  }
+  .arena-row:nth-child(n + 4):not(.me) {
+    display: none;
+  }
+}
 @media (max-height: 520px) {
   .arena-panel {
     width: calc(160px * var(--ui-scale));

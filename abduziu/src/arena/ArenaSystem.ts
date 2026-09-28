@@ -82,6 +82,8 @@ class Bot {
   sprintCd = 0;
   /** Personality: how brave/greedy this bot plays. */
   readonly bold: number;
+  /** How close to the player's size this bot plays (1 = keeps pace, >1 = ahead). */
+  skill = 0.5;
   wobble = Math.random() * 10;
 
   constructor(
@@ -200,8 +202,13 @@ export class ArenaSystem {
     this.g.hud.root.classList.add('arena');
     const count = lowQuality ? 9 : 15;
     const names = [...NAMES].sort(() => Math.random() - 0.5);
+    // a few sharks that keep pace with (or beat) the player, a middle pack and small fry
+    const skills = [1.25, 1.1, 0.95, 0.8, 0.65, 0.5];
+    while (skills.length < count) skills.push(0.12 + Math.random() * 0.33);
+    skills.sort(() => Math.random() - 0.5);
     for (let i = 0; i < count; i++) {
       const b = new Bot(names[i % names.length] as string, ACCENTS[i % ACCENTS.length] as number, this.env, this.noise, this.g.hud.root);
+      b.skill = skills[i] as number;
       this.scene.add(b.visuals.root);
       this.scene.add(b.beam.group);
       // bots "joined" at different times: some are already big and hungry
@@ -289,6 +296,14 @@ export class ArenaSystem {
     return this.standings().findIndex((e) => e.player) + 1;
   }
 
+  /**
+   * Size this bot is heading for. Bots are paced against the player (rubber band): the
+   * better the player does, the bigger the sharks get, so the leaderboard stays a fight.
+   */
+  private targetMatter(b: Bot): number {
+    return Math.max(this.playerMatter, 20 + this.time * 8) * b.skill + 30;
+  }
+
   /** Typical bot size right now (respawns come back at a fraction of it). */
   private medianMatter(): number {
     const m = this.bots.filter((b) => b.alive).map((b) => b.matter).sort((a, b) => a - b);
@@ -330,6 +345,13 @@ export class ArenaSystem {
       this.think(b, dt, ptier);
       this.move(b, dt);
       this.feed(b);
+      // off-screen farming: bots keep growing toward their pace even on a bare map
+      const target = this.targetMatter(b);
+      if (b.matter < target) {
+        const lv = levelFromXp(b.matter);
+        b.matter += (target - b.matter) * Math.min(1, 0.035 * dt);
+        if (levelFromXp(b.matter) !== lv) b.visuals.setLevel(levelFromXp(b.matter));
+      }
     }
 
     // ship vs ship: bots swallowing bots
@@ -559,20 +581,23 @@ export class ArenaSystem {
     const g = this.g;
     const floor = Math.floor(b.tier + 1e-4);
     g.world.query(b.pos.x, b.pos.z, b.beamRadius, _near);
+    const band = clamp(this.targetMatter(b) / (b.matter + 30), 0.25, 30);
+    let eaten = 0;
     for (const o of _near) {
       if (o.slot !== 'static' || o.state !== AState.Static || o.tier > floor) continue;
       const tier = o.tier;
       g.world.kill(o);
       this.foodIds.delete(o.uid);
       const before = levelFromXp(b.matter);
-      b.matter += matterForTier(tier, o.def.matterMult ?? 1) * 1.5 * (1 + (0.6 * this.time) / ARENA_ROUND);
+      b.matter += matterForTier(tier, o.def.matterMult ?? 1) * 1.5 * (1 + (0.6 * this.time) / ARENA_ROUND) * band;
       const after = levelFromXp(b.matter);
       if (after !== before) b.visuals.setLevel(after);
       b.beam.onAbsorb();
       this.updateVis(b);
       if (this.dist(b.pos, g.ufo.position) < 120) g.vfx.absorb(b.vis, tier, b.radius, 0, false, b.color);
-      b.eatCd = 0.16 + tier * 0.04;
-      return;
+      b.eatCd = 0.12 + tier * 0.03;
+      // big beams swallow a few things at once, like the player's
+      if (++eaten >= 3) return;
     }
   }
 
@@ -604,7 +629,8 @@ export class ArenaSystem {
       g.haptics.light();
       r.stats.enemiesDestroyed++;
     } else {
-      by.matter += gain;
+      // a feast still can't push a bot far past its pace (no runaway snowball)
+      by.matter = Math.min(by.matter + gain, Math.max(by.matter, this.targetMatter(by) * 1.2));
       by.visuals.setLevel(levelFromXp(by.matter));
       by.beam.onAbsorb();
       if (near) {
@@ -721,8 +747,8 @@ export class ArenaSystem {
         continue;
       }
       b.label.style.display = '';
-      const x = (_vis.x * 0.5 + 0.5) * w;
-      const y = (-_vis.y * 0.5 + 0.5) * hh;
+      const x = clamp((_vis.x * 0.5 + 0.5) * w, 70, w - 70);
+      const y = clamp((-_vis.y * 0.5 + 0.5) * hh, 40, hh - 10);
       b.label.style.transform = `translate(-50%,-100%) translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
       const danger = b.tier >= pt + EAT_MARGIN ? 'bad' : pt >= b.tier + EAT_MARGIN ? 'prey' : '';
       const text = `${b.name} · ${formatInt(b.matter)}`;
