@@ -46,6 +46,21 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx --yes wrangler@4 pages project create "$PROJECT" --production-branch=main || echo "projeto já existe"
 
+      - name: Garantir o subdomínio workers.dev da conta (exigido no primeiro Worker)
+        continue-on-error: true
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          api() { curl -sS -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" "$@"; }
+          CUR=$(api "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/workers/subdomain" | jq -r '.result.subdomain // empty')
+          if [ -n "$CUR" ]; then echo "subdomínio: $CUR.workers.dev"; exit 0; fi
+          for SUB in abduziu abduziu-game abduziu-fun gueto-abduziu "abduziu-${ACCOUNT:0:6}"; do
+            R=$(api -X PUT "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/workers/subdomain" -d "{\"subdomain\":\"$SUB\"}")
+            echo "$R" | jq -c '{subdomain: .result.subdomain, success, errors: [.errors[]?.message]}'
+            if [ "$(echo "$R" | jq -r .success)" = "true" ]; then break; fi
+          done
+
       - name: Publicar o servidor da ARENA ONLINE (Durable Objects)
         id: arena
         continue-on-error: true
