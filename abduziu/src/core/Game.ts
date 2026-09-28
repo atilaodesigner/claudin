@@ -1485,6 +1485,11 @@ export class Game {
       }
     }
     if (playing && this.input.consume('extract')) this.startExtraction();
+    // city cleared: the portal opens and the saucer leaves on its own
+    if (playing && r.autoExtract >= 0) {
+      r.autoExtract -= dt;
+      if (r.autoExtract < 0) this.startExtraction();
+    }
 
     // EMP
     this.autoEmpAccumulator = Math.max(0, this.autoEmpAccumulator - dt);
