@@ -126,6 +126,7 @@ export class RoomSim {
       s.flying = true;
       s.born = this.time;
       s.seen = now;
+      this.recycleFry(3);
     }
     const dt = Math.max(0.05, (now - s.seen) / 1000);
     s.seen = now;
@@ -243,6 +244,15 @@ export class RoomSim {
     const out = this.events;
     this.events = [];
     return out;
+  }
+
+  /** A newcomer needs snacks: a few small-fry bots come back small somewhere else. */
+  private recycleFry(n: number): void {
+    const fry = [...this.ships.values()].filter((s) => s.bot && s.skill < 0.5).sort((a, b) => b.m - a.m);
+    for (const b of fry.slice(0, n)) {
+      const p = this.spawnPoint();
+      Object.assign(b, { x: p.x, z: p.z, vx: 0, vz: 0, alive: true, held: 0, heldBy: null, m: 5 + this.rand() * 40, born: this.time, respawn: 0 });
+    }
   }
 
   shielded(s: Ship): boolean {
