@@ -61,8 +61,39 @@ export class MainMenu extends Screen {
     this.coords = h('div', 'coords', '');
     right.appendChild(this.coords);
     this.root.append(left, right);
-    const hint = h('div', 'rotate-hint', '↻ GIRE O CELULAR PARA A MELHOR EXPERIÊNCIA');
-    if (navigator.maxTouchPoints > 0) hint.classList.add('touch');
+    // portrait phones: a small pill up top (tap = try landscape, X = hide for this session)
+    const hint = h('button', 'rotate-hint');
+    hint.setAttribute('aria-label', 'Girar para paisagem');
+    const icon = h('span', 'phone');
+    const txt = h('span', 'txt');
+    txt.append(h('b', '', 'GIRE O CELULAR'), h('small', '', 'Melhor na horizontal'));
+    const close = h('span', 'x', '✕');
+    close.setAttribute('aria-label', 'Fechar aviso');
+    hint.append(icon, txt, close);
+    let dismissed = false;
+    try {
+      dismissed = sessionStorage.getItem('abduziu.rotateHint') === '0';
+    } catch {
+      /* private mode */
+    }
+    if (navigator.maxTouchPoints > 0 && !dismissed) hint.classList.add('touch');
+    close.addEventListener('pointerup', (e) => {
+      e.stopPropagation();
+      hint.classList.remove('touch');
+      try {
+        sessionStorage.setItem('abduziu.rotateHint', '0');
+      } catch {
+        /* private mode */
+      }
+    });
+    onTap(hint, () => {
+      // Android can rotate for us once in fullscreen; iOS just keeps the hint
+      const el = document.documentElement;
+      const o = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> };
+      const lock = () => o.lock?.('landscape').catch(() => undefined);
+      if (!document.fullscreenElement && el.requestFullscreen) void el.requestFullscreen({ navigationUI: 'hide' }).then(lock).catch(() => undefined);
+      else void lock();
+    });
     this.root.appendChild(hint);
   }
 
