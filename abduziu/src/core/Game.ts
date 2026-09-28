@@ -69,6 +69,7 @@ import { ChunkManager } from '../world/ChunkManager';
 import { NPCSystem } from '../world/NPCSystem';
 import { TrafficSystem } from '../world/TrafficSystem';
 import { World } from '../world/World';
+import { CityRegrowth } from '../world/CityRegrowth';
 import { WorldGenerator } from '../world/WorldGenerator';
 import { EventBus } from './EventBus';
 import { GameLoop } from './GameLoop';
@@ -115,6 +116,8 @@ export class Game {
   arena: ArenaSystem | null = null;
   /** ARENA ONLINE (PvP room on the server). */
   pvp: OnlineArena | null = null;
+  /** Arena maps: abducted props grow back out of sight. */
+  readonly regrowth = new CityRegrowth();
   private pendingNet: ArenaNet | null = null;
   private arenaEndTimer = -1;
   lib!: ModelLibrary;
@@ -334,6 +337,7 @@ export class Game {
     }
     const gen = new WorldGenerator(this.lib, this.atlas, seed, city, wrap).generate();
     this.world = new World(this.scene, this.lib, this.atlas, gen);
+    this.regrowth.attach(this.world);
     this.chunks = new ChunkManager(this.world);
     this.world.onSpawn = (o) => this.chunks.register(o);
     this.birds = new BirdSystem(this.scene, this.world);
@@ -653,7 +657,7 @@ export class Game {
     this.renderer.setPostProcessingEnabled(this.post.enabled);
     this.post.setSize(this.renderer.width, this.renderer.height, this.renderer.pixelRatio);
     this.lighting?.setShadowQuality(q.shadows, q.shadowMap);
-    this.vfx?.particles.setBudgetScale(q.particles);
+    this.vfx?.particles.setBudgetScale(q.particles * (this.run?.mode === 'online' ? 0.55 : 1));
     this.beam?.setLowQuality(q.particles < 0.5);
     this.cameraCtl.camera.far = q.renderDistance * 3;
     this.bus.emit('quality:changed', { level: this.quality.level, renderScale: scale });
@@ -663,6 +667,8 @@ export class Game {
 
   private enterMenu(): void {
     this.state = 'menu';
+    this.quality.setCap(null);
+    this.regrowth.reset(false);
     this.arena?.clear();
     this.pvp?.clear();
     this.pendingNet?.close();
@@ -770,6 +776,9 @@ export class Game {
 
   private resetRunState(seed: number, mode: GameMode, city: CityDef): void {
     this.upgrades.reset();
+    this.regrowth.reset(mode === 'arena' || mode === 'online');
+    // online rooms: keep the frame light (effects cost, powers don't change)
+    this.quality.setCap(mode === 'online' ? (this.input.isTouchDevice ? 1 : 2) : null);
     this.run.start(seed, mode, city);
     const wanted = new Set(this.run.challenges.active.filter((c) => c.kind === 'abduct_id' && c.goal === 1).map((c) => c.template.objectId));
     this.landmarkTargets = this.world.objects.filter((o) => wanted.has(o.def.id));
@@ -1587,6 +1596,7 @@ export class Game {
     this.enemies.spawningEnabled = playing && MODES[this.run.mode].enemies;
     this.enemies.update(dt, r.time, this.playerSnapshot(), r.threat.alert);
     if (this.pvp?.active) this.pvp.update(dt, playing, beamOn);
+    this.regrowth.update(dt, this.cameraCtl.focus, 60 + this.cameraCtl.distance * 1.6);
     if (this.arena?.active) {
       this.arena.update(dt, playing && this.arenaEndTimer < 0, beamOn);
       if (this.arenaEndTimer >= 0) {

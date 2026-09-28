@@ -687,6 +687,8 @@ export class ArenaSystem {
       return false;
     }
     const o = w.spawn(id, _v.x, -1, _v.z, Math.random() * Math.PI * 2);
+    // arena snacks are topped up here, not by the city regrowth
+    o.eventTag = 'arena-food';
     this.foodIds.add(o.uid);
     return true;
   }

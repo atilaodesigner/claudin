@@ -31,6 +31,8 @@ class Remote {
   alt = 10;
   level = 1;
   fresh = true;
+  /** Out of view range: not drawn nor animated. */
+  far = false;
 
   constructor(
     readonly id: string,
@@ -286,6 +288,13 @@ export class OnlineArena {
       r.alt = damp(r.alt, target, target > r.alt ? 5 : 1.5, dt);
       r.vis.set(pp.x + this.dx(pp.x, r.pos.x), r.alt, pp.z + this.dz(pp.z, r.pos.z));
       const root = r.visuals.root;
+      // far ships aren't drawn nor animated (the radar still shows them)
+      const d = Math.hypot(r.vis.x - pp.x, r.vis.z - pp.z);
+      const far = d > 90 + g.cameraCtl.distance * 1.5 + r.radius * 2;
+      r.far = far;
+      root.visible = !far;
+      r.beam.group.visible = !far && d < 60 + g.cameraCtl.distance * 1.2 + r.radius * 2;
+      if (far) continue;
       root.position.copy(r.vis);
       root.scale.setScalar(r.radius);
       const inv = 1 / Math.max(1, BALANCE.ufo.baseSpeed * sc);
@@ -293,8 +302,8 @@ export class OnlineArena {
       r.visuals.body.rotation.z = damp(r.visuals.body.rotation.z, -r.vel.x * inv * BALANCE.ufo.maxTilt, 5, dt);
       r.visuals.update(dt, 0.5);
       const ground = g.world.groundAt(r.pos.x, r.pos.z);
-      r.beam.update(dt, r.vis, ground, r.radius, r.beamRadius, 1 + r.tier * 0.3, 0, 0, () => ground);
-      if (g.world.grid.isWaterAt(r.pos.x, r.pos.z)) g.waterFx.touch(r, r.vis.x, r.vis.z, r.vel.x, r.vel.z, r.beamRadius, dt);
+      if (r.beam.group.visible) r.beam.update(dt, r.vis, ground, r.radius, r.beamRadius, 1 + r.tier * 0.3, 0, 0, () => ground);
+      if (r.beam.group.visible && g.world.grid.isWaterAt(r.pos.x, r.pos.z)) g.waterFx.touch(r, r.vis.x, r.vis.z, r.vel.x, r.vel.z, r.beamRadius, dt);
     }
     this.labels();
   }
@@ -306,7 +315,10 @@ export class OnlineArena {
     const hh = g.renderer.height;
     const pt = g.stats.baseBeamTier;
     for (const r of this.ships.values()) {
-      if (r.gone) continue;
+      if (r.gone || r.far) {
+        r.label.style.display = 'none';
+        continue;
+      }
       _p.copy(r.vis).setY(r.vis.y + r.radius * 0.9).project(cam);
       if (_p.z > 1 || Math.abs(_p.x) > 1.1 || Math.abs(_p.y) > 1.1) {
         r.label.style.display = 'none';
