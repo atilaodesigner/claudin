@@ -63,10 +63,11 @@
       skinNames: { neon_rosa: ['NEON ROSA', 'RARO'], lava: ['LAVA', 'ÉPICO'], cristal: ['CRISTAL DE GELO', 'ÉPICO'], ouro: ['OURO 24K', 'LENDÁRIO'], buraco_negro: ['BURACO NEGRO', 'SUPER CLASSE'], nave_mae: ['NAVE-MÃE', 'SUPER CLASSE'] },
     },
   };
+  // id, nick, code, colour, nudge (px) from the tracked point down onto the saucer's dome
   const FRIENDS = [
-    ['f0', 'ZECA', '#7K2P', '#ffd23f'],
-    ['f1', 'BIA', '#Q4M9', '#ff5ad1'],
-    ['f2', 'LUA', '#X3A8', '#ff9a3d'],
+    ['f0', 'ZECA', '#7K2P', '#ffd23f', 235],
+    ['f1', 'BIA', '#Q4M9', '#ff5ad1', 250],
+    ['f2', 'LUA', '#X3A8', '#ff9a3d', 262],
   ];
 
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -275,15 +276,15 @@
       const r = row('friends', t);
       const made = [];
       if (r) {
-        const tags = FRIENDS.map(([id, nick, code, c]) => [id, `${nick}<small>${code}</small>`, c]);
-        tags.forEach(([id, html, c], i) => {
+        const tags = FRIENDS.map(([id, nick, code, c, dy]) => [id, `${nick}<small>${code}</small>`, c, dy]);
+        tags.forEach(([id, html, c, dy], i) => {
           const v = r[id];
           if (!v || !v.on) return;
           const k = outBack(prog(lt, 0.25 + i * 0.08, 0.2));
           const n = el('div', 'nick', `<i></i>${html}`);
           n.style.setProperty('--acc', c);
           n.style.left = `${v.x * 1080}px`;
-          n.style.top = `${v.y * 1920}px`;
+          n.style.top = `${v.y * 1920 + dy}px`;
           n.style.opacity = String(clamp(k * 3, 0, 1));
           n.style.transform = `translate(-50%, -100%) scale(${k})`;
           made.push(n);
@@ -295,7 +296,7 @@
       if (k > 0) {
         const tt = el('div', 'toast', `<div class="av">B</div><div class="tx"><b>BIA#Q4M9</b> ${L.friends.joined}<small>${L.friends.party}</small></div><div class="bt">${L.friends.btn}</div>`);
         tt.style.opacity = String(clamp(k * 2, 0, 1));
-        tt.style.transform = `translateX(${(1 - outBack(k)) * -140}px)`;
+        tt.style.transform = `translateY(${(1 - outBack(k)) * -70}px)`;
       }
     },
     skins(lt, t) {
