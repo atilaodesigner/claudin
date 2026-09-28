@@ -5,7 +5,7 @@
 import { CAMPAIGN, type CityId } from './cities';
 import { hashNumbers } from '../utils/rng';
 
-export type GameMode = 'casual' | 'campanha' | 'ranqueada' | 'diaria' | 'arena';
+export type GameMode = 'casual' | 'campanha' | 'ranqueada' | 'diaria' | 'arena' | 'online';
 
 export interface ModeInfo {
   id: GameMode;
@@ -46,6 +46,15 @@ export const MODES: Record<GameMode, ModeInfo> = {
     coreMult: 1.2,
     enemies: true,
     damage: true,
+  },
+  online: {
+    id: 'online',
+    name: 'ARENA ONLINE',
+    tag: 'PVP',
+    description: 'Jogadores de verdade na mesma cidade sem fim. Engula as naves menores, fuja das maiores e domine a sala.',
+    coreMult: 1,
+    enemies: false,
+    damage: false,
   },
   arena: {
     id: 'arena',

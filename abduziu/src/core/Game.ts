@@ -1,6 +1,8 @@
 import { Color, PerspectiveCamera, Scene, Vector3, type Texture } from 'three';
 import { AbductionSystem } from '../abduction/AbductionSystem';
 import { ArenaSystem } from '../arena/ArenaSystem';
+import { OnlineArena } from '../arena/OnlineArena';
+import { ArenaNet } from '../online/ArenaNet';
 import { DynamicObjectPool } from '../abduction/DynamicObjectPool';
 import { loadModelOverrides } from '../assets/AssetLoader';
 import { ModelLibrary } from '../assets/ModelLibrary';
@@ -111,6 +113,9 @@ export class Game {
   private envMap: Texture | null = null;
   /** ABDUZIU.io round (created on the first arena run). */
   arena: ArenaSystem | null = null;
+  /** ARENA ONLINE (PvP room on the server). */
+  pvp: OnlineArena | null = null;
+  private pendingNet: ArenaNet | null = null;
   private arenaEndTimer = -1;
   lib!: ModelLibrary;
   sky!: Sky;
@@ -390,7 +395,8 @@ export class Game {
     this.results.onAgain = () => {
       this.audio.ui('tap');
       this.results.hide();
-      void this.startRun(this.run.mode, this.run.city.id);
+      if (this.run.mode === 'online') void this.joinOnline();
+      else void this.startRun(this.run.mode, this.run.city.id);
     };
     this.results.onMeta = () => {
       this.audio.ui('tap');
@@ -449,7 +455,8 @@ export class Game {
         const pool = CAMPAIGN.filter((c) => isUnlocked(this.save.get().campaign, c.id));
         const city = (pool[Math.floor(Math.random() * pool.length)] ?? CAMPAIGN[0]) as CityDef;
         void this.startRun('arena', city.id);
-      } else this.mapScreen.open(m, this.save.get());
+      } else if (m === 'online') void this.joinOnline();
+      else this.mapScreen.open(m, this.save.get());
     };
     this.mapScreen.onClose = () => {
       this.audio.ui('back');
@@ -657,6 +664,9 @@ export class Game {
   private enterMenu(): void {
     this.state = 'menu';
     this.arena?.clear();
+    this.pvp?.clear();
+    this.pendingNet?.close();
+    this.pendingNet = null;
     this.arenaEndTimer = -1;
     this.hud.show(false);
     this.intro.hideNow();
@@ -715,7 +725,7 @@ export class Game {
   }
 
   /** Resolves mode + city into a concrete run (ranked/daily maps are the same for everyone). */
-  async startRun(mode: GameMode, cityId: CityId | null): Promise<void> {
+  async startRun(mode: GameMode, cityId: CityId | null, seedOverride?: number): Promise<void> {
     this.audio.unlock();
     this.requestFullscreen();
     this.menu.hide();
@@ -725,10 +735,11 @@ export class Game {
         ? weeklySetup()
         : mode === 'diaria'
           ? dailySetup(dailySeed())
-          : { mode, city: cityId ?? (this.save.get().last.city as CityId), seed: (Math.random() * 1e9) | 0 };
+          : { mode, city: cityId ?? (this.save.get().last.city as CityId), seed: seedOverride ?? (Math.random() * 1e9) | 0 };
     const city = getCity(setup.city);
-    const seeded = mode === 'ranqueada' || mode === 'diaria';
-    const wrap = mode === 'arena';
+    // online rooms: everyone must build exactly the same city
+    const seeded = mode === 'ranqueada' || mode === 'diaria' || mode === 'online';
+    const wrap = mode === 'arena' || mode === 'online';
     if (this.worldDirty || seeded || city.id !== this.city.id || wrap !== !!this.world.wrap) {
       this.intro.setBlackout(true);
       await nextFrame();
@@ -803,6 +814,8 @@ export class Game {
     this.introStep = 0;
     if (this.run.mode === 'arena') this.startArena();
     else this.arena?.clear();
+    if (this.run.mode === 'online') this.startPvp();
+    else this.pvp?.clear();
   }
 
   private introStep = 0;
@@ -1196,6 +1209,64 @@ export class Game {
     this.arena.start(this.quality.level <= 1);
   }
 
+  /** ARENA ONLINE: joins a room first (the room decides the city and its seed). */
+  private async joinOnline(): Promise<void> {
+    const note = this.netNotice('CONECTANDO À ARENA ONLINE...');
+    const net = new ArenaNet();
+    const name = this.online.profile?.nickname ?? `Visitante${Math.floor(1000 + Math.random() * 9000)}`;
+    try {
+      const w = await net.connect(name, 0x5dffa0);
+      note.remove();
+      this.pendingNet = net;
+      void this.startRun('online', w.city as CityId, w.seed);
+    } catch {
+      net.close();
+      note.textContent = 'ARENA ONLINE INDISPONÍVEL AGORA. TENTE A ARENA CONTRA BOTS.';
+      note.classList.add('bad');
+      setTimeout(() => note.remove(), 3500);
+      this.modeScreen.open(this.save.get());
+    }
+  }
+
+  private netNotice(text: string): HTMLDivElement {
+    const el = h('div', 'net-notice', text);
+    this.ui.appendChild(el);
+    return el;
+  }
+
+  private startPvp(): void {
+    const net = this.pendingNet;
+    this.pendingNet = null;
+    if (!net) return;
+    if (!this.pvp) {
+      this.pvp = new OnlineArena(this, this.scene, this.envMap, this.noise);
+      this.pvp.onPlayerEaten = (by) => {
+        if (this.state !== 'playing' && this.state !== 'intro') return;
+        this.state = 'dying';
+        this.arenaSwallowed = true;
+        this.evoDock.close();
+        this.endTimer = 1.4;
+        this.input.enabled = false;
+        this.abduction.dropAll();
+        this.audio.crash();
+        this.haptics.light();
+        this.time.slowMo(0.4, 0.6);
+        this.hud.showBanner('ABDUZIDO!', `${by.toUpperCase()} ENGOLIU SUA NAVE`, 'var(--warning-red)');
+      };
+      this.pvp.onDisconnect = () => {
+        if (this.state !== 'playing') return;
+        this.hud.showBanner('CONEXÃO PERDIDA', 'VOLTANDO PRO MENU', 'var(--warning-orange)');
+        setTimeout(() => {
+          if (this.state === 'playing') this.endRun('quit');
+        }, 1800);
+      };
+    }
+    this.arenaSwallowed = false;
+    this.pvp.playerName = this.online.profile?.nickname ?? 'VOCÊ';
+    this.pvp.start(net);
+    this.hud.toast('PROTEÇÃO DE CHEGADA', '10 segundos sem poder ser engolido', 'info', 2.6);
+  }
+
   private endRun(reason: 'extracted' | 'destroyed' | 'quit'): void {
     this.state = 'results';
     this.evoDock.close();
@@ -1220,6 +1291,9 @@ export class Game {
     if (r.mode === 'arena' && this.arena) {
       arenaInfo = { place: this.arena.place || this.arena.playerPlace(), total: this.arena.total, eatenBy: this.arena.eatenBy };
       this.arena.clear();
+    } else if (r.mode === 'online' && this.pvp) {
+      arenaInfo = { place: this.pvp.place || this.pvp.playerPlace(), total: this.pvp.total, eatenBy: this.pvp.eatenBy };
+      this.pvp.clear();
     }
     this.arenaEndTimer = -1;
     this.arenaSwallowed = false;
@@ -1433,7 +1507,7 @@ export class Game {
     } else if (this.state === 'dying' && this.arenaSwallowed) {
       // swallowed by a bigger ship: dragged up into its hatch, shrinking
       this.endTimer -= dt;
-      const c = this.arena?.captorPosition;
+      const c = this.run.mode === 'online' ? this.pvp?.captorPosition : this.arena?.captorPosition;
       if (c) this.ufo.position.lerp(c, 1 - Math.exp(-4 * dt));
       this.ufoVisuals.root.position.copy(this.ufo.position);
       this.ufoVisuals.root.scale.setScalar(this.stats.radius * Math.max(0.02, this.endTimer / 1.4));
@@ -1507,6 +1581,7 @@ export class Game {
     this.traffic.update(dt, this.ufo.position, this.stats.radius);
     this.enemies.spawningEnabled = playing && MODES[this.run.mode].enemies;
     this.enemies.update(dt, r.time, this.playerSnapshot(), r.threat.alert);
+    if (this.pvp?.active) this.pvp.update(dt, playing, beamOn);
     if (this.arena?.active) {
       this.arena.update(dt, playing && this.arenaEndTimer < 0, beamOn);
       if (this.arenaEndTimer >= 0) {
@@ -1645,6 +1720,7 @@ export class Game {
     // landmark objectives always show on the radar
     for (const o of this.landmarkTargets) if (o.alive) this.blips.push({ x: o.pos.x, z: o.pos.z, kind: 'event' });
     this.arena?.blips(this.blips);
+    this.pvp?.blips(this.blips);
     hud.drawRadar(dt, p.x, p.z, 110 + this.stats.radius * 10, this.blips, this.time.realElapsed);
     hud.updateFloats(this.time.realDelta, this.cameraCtl.camera, w, hh);
   }

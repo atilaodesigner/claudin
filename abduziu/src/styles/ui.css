@@ -1214,7 +1214,7 @@
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(calc(190px * var(--ui-scale)), 1fr));
   gap: 14px;
   align-items: stretch;
 }
@@ -2927,4 +2927,35 @@ svg.brazil .pin.sel .dot {
   .arena-row:nth-child(n + 4):not(.me) {
     display: none;
   }
+}
+
+/* ───────────────────────── ARENA ONLINE */
+.mode-card.m-online {
+  --m: #4dc9ff;
+}
+.net-notice {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--safe-top) + 18px);
+  transform: translateX(-50%);
+  z-index: 80;
+  padding: 10px 20px 9px;
+  border-radius: 999px;
+  background: rgba(4, 16, 22, 0.9);
+  border: 1px solid rgba(77, 201, 255, 0.6);
+  color: #dff6ff;
+  font-family: var(--font-hud);
+  font-size: calc(12px * var(--ui-scale));
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: arenaPulse 1.2s ease-in-out infinite;
+}
+.net-notice.bad {
+  border-color: rgba(255, 77, 94, 0.7);
+  color: #ffd9dd;
+  animation: none;
+  white-space: normal;
+  text-align: center;
+  max-width: calc(100% - 32px);
 }
