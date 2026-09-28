@@ -1215,6 +1215,10 @@
   min-height: 0;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(calc(190px * var(--ui-scale)), 1fr));
+  /* rows grow to fill the screen but never below their content (no clipped titles) */
+  grid-auto-rows: minmax(max-content, 1fr);
+  align-content: start;
+  overflow-y: auto;
   gap: 14px;
   align-items: stretch;
 }
@@ -1232,7 +1236,7 @@
   flex-direction: column;
   gap: 10px;
   justify-content: flex-end;
-  min-height: 0;
+  min-height: max-content;
   background:
     radial-gradient(circle at 80% 18%, color-mix(in srgb, var(--m) 30%, transparent), transparent 55%),
     linear-gradient(180deg, rgba(10, 28, 36, 0.86), rgba(4, 12, 18, 0.94));
