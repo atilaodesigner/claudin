@@ -38,7 +38,7 @@
       hook: { lines: ['ABDUCT THE', '*WHOLE CITY*'], acc: 'gold', place: 'SÃO PAULO' },
       orbit: { lines: ['DROP IN', '*FROM ORBIT*'], acc: 'cyan', place: 'RIO DE JANEIRO' },
       grow: { a: ['START', '*TINY...*'], b: ['...END UP', '*GIANT*'], acc: 'green', gauge: 'SAUCER SIZE' },
-      beach: { lines: ['ABDUCT', '*ANYTHING*'], sub: '<b>227</b> OBJECTS TO COLLECT', acc: 'pink', count: 'ABDUCTED' },
+      beach: { lines: ['ABDUCT', '*ANYTHING*'], sub: '<b>227</b> OBJECTS TO COLLECT', acc: 'pink', count: 'COLLECTION' },
       legends: { lines: ['HUNT SECRET', '*LEGENDS*'], acc: 'gold', place: 'SALVADOR' },
       army: { lines: ['THE ARMY', '*FIGHTS BACK*'], acc: 'red', alert: 'THREAT LEVEL: MAX', place: 'BRASÍLIA' },
       arena: { lines: ['EAT OTHER', '*SAUCERS*'], sub: 'LIVE <b>ONLINE PvP</b>', acc: 'pink', burst: 'GULP!' },
@@ -52,7 +52,7 @@
       hook: { lines: ['ABDUZA A', '*CIDADE INTEIRA*'], acc: 'gold', place: 'SÃO PAULO' },
       orbit: { lines: ['DESÇA DIRETO', '*DA ÓRBITA*'], acc: 'cyan', place: 'RIO DE JANEIRO' },
       grow: { a: ['COMECE', '*PEQUENO...*'], b: ['...E FIQUE', '*GIGANTE*'], acc: 'green', gauge: 'TAMANHO DA NAVE' },
-      beach: { lines: ['ABDUZA', '*QUALQUER COISA*'], sub: '<b>227</b> OBJETOS PRA COLECIONAR', acc: 'pink', count: 'ABDUZIDOS' },
+      beach: { lines: ['ABDUZA', '*QUALQUER COISA*'], sub: '<b>227</b> OBJETOS PRA COLECIONAR', acc: 'pink', count: 'CATÁLOGO' },
       legends: { lines: ['CACE LENDAS', '*SECRETAS*'], acc: 'gold', place: 'SALVADOR' },
       army: { lines: ['O EXÉRCITO', '*REVIDA*'], acc: 'red', alert: 'AMEAÇA: MÁXIMA', place: 'BRASÍLIA' },
       arena: { lines: ['ENGULA OUTRAS', '*NAVES*'], sub: '<b>PvP ONLINE</b> AO VIVO', acc: 'pink', burst: 'NHAC!' },
@@ -207,7 +207,8 @@
       c.style.opacity = String(k);
       const last = (EV.beach ?? []).filter((e) => e.k === 'pop' && e.t <= t).pop();
       const kick = last ? Math.exp(-(t - last.t) * 14) : 0;
-      c.innerHTML = `<span class="n" style="display:inline-block;transform:scale(${1 + kick * 0.12})">${n}</span><span class="l">${L.beach.count}</span>`;
+      // collection progress: every abduction can be a new catalogue entry
+      c.innerHTML = `<span class="l">${L.beach.count}</span><span class="n" style="display:inline-block;transform:scale(${1 + kick * 0.12})">${141 + n}</span><span class="l">/ 227</span>`;
     },
     legends(lt, t) {
       caption(L.legends.lines, lt, L.legends.acc, t);
