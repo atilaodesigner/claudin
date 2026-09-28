@@ -16,6 +16,7 @@ import { dailySetup, MODES, weekKey, weeklySetup, type GameMode } from '../confi
 import { getObjectDef, TIER_NAMES } from '../config/objects';
 import { SYNERGY_BY_ID } from '../config/upgrades';
 import { VFXManager } from '../effects/VFXManager';
+import { WaterFX } from '../effects/WaterFX';
 import { BossController } from '../enemies/BossController';
 import { EnemyManager, type PlayerSnapshot } from '../enemies/EnemyManager';
 import type { Missile } from '../enemies/MissileController';
@@ -116,6 +117,7 @@ export class Game {
   clouds!: Clouds;
   lighting!: Lighting;
   vfx!: VFXManager;
+  waterFx!: WaterFX;
 
   // per-run world
   world!: World;
@@ -272,6 +274,8 @@ export class Game {
     this.lighting = new Lighting(this.scene, this.sky, this.post);
     this.vfx = new VFXManager(this.scene, this.cameraCtl, this.post, this.time, this.haptics);
     this.vfx.particles.setViewportHeight(this.renderer.height * this.renderer.pixelRatio);
+    this.waterFx = new WaterFX(this.noise, this.vfx.particles);
+    this.scene.add(this.waterFx.group);
     const env = createEnvironmentMap(this.renderer.gl);
     this.envMap = env;
     this.ufoVisuals = new UFOVisuals(env);
@@ -315,6 +319,8 @@ export class Game {
     this.city = city;
     this.atlas.applyCity(city.signs, city.billboards, city.labels);
     this.lighting.setCity(city.look);
+    this.waterFx?.setWaterColor(city.look.water[1]);
+    this.waterFx?.clear();
     if (this.world) {
       this.abduction.reset();
       this.enemies.dispose();
@@ -1670,6 +1676,10 @@ export class Game {
 
     const beamPower = (r ? Math.min(3, r.combo.count / 15) : 0) + (this.ufo.stillFactor ?? 0) * 0.8 + (frenzy ? 2 : 0);
     this.beam.update(dt, this.ufo.position, ground, this.stats.radius, this.stats.beamRadius, beamPower, this.stats.satellites, this.stats.beamRadius * this.stats.satelliteRadiusMult, (x, z) => this.world.groundAt(x, z));
+    // flying over the sea/river: ripples, wake and a column of water in the beam
+    const up = this.ufo.position;
+    const overWater = this.state !== 'results' && this.ufoVisuals.root.visible && this.world.grid.isWaterAt(up.x, up.z);
+    this.waterFx.update(dt, overWater, up, this.ufo.velocity, this.stats.radius, this.stats.beamRadius, this.beam.intensity > 0.3);
     if (this.beam.intensity > 0.2 && (this.state === 'playing' || this.state === 'menu')) {
       this.vfx.beamParticles(this.ufo.position, ground, this.ufo.position.y - this.stats.radius * 0.3, this.stats.beamRadius, this.beam.color, 14 + this.stats.beamRadius * 3 + (this.abduction?.load ?? 0) * 25, dt);
       // anticipation: dust converging into the beam

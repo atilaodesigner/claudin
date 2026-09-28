@@ -728,6 +728,7 @@ export class ArenaSystem {
     b.visuals.update(dt, b.sprint > 0 ? 1.2 : b.mode === 'hunt' ? 0.8 : sp > 1 ? 0.2 : 0.5);
     const ground = this.g.world.groundAt(b.pos.x, b.pos.z);
     b.beam.update(dt, b.vis, ground, b.radius, b.beamRadius, 1 + b.tier * 0.3, 0, 0, () => ground);
+    if (this.g.world.grid.isWaterAt(b.pos.x, b.pos.z)) this.g.waterFx.touch(b, b.vis.x, b.vis.z, b.vel.x, b.vel.z, b.beamRadius, dt);
   }
 
   private updateLabels(): void {
