@@ -3,5 +3,8 @@ frames*/
 *.wav
 preview*/
 sheet_*.jpg
+chk_*.jpg
 *.log
 ff.txt
+out/
+final/
