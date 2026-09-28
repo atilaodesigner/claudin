@@ -237,6 +237,24 @@
       const sand = blocksOf('A');
       const beach = nearest(sand, g.world.start.x, g.world.start.z);
       g.world.start = { x: beach.cx, z: beach.cz - 18 };
+      // a packed Sunday on the sand along the sweep
+      {
+        const dir = beach.cx > 0 ? -1 : 1;
+        const kit = ['guarda_sol', 'cadeira_praia', 'cadeira_praia', 'isopor', 'prancha', 'coco', 'bola', 'guarda_sol', 'cadeira_praia', 'chinelo', 'copo_acai', 'melancia'];
+        const pal = [0xef476f, 0x118ab2, 0x06d6a0, 0xffd166, 0xf77f00, 0x8338ec];
+        let n = 0;
+        for (let i = 0; i < 60; i++) {
+          for (let j = -2; j <= 2; j++) {
+            const x = beach.cx + dir * (4 + i * 2.6) + (j % 2) * 1.2;
+            const zz = beach.cz - 4 + j * 2.4 + Math.sin(i * 1.7 + j) * 0.5;
+            try {
+              g.world.spawn(kit[n++ % kit.length], x, -1, zz, (i * 0.7 + j) % 6.28, { paint: pal[(i + j + 6) % pal.length] });
+            } catch {
+              /* sand edge */
+            }
+          }
+        }
+      }
       // centred composition (the menu keeps room for the logo on the left)
       space.menuCamera = function (s) {
         const cam = this.camera;
@@ -259,8 +277,8 @@
           D.state.play = 1;
           godMode();
           noFrenzy();
-          boost(4);
-          setMatter(150);
+          boost(5);
+          setMatter(260);
           // sweep along Copacabana: umbrellas, chairs, people, kiosks
           const z = beach.cz - 4;
           const dir = beach.cx > 0 ? -1 : 1;
@@ -276,19 +294,23 @@
       await startRun('casual', 'rio');
       boost(4);
       noFrenzy();
-      // Rio row 2: V R C L F F C — the favela, houses, shops, the Arcos da Lapa, the towers
-      const row = [0, 1, 2, 3, 4, 5, 6].map((c) => blockAt(c, 2)).filter(Boolean);
-      const first = row[0];
-      placeUfo(first.cx - 14, first.cz + 4);
+      // spiral out from a shopping street into Rio's towers
+      const a0 = blockAt(4, 1) ?? nearest(blocksOf('C'));
+      const b0 = blockAt(5, 2) ?? nearest(blocksOf('F'));
+      const c = { x: (a0.cx + b0.cx) / 2, z: (a0.cz + b0.cz) / 2 };
+      D.state.ang = 0;
+      placeUfo(c.x + 8, c.z);
       preroll(0.4);
-      const path = [[first.cx, first.cz + 4]];
-      for (const b of row.slice(1)) path.push([b.cx, b.cz + (path.length % 2 ? 5 : -5)]);
-      chaseCam(1, 0.5, 52, 0.55);
+      g.lighting.fogMult = 0.28; // the director's camera pulls far back: keep the skyline crisp
+      topCam(0.95, 0.72, 50);
       D.update = (lt) => {
         noFrenzy();
         // matter grows exponentially: cans → cars → houses → towers
         setMatter(14 * Math.pow(4200, clamp(lt / 13.5, 0, 1)));
-        followPath(path, lt < 3 ? 0.7 : 0.55);
+        const r = 8 + lt * 5.2;
+        D.state.ang += ((g.stats.speed ?? 10) * 0.75) / Math.max(8, r) / 60;
+        const a = D.state.ang + 0.5;
+        flyTo(c.x + Math.cos(a) * r, c.z + Math.sin(a) * r, 1);
       };
     },
 
@@ -386,8 +408,8 @@
       let x = p.x;
       let z = p.z;
       for (let i = 0; i < prey.length; i++) {
-        x += 18 + i * 7;
-        z += (i % 2 ? 1 : -1) * (6 + i * 2);
+        x += 10 + i * 2.5;
+        z += (i % 2 ? 1 : -1) * (3 + i);
         spots.push({ x, z });
         const b = prey[i];
         b.matter = preyMatter[i];
@@ -402,6 +424,7 @@
         b.pos.set(p.x - 150 - i * 20, b.pos.y, p.z + 120);
       });
       const scripted = new Set(prey);
+      const eaten = new Set();
       const idle = new Set(rest);
       const feed = a.feed.bind(a);
       a.feed = (b) => {
@@ -424,8 +447,8 @@
         let vx = Math.sin(D.lt * 1.3 + i) * 2;
         let vz = Math.cos(D.lt * 1.1 + i) * 2;
         if (d < 24) {
-          vx = (dx / d) * b.speed * 0.2;
-          vz = (dz / d) * b.speed * 0.2;
+          vx = (dx / d) * b.speed * 0.08;
+          vz = (dz / d) * b.speed * 0.08;
         } else {
           vx += (sp.x - b.pos.x) * 0.8;
           vz += (sp.z - b.pos.z) * 0.8;
@@ -444,15 +467,25 @@
       };
       const swallow = a.swallow.bind(a);
       a.swallow = (by, b) => {
-        if (by === 'player') log('swallow', { i: prey.indexOf(b) });
+        // the scripted prey are only for us
+        if (by !== 'player' && (scripted.has(b) || scripted.has(by))) {
+          b.held = 0;
+          b.captor = null;
+          return;
+        }
+        if (by === 'player') {
+          log('swallow', { i: prey.indexOf(b) });
+          if (scripted.has(b)) eaten.add(b);
+        }
         swallow(by, b);
       };
       preroll(0.3);
       noFrenzy();
+      g.lighting.fogMult = 0.5;
       topCam(1.05, 0.55, 50);
       D.update = () => {
         noFrenzy();
-        const next = prey.find((b) => b.alive);
+        const next = prey.find((b) => !eaten.has(b) && b.alive);
         if (!next) {
           flyTo(g.ufo.position.x + 40, g.ufo.position.z, 0.25);
           return;
@@ -483,6 +516,7 @@
       D.camZoom = 1;
       D.events = [];
       D.lastLevelFx = -9;
+      D.resetFog?.();
       g.cameraCtl.override = null;
       await SETUP[id]();
       D.recording = true;
