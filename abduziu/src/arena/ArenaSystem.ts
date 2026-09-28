@@ -4,7 +4,7 @@ import { getObjectDef } from '../config/objects';
 import { levelFromXp, matterForTier, tierFromMatter } from '../progression/RunProgression';
 import { h } from '../ui/dom';
 import type { RadarBlip } from '../ui/HUD';
-import { clamp, damp, dampAngle, formatInt } from '../utils/math';
+import { clamp, damp, formatInt } from '../utils/math';
 import { AState, type Abductable } from '../world/Abductable';
 import { TractorBeam } from '../ufo/TractorBeam';
 import { UFOVisuals } from '../ufo/UFOVisuals';
@@ -13,22 +13,27 @@ import type { Game } from '../core/Game';
 /** Round length (seconds). */
 export const ARENA_ROUND = 240;
 /** A ship swallows another when it is at least this many mass tiers above it. */
-export const EAT_MARGIN = 0.75;
-/** Seconds a ship must hold another under its beam to swallow it. */
-const EAT_HOLD = 1.1;
+export const EAT_MARGIN = 0.6;
+/** Seconds a ship must hold another bot under its beam to swallow it. */
+const EAT_HOLD = 1.0;
+/** Seconds a bot needs to swallow the player (bots are good at this). */
+const EAT_HOLD_PLAYER = 0.85;
 /** Share of the loser's matter the winner keeps (the rest drops as loot). */
 const EAT_GAIN = 0.6;
 /** Bigger bots leave the player alone for the first seconds of the round. */
-const GRACE = 20;
-const RESPAWN = 4;
-const FOOD_CAP = 140;
+const GRACE = 8;
+const RESPAWN = 3.5;
+const FOOD_CAP = 170;
+/** Hunting burst: short sprint when the prey is almost under the beam. */
+const SPRINT_TIME = 0.8;
+const SPRINT_COOLDOWN = 5;
 
 const NAMES = [
   'Pastel Voador', 'Caramelo_ET', 'Coxinha Orbital', 'Rapadura 3000', 'Vovó Galáctica', 'Brisa Cósmica',
   'Zé do Disco', 'Marcianinho', 'Tia do Óvni', 'Cometa Lindo', 'Neblina', 'Seu Alienígena', 'Pão de Queijo X',
-  'Açaí Estelar', 'Bate-Latinha', 'Dona Nave', 'Capitão Farofa', 'Kombi Sideral',
+  'Açaí Estelar', 'Bate-Latinha', 'Dona Nave', 'Capitão Farofa', 'Kombi Sideral', 'Tapioca Turbo', 'Guaraná Nebular',
 ];
-const ACCENTS = [0xff5ad1, 0xffb020, 0x4dc9ff, 0xff4d5e, 0xc28bff, 0xfff05a, 0x5affea, 0xff8a3d, 0x8aff5a, 0x5a7bff, 0xff7ab8, 0xffffff];
+const ACCENTS = [0xff5ad1, 0xffb020, 0x4dc9ff, 0xff4d5e, 0xc28bff, 0xfff05a, 0x5affea, 0xff8a3d, 0x8aff5a, 0x5a7bff, 0xff7ab8, 0xffffff, 0xffd166, 0x06d6a0, 0xef476f, 0x9b5de5];
 const FOOD: ReadonlyArray<readonly string[]> = [
   ['lata', 'garrafa', 'chinelo', 'bola', 'isopor', 'engradado'],
   ['cadeira', 'mesa_bar', 'caixa_som'],
@@ -37,6 +42,7 @@ const FOOD: ReadonlyArray<readonly string[]> = [
 ];
 
 const _v = new Vector3();
+const _vis = new Vector3();
 const _near: Abductable[] = [];
 
 export interface ArenaEntry {
@@ -50,7 +56,10 @@ export interface ArenaEntry {
 class Bot {
   readonly visuals: UFOVisuals;
   readonly beam: TractorBeam;
+  /** Canonical position inside the city tile. */
   readonly pos = new Vector3();
+  /** Where it is drawn: the copy of the tile nearest to the player. */
+  readonly vis = new Vector3();
   readonly vel = new Vector3();
   readonly goal = new Vector3();
   readonly label: HTMLDivElement;
@@ -60,7 +69,6 @@ class Bot {
   think = 0;
   eatCd = 0;
   altitude = 10;
-  heading = 0;
   /** 0..1 capture progress held by whoever is swallowing this ship. */
   held = 0;
   captor: Bot | 'player' | null = null;
@@ -69,6 +77,9 @@ class Bot {
   mode: 'food' | 'hunt' | 'flee' | 'wander' = 'wander';
   target: Bot | 'player' | null = null;
   chaseTime = 0;
+  restTime = 0;
+  sprint = 0;
+  sprintCd = 0;
   /** Personality: how brave/greedy this bot plays. */
   readonly bold: number;
   wobble = Math.random() * 10;
@@ -88,7 +99,7 @@ class Bot {
     this.label = h('div', 'arena-tag');
     this.label.style.setProperty('--c', `#${color.toString(16).padStart(6, '0')}`);
     parent.appendChild(this.label);
-    this.bold = 0.6 + Math.random() * 0.8;
+    this.bold = 0.8 + Math.random() * 0.7;
   }
 
   get tier(): number {
@@ -105,13 +116,14 @@ class Bot {
     return BALANCE.beam.baseRadius * this.scale;
   }
   get speed(): number {
-    return BALANCE.ufo.baseSpeed * 0.95 * Math.pow(this.scale, 0.35);
+    return BALANCE.ufo.baseSpeed * Math.pow(this.scale, 0.4);
   }
 }
 
 /**
- * ABDUZIU.io: an arena round against bots. Everyone grows by abducting the city; a ship
- * clearly bigger than another can hold it under its beam and swallow it whole.
+ * ABDUZIU.io: an arena round against bots on an endless (wrapping) city. Everyone grows
+ * by abducting; a ship clearly bigger than another can hold it under its beam and
+ * swallow it whole.
  */
 export class ArenaSystem {
   private readonly bots: Bot[] = [];
@@ -125,7 +137,7 @@ export class ArenaSystem {
   private boardTimer = 0;
   time = 0;
   active = false;
-  /** Seconds the player has been held by a bigger ship (0..EAT_HOLD). */
+  /** Seconds the player has been held by a bigger ship. */
   playerHeld = 0;
   playerCaptor: Bot | null = null;
   finished = false;
@@ -163,6 +175,17 @@ export class ArenaSystem {
     return this.bots.length + 1;
   }
 
+  /** Torus-aware offset from a to b. */
+  private ox(a: Vector3, b: Vector3): number {
+    return this.g.world.dx(a.x, b.x);
+  }
+  private oz(a: Vector3, b: Vector3): number {
+    return this.g.world.dz(a.z, b.z);
+  }
+  private dist(a: Vector3, b: Vector3): number {
+    return Math.hypot(this.ox(a, b), this.oz(a, b));
+  }
+
   /** Sets up a fresh round: bots spread over the city, far from the player. */
   start(lowQuality: boolean): void {
     this.clear();
@@ -175,14 +198,15 @@ export class ArenaSystem {
     this.playerCaptor = null;
     this.foodTimer = 0;
     this.g.hud.root.classList.add('arena');
-    const count = lowQuality ? 7 : 11;
+    const count = lowQuality ? 9 : 15;
     const names = [...NAMES].sort(() => Math.random() - 0.5);
     for (let i = 0; i < count; i++) {
       const b = new Bot(names[i % names.length] as string, ACCENTS[i % ACCENTS.length] as number, this.env, this.noise, this.g.hud.root);
       this.scene.add(b.visuals.root);
       this.scene.add(b.beam.group);
-      // bots "joined" at different times: a few are already a bit bigger
-      b.matter = Math.random() < 0.35 ? 20 + Math.random() * 90 : Math.random() * 15;
+      // bots "joined" at different times: some are already big and hungry
+      const r = Math.random();
+      b.matter = r < 0.2 ? 150 + Math.random() * 270 : r < 0.6 ? 30 + Math.random() * 90 : Math.random() * 25;
       this.place_(b, true);
       this.bots.push(b);
     }
@@ -212,8 +236,8 @@ export class ArenaSystem {
     if (far) {
       for (let k = 0; k < 8; k++) {
         const c = w.randomRoadPoint(Math.random);
-        if (Math.hypot(c.x - p.x, c.z - p.z) > Math.hypot(best.x - p.x, best.z - p.z)) best = c;
-        if (Math.hypot(best.x - p.x, best.z - p.z) > 140) break;
+        if (this.dist(c, p) > this.dist(best, p)) best = c;
+        if (this.dist(best, p) > 140) break;
       }
     }
     b.pos.set(best.x, 0, best.z);
@@ -226,13 +250,22 @@ export class ArenaSystem {
     b.held = 0;
     b.captor = null;
     b.target = null;
+    b.chaseTime = 0;
+    b.restTime = 0;
+    b.sprint = 0;
     b.visuals.root.visible = true;
     b.visuals.setLevel(levelFromXp(b.matter));
     b.visuals.body.rotation.set(0, 0, 0);
-    b.visuals.root.position.copy(b.pos);
+    this.updateVis(b);
+    b.visuals.root.position.copy(b.vis);
     b.visuals.root.scale.setScalar(b.radius);
     b.beam.setActive(true);
     b.label.style.display = 'none';
+  }
+
+  private updateVis(b: Bot): void {
+    const p = this.g.ufo.position;
+    b.vis.set(p.x + this.ox(p, b.pos), b.pos.y, p.z + this.oz(p, b.pos));
   }
 
   /** Player's mass tier as used for eating decisions. */
@@ -254,6 +287,12 @@ export class ArenaSystem {
 
   playerPlace(): number {
     return this.standings().findIndex((e) => e.player) + 1;
+  }
+
+  /** Typical bot size right now (respawns come back at a fraction of it). */
+  private medianMatter(): number {
+    const m = this.bots.filter((b) => b.alive).map((b) => b.matter).sort((a, b) => a - b);
+    return m.length ? (m[Math.floor(m.length / 2)] as number) : 0;
   }
 
   /**
@@ -283,14 +322,14 @@ export class ArenaSystem {
         }
         b.respawn -= dt;
         if (b.respawn <= 0) {
-          b.matter = Math.random() * 12;
+          b.matter = 5 + Math.random() * this.medianMatter() * 0.35;
           this.place_(b, true);
         }
         continue;
       }
       this.think(b, dt, ptier);
       this.move(b, dt);
-      this.feed(b, dt);
+      this.feed(b);
     }
 
     // ship vs ship: bots swallowing bots
@@ -299,8 +338,7 @@ export class ArenaSystem {
       for (const b of this.bots) {
         if (a === b || !b.alive) continue;
         if (a.tier < b.tier + EAT_MARGIN) continue;
-        const d = Math.hypot(a.pos.x - b.pos.x, a.pos.z - b.pos.z);
-        if (d < a.beamRadius + b.radius * 0.2) {
+        if (this.dist(a.pos, b.pos) < a.beamRadius + b.radius * 0.2) {
           if (b.captor !== a) b.held = 0;
           b.captor = a;
           b.held += dt / EAT_HOLD;
@@ -312,7 +350,7 @@ export class ArenaSystem {
     // player vs bots
     for (const b of this.bots) {
       if (!b.alive) continue;
-      const d = Math.hypot(pp.x - b.pos.x, pp.z - b.pos.z);
+      const d = this.dist(pp, b.pos);
       // player swallowing a bot
       if (playing && beamOn && ptier >= b.tier + EAT_MARGIN && d < g.stats.beamRadius + b.radius * 0.2) {
         if (b.captor !== 'player') b.held = 0;
@@ -323,7 +361,7 @@ export class ArenaSystem {
         continue;
       }
       // a bot swallowing the player
-      if (playing && !this.finished && b.tier >= ptier + EAT_MARGIN && d < b.beamRadius + g.stats.radius * 0.2 && !heldBy) heldBy = b;
+      if (playing && !this.finished && this.time > GRACE && b.tier >= ptier + EAT_MARGIN && d < b.beamRadius + g.stats.radius * 0.2 && !heldBy) heldBy = b;
     }
     // released ships slowly recover
     for (const b of this.bots) {
@@ -331,7 +369,7 @@ export class ArenaSystem {
       const c = b.captor;
       const cp = c === 'player' ? pp : c.pos;
       const cr = c === 'player' ? g.stats.beamRadius : c.alive ? c.beamRadius : 0;
-      if (Math.hypot(cp.x - b.pos.x, cp.z - b.pos.z) > cr + b.radius * 0.2 || (c !== 'player' && !c.alive)) {
+      if (this.dist(cp, b.pos) > cr + b.radius * 0.2 || (c !== 'player' && !c.alive)) {
         b.held = Math.max(0, b.held - dt * 1.5);
         if (b.held <= 0) b.captor = null;
       }
@@ -343,7 +381,7 @@ export class ArenaSystem {
       this.playerHeld += dt;
       g.ufo.addTug(0.6);
       g.cameraCtl.addTrauma(dt * 0.9);
-      if (this.playerHeld >= EAT_HOLD) {
+      if (this.playerHeld >= EAT_HOLD_PLAYER) {
         heldBy.matter += this.playerMatter * EAT_GAIN;
         heldBy.visuals.setLevel(levelFromXp(heldBy.matter));
         this.place = this.playerPlace();
@@ -352,11 +390,11 @@ export class ArenaSystem {
         this.onPlayerEaten?.(heldBy.name);
       }
     } else {
-      this.playerHeld = Math.max(0, this.playerHeld - dt * 2);
+      this.playerHeld = Math.max(0, this.playerHeld - dt * 1.5);
       if (this.playerHeld <= 0) this.playerCaptor = null;
     }
     this.warn.classList.toggle('on', this.playerHeld > 0.05 && playing);
-    (this.warnBar.firstChild as HTMLElement).style.transform = `scaleX(${clamp(this.playerHeld / EAT_HOLD, 0, 1).toFixed(3)})`;
+    (this.warnBar.firstChild as HTMLElement).style.transform = `scaleX(${clamp(this.playerHeld / EAT_HOLD_PLAYER, 0, 1).toFixed(3)})`;
 
     for (const b of this.bots) {
       if (b.alive) this.visualize(b, dt);
@@ -371,89 +409,98 @@ export class ArenaSystem {
 
   /** Where the player is being dragged while swallowed (for the death animation). */
   get captorPosition(): Vector3 | null {
-    return this.playerCaptor ? this.playerCaptor.pos : null;
+    if (!this.playerCaptor) return null;
+    this.updateVis(this.playerCaptor);
+    return this.playerCaptor.vis;
   }
 
   private think(b: Bot, dt: number, ptier: number): void {
     b.think -= dt;
     b.eatCd = Math.max(0, b.eatCd - dt);
+    b.sprintCd = Math.max(0, b.sprintCd - dt);
+    b.restTime = Math.max(0, b.restTime - dt);
     if (b.think > 0 && b.mode !== 'hunt') return;
-    if (b.think <= 0) b.think = 0.25 + Math.random() * 0.2;
+    if (b.think <= 0) b.think = 0.2 + Math.random() * 0.15;
     const g = this.g;
     const pp = g.ufo.position;
     const t = b.tier;
-    const sight = 70 + b.radius * 8;
+    const sight = 80 + b.radius * 9;
+    const playerAround = g.state === 'playing';
 
     // threats first
     let threat: Vector3 | null = null;
     let threatD = Infinity;
     const consider = (p: Vector3, tier: number) => {
       if (tier < t + EAT_MARGIN) return;
-      const d = Math.hypot(p.x - b.pos.x, p.z - b.pos.z);
-      if (d < (sight * 0.55) / b.bold && d < threatD) {
+      const d = this.dist(b.pos, p);
+      if (d < (sight * 0.5) / b.bold && d < threatD) {
         threat = p;
         threatD = d;
       }
     };
-    if (g.state === 'playing') consider(pp, ptier);
+    if (playerAround) consider(pp, ptier);
     for (const o of this.bots) if (o !== b && o.alive) consider(o.pos, o.tier);
     if (threat) {
       const tp = threat as Vector3;
       b.mode = 'flee';
-      _v.set(b.pos.x - tp.x, 0, b.pos.z - tp.z).normalize();
-      // flee sideways a little so they don't just run into walls
-      const side = Math.sin(b.wobble + this.time) * 0.5;
+      _v.set(-this.ox(b.pos, tp), 0, -this.oz(b.pos, tp)).normalize();
+      // flee at an angle so they don't run in straight, predictable lines
+      const side = Math.sin(b.wobble + this.time) * 0.6;
       b.goal.set(b.pos.x + (_v.x - _v.z * side) * 40, 0, b.pos.z + (_v.z + _v.x * side) * 40);
-      g.world.clampToBounds(b.goal, 20);
-      // cornered: slide along the wall instead of freezing
-      if (Math.hypot(b.goal.x - b.pos.x, b.goal.z - b.pos.z) < 12) b.goal.set(b.pos.x - _v.z * 40, 0, b.pos.z + _v.x * 40);
-      g.world.clampToBounds(b.goal, 20);
       return;
     }
 
-    // prey
+    // prey: the player is the favourite target
     let prey: Bot | 'player' | null = null;
     let preyD = Infinity;
-    if (g.state === 'playing' && this.time > GRACE && t >= ptier + EAT_MARGIN) {
-      const d = Math.hypot(pp.x - b.pos.x, pp.z - b.pos.z);
-      if (d < sight * b.bold) {
+    if (playerAround && this.time > GRACE && t >= ptier + EAT_MARGIN && b.restTime <= 0) {
+      const d = this.dist(b.pos, pp);
+      if (d < sight * 1.3 * b.bold) {
         prey = 'player';
-        preyD = d;
+        preyD = d * 0.6;
       }
     }
     for (const o of this.bots) {
       if (o === b || !o.alive || t < o.tier + EAT_MARGIN) continue;
-      const d = Math.hypot(o.pos.x - b.pos.x, o.pos.z - b.pos.z);
+      const d = this.dist(b.pos, o.pos);
       if (d < sight * b.bold && d < preyD) {
         prey = o;
         preyD = d;
       }
     }
-    if (prey && b.chaseTime < 9) {
+    const limit = prey === 'player' ? 12 : 9;
+    if (prey && b.chaseTime < limit) {
       if (b.target !== prey) b.chaseTime = 0;
       b.mode = 'hunt';
       b.target = prey;
       b.chaseTime += dt;
       const p = prey === 'player' ? pp : prey.pos;
       const v = prey === 'player' ? g.ufo.velocity : prey.vel;
-      // lead the target a bit
-      b.goal.set(p.x + v.x * 0.4, 0, p.z + v.z * 0.4);
+      // lead the target
+      b.goal.set(b.pos.x + this.ox(b.pos, p) + v.x * 0.45, 0, b.pos.z + this.oz(b.pos, p) + v.z * 0.45);
+      const d = this.dist(b.pos, p);
+      if (b.sprintCd <= 0 && d < b.beamRadius * 4 && d > b.beamRadius * 0.6) {
+        b.sprint = SPRINT_TIME;
+        b.sprintCd = SPRINT_COOLDOWN;
+      }
       return;
     }
-    if (!prey) b.chaseTime = Math.max(0, b.chaseTime - dt * 2);
-    else b.chaseTime += dt;
-    if (b.chaseTime > 10) b.chaseTime = 0;
+    if (prey && b.chaseTime >= limit) {
+      // gave up: graze for a while before trying again
+      b.chaseTime = 0;
+      b.restTime = 3 + Math.random() * 3;
+    }
     b.target = null;
 
     // food
     const floor = Math.floor(t + 1e-4);
-    g.world.query(b.pos.x, b.pos.z, 26 + b.radius * 3, _near);
+    g.world.query(b.pos.x, b.pos.z, 28 + b.radius * 3, _near);
     let food: Abductable | null = null;
     let score = -Infinity;
     for (const o of _near) {
-      if (o.slot !== 'static' || o.state !== AState.Static || o.tier > floor || o.def.tier < 0) continue;
+      if (o.slot !== 'static' || o.state !== AState.Static || o.tier > floor) continue;
       const d = Math.hypot(o.pos.x - b.pos.x, o.pos.z - b.pos.z);
-      const s = o.tier * 6 - d;
+      const s = o.tier * 7 - d;
       if (s > score) {
         score = s;
         food = o;
@@ -466,11 +513,13 @@ export class ArenaSystem {
     }
     if (b.mode !== 'wander' || Math.hypot(b.goal.x - b.pos.x, b.goal.z - b.pos.z) < 6) {
       b.mode = 'wander';
-      // bold bots roam toward the action; the rest graze around the city
+      // bold bots roam toward smaller ships (or the player); the rest graze around the city
       const others = this.bots.filter((o) => o !== b && o.alive && t >= o.tier + EAT_MARGIN);
-      if (others.length && Math.random() < 0.5 * b.bold) {
+      if (playerAround && t >= ptier + EAT_MARGIN && Math.random() < 0.35 * b.bold) {
+        b.goal.set(b.pos.x + this.ox(b.pos, pp) + (Math.random() - 0.5) * 40, 0, b.pos.z + this.oz(b.pos, pp) + (Math.random() - 0.5) * 40);
+      } else if (others.length && Math.random() < 0.5 * b.bold) {
         const o = others[Math.floor(Math.random() * others.length)] as Bot;
-        b.goal.set(o.pos.x + (Math.random() - 0.5) * 30, 0, o.pos.z + (Math.random() - 0.5) * 30);
+        b.goal.set(b.pos.x + this.ox(b.pos, o.pos) + (Math.random() - 0.5) * 30, 0, b.pos.z + this.oz(b.pos, o.pos) + (Math.random() - 0.5) * 30);
       } else {
         const p = g.world.randomRoadPoint(Math.random);
         b.goal.set(p.x, 0, p.z);
@@ -481,15 +530,18 @@ export class ArenaSystem {
   private move(b: Bot, dt: number): void {
     const g = this.g;
     const held = b.held > 0 && b.captor;
-    let max = b.speed * (b.mode === 'hunt' ? 1.3 : 1) * (held ? 0.55 : 1);
-    // a player who keeps flying can always get away: bots only catch the careless
-    if (b.mode === 'hunt' && b.target === 'player') max = Math.min(max, g.stats.speed * 0.9);
-    _v.set(b.goal.x - b.pos.x, 0, b.goal.z - b.pos.z);
+    b.sprint = Math.max(0, b.sprint - dt);
+    const sprint = b.sprint > 0 ? 1.5 : 1;
+    let max = b.speed * (b.mode === 'hunt' ? 1.3 : b.mode === 'flee' ? 1.05 : 1) * sprint * (held ? 0.7 : 1);
+    // a player who keeps flying can get away, but only if they are paying attention
+    if (b.mode === 'hunt' && b.target === 'player') max = Math.min(max, g.stats.speed * (b.sprint > 0 ? 1.35 : 1));
+    _v.set(g.world.dx(b.pos.x, b.goal.x), 0, g.world.dz(b.pos.z, b.goal.z));
     const d = _v.length();
     const slow = b.mode === 'food' ? clamp(d / 6, 0.15, 1) : 1;
     if (d > 0.01) _v.multiplyScalar((max * slow) / d);
-    b.vel.x = damp(b.vel.x, _v.x, BALANCE.ufo.acceleration * 0.8, dt);
-    b.vel.z = damp(b.vel.z, _v.z, BALANCE.ufo.acceleration * 0.8, dt);
+    const acc = BALANCE.ufo.acceleration * (b.sprint > 0 ? 1.4 : 0.9);
+    b.vel.x = damp(b.vel.x, _v.x, acc, dt);
+    b.vel.z = damp(b.vel.z, _v.z, acc, dt);
     b.pos.x += b.vel.x * dt;
     b.pos.z += b.vel.z * dt;
     g.world.clampToBounds(b.pos, 5);
@@ -501,24 +553,25 @@ export class ArenaSystem {
     b.pos.y = b.altitude + Math.sin(b.wobble * 1.7) * 0.12 * s;
   }
 
-  /** Bots abduct whatever fits under their beam. */
-  private feed(b: Bot, _dt: number): void {
+  /** Bots abduct whatever fits under their beam; they get hungrier as the round goes on. */
+  private feed(b: Bot): void {
     if (b.eatCd > 0) return;
     const g = this.g;
     const floor = Math.floor(b.tier + 1e-4);
     g.world.query(b.pos.x, b.pos.z, b.beamRadius, _near);
     for (const o of _near) {
-      if (o.slot !== 'static' || o.state !== AState.Static || o.tier > floor || o.def.tier < 0) continue;
+      if (o.slot !== 'static' || o.state !== AState.Static || o.tier > floor) continue;
       const tier = o.tier;
       g.world.kill(o);
       this.foodIds.delete(o.uid);
       const before = levelFromXp(b.matter);
-      b.matter += matterForTier(tier, o.def.matterMult ?? 1) * 1.2;
+      b.matter += matterForTier(tier, o.def.matterMult ?? 1) * 1.5 * (1 + (0.6 * this.time) / ARENA_ROUND);
       const after = levelFromXp(b.matter);
       if (after !== before) b.visuals.setLevel(after);
       b.beam.onAbsorb();
-      if (Math.hypot(b.pos.x - g.ufo.position.x, b.pos.z - g.ufo.position.z) < 120) g.vfx.absorb(b.pos, tier, b.radius, 0, false, b.color);
-      b.eatCd = 0.22 + tier * 0.06;
+      this.updateVis(b);
+      if (this.dist(b.pos, g.ufo.position) < 120) g.vfx.absorb(b.vis, tier, b.radius, 0, false, b.color);
+      b.eatCd = 0.16 + tier * 0.04;
       return;
     }
   }
@@ -535,7 +588,7 @@ export class ArenaSystem {
     b.label.style.display = 'none';
     b.beam.setActive(false);
     this.dropLoot(b.pos.x, b.pos.z, loot, lootTier);
-    const near = Math.hypot(b.pos.x - g.ufo.position.x, b.pos.z - g.ufo.position.z) < 140;
+    const near = this.dist(b.pos, g.ufo.position) < 140;
     if (by === 'player') {
       const r = g.run;
       const levels = r.progression.addMatter(gain * g.stats.matterMult);
@@ -545,7 +598,7 @@ export class ArenaSystem {
       g.hud.floatText(_v.copy(g.ufo.position).setY(g.ufo.position.y + g.stats.radius * 1.5), `${b.name.toUpperCase()} ABDUZIDO!`, 'var(--gold)', 24, 1.4);
       g.hud.floatText(_v.copy(g.ufo.position).setY(g.ufo.position.y + g.stats.radius * 0.8), `+${formatInt(pts)}`, 'var(--alien-green)', 20);
       g.audio.comboMilestone(10);
-      g.audio.abductPop(6, 10, true, b.pos.x, b.pos.z);
+      g.audio.abductPop(6, 10, true, g.ufo.position.x, g.ufo.position.z);
       g.vfx.absorb(g.ufo.position, 6, g.stats.radius, 10, true, b.color);
       g.cameraCtl.addTrauma(0.35);
       g.haptics.light();
@@ -555,7 +608,8 @@ export class ArenaSystem {
       by.visuals.setLevel(levelFromXp(by.matter));
       by.beam.onAbsorb();
       if (near) {
-        g.vfx.absorb(by.pos, 5, by.radius, 0, true, by.color);
+        this.updateVis(by);
+        g.vfx.absorb(by.vis, 5, by.radius, 0, true, by.color);
         g.hud.toast(`${by.name} ABDUZIU ${b.name}`, '', 'info', 1.6);
       }
     }
@@ -566,14 +620,17 @@ export class ArenaSystem {
     const c = b.captor;
     const target = c === 'player' ? this.g.ufo.position : c ? c.pos : b.pos;
     const k = 1 - Math.exp(-6 * dt);
-    b.pos.lerp(target, k);
+    b.pos.x += this.ox(b.pos, target) * k;
+    b.pos.z += this.oz(b.pos, target) * k;
+    b.pos.y += (target.y - b.pos.y) * k;
+    this.updateVis(b);
     const t = b.dying / 0.7;
     const root = b.visuals.root;
-    root.position.copy(b.pos);
+    root.position.copy(b.vis);
     root.scale.setScalar(Math.max(0.01, b.radius * t));
     b.visuals.body.rotation.y += dt * 14;
     b.visuals.update(dt, 1);
-    b.beam.update(dt, b.pos, this.g.world.groundAt(b.pos.x, b.pos.z), b.radius * t, b.beamRadius * t, 0, 0, 0, () => 0);
+    b.beam.update(dt, b.vis, this.g.world.groundAt(b.pos.x, b.pos.z), b.radius * t, b.beamRadius * t, 0, 0, 0, () => 0);
     if (b.dying <= 0) root.visible = false;
   }
 
@@ -582,7 +639,7 @@ export class ArenaSystem {
     const maxT = clamp(Math.floor(tier) - 1, 0, FOOD.length - 1);
     let left = matter;
     let n = 0;
-    while (left > 0.3 && n < 22) {
+    while (left > 0.3 && n < 24) {
       const t = Math.min(maxT, Math.floor(Math.random() * (maxT + 1)));
       const ids = FOOD[t] as readonly string[];
       const id = ids[Math.floor(Math.random() * ids.length)] as string;
@@ -612,7 +669,7 @@ export class ArenaSystem {
   private updateFood(dt: number): void {
     this.foodTimer -= dt;
     if (this.foodTimer > 0) return;
-    this.foodTimer = 0.35;
+    this.foodTimer = 0.3;
     const w = this.g.world;
     let alive = 0;
     for (const id of this.foodIds) {
@@ -623,7 +680,7 @@ export class ArenaSystem {
     if (alive >= FOOD_CAP) return;
     const p = w.randomRoadPoint(Math.random);
     const r = Math.random();
-    const t = r < 0.55 ? 0 : r < 0.82 ? 1 : r < 0.96 ? 2 : 3;
+    const t = r < 0.5 ? 0 : r < 0.8 ? 1 : r < 0.95 ? 2 : 3;
     const ids = FOOD[t] as readonly string[];
     const cluster = t === 0 ? 3 : 1;
     for (let i = 0; i < cluster; i++) {
@@ -632,19 +689,19 @@ export class ArenaSystem {
   }
 
   private visualize(b: Bot, dt: number): void {
+    this.updateVis(b);
     const root = b.visuals.root;
-    root.position.copy(b.pos);
+    root.position.copy(b.vis);
     root.scale.setScalar(b.radius);
     const sp = Math.hypot(b.vel.x, b.vel.z);
     const inv = 1 / Math.max(1, b.speed);
     const shake = b.held > 0 ? Math.sin(this.time * 60) * 0.06 * b.held : 0;
-    b.heading = dampAngle(b.heading, Math.atan2(b.vel.x, b.vel.z), 3, dt);
     const body = b.visuals.body;
     body.rotation.x = damp(body.rotation.x, b.vel.z * inv * BALANCE.ufo.maxTilt + shake, 5, dt);
     body.rotation.z = damp(body.rotation.z, -b.vel.x * inv * BALANCE.ufo.maxTilt, 5, dt);
-    b.visuals.update(dt, b.mode === 'hunt' ? 0.8 : sp > 1 ? 0.2 : 0.5);
+    b.visuals.update(dt, b.sprint > 0 ? 1.2 : b.mode === 'hunt' ? 0.8 : sp > 1 ? 0.2 : 0.5);
     const ground = this.g.world.groundAt(b.pos.x, b.pos.z);
-    b.beam.update(dt, b.pos, ground, b.radius, b.beamRadius, 1 + b.tier * 0.3, 0, 0, () => ground);
+    b.beam.update(dt, b.vis, ground, b.radius, b.beamRadius, 1 + b.tier * 0.3, 0, 0, () => ground);
   }
 
   private updateLabels(): void {
@@ -658,14 +715,14 @@ export class ArenaSystem {
         b.label.style.display = 'none';
         continue;
       }
-      _v.copy(b.pos).setY(b.pos.y + b.radius * 0.9).project(cam);
-      if (_v.z > 1 || Math.abs(_v.x) > 1.1 || Math.abs(_v.y) > 1.1) {
+      _vis.copy(b.vis).setY(b.vis.y + b.radius * 0.9).project(cam);
+      if (_vis.z > 1 || Math.abs(_vis.x) > 1.1 || Math.abs(_vis.y) > 1.1) {
         b.label.style.display = 'none';
         continue;
       }
       b.label.style.display = '';
-      const x = (_v.x * 0.5 + 0.5) * w;
-      const y = (-_v.y * 0.5 + 0.5) * hh;
+      const x = (_vis.x * 0.5 + 0.5) * w;
+      const y = (-_vis.y * 0.5 + 0.5) * hh;
       b.label.style.transform = `translate(-50%,-100%) translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
       const danger = b.tier >= pt + EAT_MARGIN ? 'bad' : pt >= b.tier + EAT_MARGIN ? 'prey' : '';
       const text = `${b.name} · ${formatInt(b.matter)}`;
@@ -696,14 +753,18 @@ export class ArenaSystem {
     }
   }
 
-  /** Radar: bigger ships in red, edible ones in purple. */
+  /** Radar: bigger ships in red, edible ones in purple, even ones in yellow. */
   blips(out: RadarBlip[]): void {
+    if (!this.active) return;
     const pt = this.playerTier;
+    const p = this.g.ufo.position;
     for (const b of this.bots) {
       if (!b.alive) continue;
-      if (b.tier >= pt + EAT_MARGIN) out.push({ x: b.pos.x, z: b.pos.z, kind: 'enemy' });
-      else if (pt >= b.tier + EAT_MARGIN) out.push({ x: b.pos.x, z: b.pos.z, kind: 'rare' });
-      else out.push({ x: b.pos.x, z: b.pos.z, kind: 'event' });
+      const x = p.x + this.ox(p, b.pos);
+      const z = p.z + this.oz(p, b.pos);
+      if (b.tier >= pt + EAT_MARGIN) out.push({ x, z, kind: 'enemy' });
+      else if (pt >= b.tier + EAT_MARGIN) out.push({ x, z, kind: 'rare' });
+      else out.push({ x, z, kind: 'event' });
     }
   }
 }

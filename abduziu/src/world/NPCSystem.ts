@@ -156,8 +156,8 @@ export class NPCSystem {
     for (let i = 0; i < this.npcs.length; i++) {
       const n = this.npcs[i] as Npc;
       if (n.state === NpcState.Gone || !n.obj.alive) continue;
-      const fdx = n.x - focus.x;
-      const fdz = n.z - focus.z;
+      const fdx = this.world.dx(focus.x, n.x);
+      const fdz = this.world.dz(focus.z, n.z);
       const far = fdx * fdx + fdz * fdz > this.detailDistance * this.detailDistance;
       if (far !== n.hidden) {
         n.hidden = far;

@@ -303,15 +303,34 @@ export class PostProcessing {
     this.renderer.render(this.quadScene, this.quadCam);
   }
 
+  /**
+   * Geometry drawn into the frame before the main scene (arena wrap copies). Drawn first
+   * so the main scene's transparent effects (beam, particles) stay on top of it.
+   */
+  prePass: (() => void) | null = null;
+
+  private renderScene(scene: Scene, camera: Camera): void {
+    const r = this.renderer;
+    if (!this.prePass) {
+      r.render(scene, camera);
+      return;
+    }
+    r.clear();
+    this.prePass();
+    r.autoClear = false;
+    r.render(scene, camera);
+    r.autoClear = true;
+  }
+
   render(scene: Scene, camera: Camera, time: number): void {
     const r = this.renderer;
     if (!this.enabled) {
       r.setRenderTarget(null);
-      r.render(scene, camera);
+      this.renderScene(scene, camera);
       return;
     }
     r.setRenderTarget(this.sceneRT);
-    r.render(scene, camera);
+    this.renderScene(scene, camera);
 
     const g = this.grade;
     if (this.bloomEnabled) {

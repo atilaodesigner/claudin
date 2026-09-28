@@ -281,6 +281,7 @@ export class Game {
     this.scene.add(this.shield.mesh);
     this.dynPool = new DynamicObjectPool(this.scene, this.atlas.texture, 90);
     this.run = new RunController(this, this.scene);
+    this.post.prePass = () => this.renderWrapCopies();
     this.thumbs = new Thumbnails(this.renderer.gl, this.lib, this.atlas);
 
     const params = new URLSearchParams(location.search);
@@ -310,7 +311,7 @@ export class Game {
     if (params.has('autostart')) void this.startRun((params.get('mode') as GameMode | null) ?? 'campanha', params.get('city') as CityId | null);
   }
 
-  private buildWorld(seed: number, city: CityDef = this.city): void {
+  private buildWorld(seed: number, city: CityDef = this.city, wrap = false): void {
     this.city = city;
     this.atlas.applyCity(city.signs, city.billboards, city.labels);
     this.lighting.setCity(city.look);
@@ -320,7 +321,7 @@ export class Game {
       this.birds.dispose();
       this.world.dispose();
     }
-    const gen = new WorldGenerator(this.lib, this.atlas, seed, city).generate();
+    const gen = new WorldGenerator(this.lib, this.atlas, seed, city, wrap).generate();
     this.world = new World(this.scene, this.lib, this.atlas, gen);
     this.chunks = new ChunkManager(this.world);
     this.world.onSpawn = (o) => this.chunks.register(o);
@@ -721,10 +722,11 @@ export class Game {
           : { mode, city: cityId ?? (this.save.get().last.city as CityId), seed: (Math.random() * 1e9) | 0 };
     const city = getCity(setup.city);
     const seeded = mode === 'ranqueada' || mode === 'diaria';
-    if (this.worldDirty || seeded || city.id !== this.city.id) {
+    const wrap = mode === 'arena';
+    if (this.worldDirty || seeded || city.id !== this.city.id || wrap !== !!this.world.wrap) {
       this.intro.setBlackout(true);
       await nextFrame();
-      this.buildWorld(setup.seed, city);
+      this.buildWorld(setup.seed, city, wrap);
     }
     this.worldDirty = true;
     this.save.update((d) => {
@@ -1099,6 +1101,63 @@ export class Game {
 
   private arenaSwallowed = false;
 
+  private shiftFollowers(dx: number, dz: number): void {
+    this.cameraCtl.shift(dx, dz);
+    for (const o of this.abduction.active) {
+      o.pos.x += dx;
+      o.pos.z += dz;
+      o.home.x += dx;
+      o.home.z += dz;
+      o.localOffset.x += dx;
+      o.localOffset.z += dz;
+    }
+  }
+
+  /**
+   * Endless arena: the city tile is drawn again on the sides the camera can see, so the
+   * seam never shows. Only the city itself is repeated (one draw per batch).
+   */
+  private renderWrapCopies(): void {
+    const w = this.world;
+    const wrap = w?.wrap;
+    if (!wrap) return;
+    const f = this.cameraCtl.focus;
+    const b = w.bounds;
+    const reach = 260 + this.cameraCtl.distance * 3;
+    const gl = this.renderer.gl;
+    const cam = this.cameraCtl.camera;
+    let hidden: Array<{ visible: boolean }> | null = null;
+    for (let i = -1; i <= 1; i++) {
+      for (let j = -1; j <= 1; j++) {
+        if (i === 0 && j === 0) continue;
+        const ox = i * wrap.w;
+        const oz = j * wrap.h;
+        // distance from the camera focus to that neighbour tile
+        const ddx = Math.max(b.minX + ox - f.x, 0, f.x - (b.maxX + ox));
+        const ddz = Math.max(b.minZ + oz - f.z, 0, f.z - (b.maxZ + oz));
+        if (Math.hypot(ddx, ddz) > reach) continue;
+        if (!hidden) {
+          hidden = [];
+          for (const c of this.scene.children) {
+            if (c === w.root || !c.visible || (c as { isLight?: boolean }).isLight) continue;
+            c.visible = false;
+            hidden.push(c);
+          }
+          gl.autoClear = false;
+          gl.shadowMap.autoUpdate = false;
+        }
+        w.root.position.set(ox, 0, oz);
+        w.root.updateMatrixWorld(true);
+        gl.render(this.scene, cam);
+      }
+    }
+    if (!hidden) return;
+    w.root.position.set(0, 0, 0);
+    w.root.updateMatrixWorld(true);
+    for (const c of hidden) c.visible = true;
+    gl.shadowMap.autoUpdate = true;
+  }
+
   /** ABDUZIU.io: bots spawn around the city once the saucer arrives. */
   private startArena(): void {
     if (!this.arena) {
@@ -1393,7 +1452,16 @@ export class Game {
       }
     } else {
       this.ufo.controlsLocked = r.beamOffline > 0 ? 0.1 : 0;
+      const px = this.ufo.position.x;
+      const pz = this.ufo.position.z;
       this.ufo.update(dt, this.input.move, this.stats, this.abduction.minUfoAltitude);
+      const wrap = this.world.wrap;
+      if (wrap) {
+        // crossed the seam of the endless arena: everything that follows the saucer jumps with it
+        const sx = Math.abs(this.ufo.position.x - px) > wrap.w / 2 ? Math.sign(this.ufo.position.x - px) * wrap.w : 0;
+        const sz = Math.abs(this.ufo.position.z - pz) > wrap.h / 2 ? Math.sign(this.ufo.position.z - pz) * wrap.h : 0;
+        if (sx || sz) this.shiftFollowers(sx, sz);
+      }
     }
 
     const beamOn = this.beamActive;
