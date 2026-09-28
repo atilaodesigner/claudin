@@ -61,8 +61,9 @@ export class ArenaRoom extends DurableObject {
     if (msg.t === 'hello' && !this.sockets.has(id)) {
       const name = String(msg.name ?? 'Visitante').replace(/[^\p{L}\p{N} _.-]/gu, '').slice(0, 16) || 'Visitante';
       const color = Number(msg.color) & 0xffffff;
+      const clean = (v: unknown, d: string) => (typeof v === 'string' && /^[a-z0-9_]{1,20}$/.test(v) ? v : d);
       this.sockets.set(id, ws);
-      this.sim.addPlayer(id, name, color, now);
+      this.sim.addPlayer(id, name, color, now, clean(msg.skin, 'classico'), clean(msg.beam, 'verde'));
       this.send(ws, { t: 'welcome', id, city: this.city, seed: this.seed, tile: TILE });
       this.ensureLoop();
     } else if (msg.t === 'st') {
@@ -114,7 +115,7 @@ export class ArenaRoom extends DurableObject {
 
     const ships = [...this.sim.ships.values()]
       .filter((s) => s.alive)
-      .map((s) => [s.id, s.name, s.color, +s.x.toFixed(2), +s.z.toFixed(2), +s.vx.toFixed(2), +s.vz.toFixed(2), Math.round(s.m), s.bot ? 1 : 0]);
+      .map((s) => [s.id, s.name, s.color, +s.x.toFixed(2), +s.z.toFixed(2), +s.vx.toFixed(2), +s.vz.toFixed(2), Math.round(s.m), s.bot ? 1 : 0, s.skin, s.beamStyle]);
     const lb = this.sim.leaderboard(10);
     const players = this.sockets.size;
     for (const [id, ws] of this.sockets) {

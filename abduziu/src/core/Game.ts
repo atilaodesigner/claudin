@@ -3,6 +3,7 @@ import { AbductionSystem } from '../abduction/AbductionSystem';
 import { ArenaSystem } from '../arena/ArenaSystem';
 import { OnlineArena } from '../arena/OnlineArena';
 import { ArenaNet } from '../online/ArenaNet';
+import { ONLINE_MAX_SCALE } from '../arena/OnlineArena';
 import { DynamicObjectPool } from '../abduction/DynamicObjectPool';
 import { loadModelOverrides } from '../assets/AssetLoader';
 import { ModelLibrary } from '../assets/ModelLibrary';
@@ -46,6 +47,8 @@ import { UFOStats } from '../ufo/UFOStats';
 import { UFOVisuals } from '../ufo/UFOVisuals';
 import { friendlyError, Online } from '../online/Online';
 import { AccountScreen } from '../ui/AccountScreen';
+import { ShopScreen } from '../ui/ShopScreen';
+import { beamColorAt, getBeam, getSkin, hslHex, type BeamStyle, type Skin } from '../config/cosmetics';
 import { DebugPanel } from '../ui/DebugPanel';
 import { DexScreen } from '../ui/DexScreen';
 import { h } from '../ui/dom';
@@ -182,6 +185,10 @@ export class Game {
   private readonly missileScratch: Missile[] = [];
   private readonly blips: RadarBlip[] = [];
   private readonly accent = new Color(0x5dffa0);
+  private shopScreen!: ShopScreen;
+  /** Cosmetic look being shown (equipped, or a shop preview). */
+  private lookSkin: Skin = getSkin(null);
+  private lookBeam: BeamStyle = getBeam(null);
   private godMode = false;
   private maxBeam = false;
   private autoEmpAccumulator = 0;
@@ -287,6 +294,9 @@ export class Game {
     const env = createEnvironmentMap(this.renderer.gl);
     this.envMap = env;
     this.ufoVisuals = new UFOVisuals(env);
+    this.lookSkin = getSkin(this.save.get().cosmetics.skin);
+    this.lookBeam = getBeam(this.save.get().cosmetics.beam);
+    this.ufoVisuals.applySkin(this.lookSkin);
     this.scene.add(this.ufoVisuals.root);
     this.beam = new TractorBeam(this.noise);
     this.scene.add(this.beam.group);
@@ -535,6 +545,7 @@ export class Game {
       if (cloud && cloudWins(local, migrate(cloud.data))) {
         this.save.adopt(cloud.data);
         this.applySettings(this.save.get().settings, false);
+        this.applyLook();
         if (this.state === 'menu') this.refreshMenu();
         this.hud.toast('PROGRESSO DA NUVEM', 'Seu save foi carregado', 'info', 2.5);
       } else {
@@ -599,6 +610,11 @@ export class Game {
       case 'meta':
         this.metaScreen.open();
         break;
+      case 'shop':
+        // the real saucer is the preview: only the menu panel steps aside
+        this.menu.hide();
+        this.shopScreen.open(this.save.get());
+        break;
       case 'dex':
         this.dexScreen.open(this.save.get().dex);
         break;
@@ -624,6 +640,42 @@ export class Game {
         this.refreshMenu();
       };
       this.metaScreen.onBuy = (ok) => this.audio.ui(ok ? 'buy' : 'deny');
+    }
+    if (!this.shopScreen) {
+      this.shopScreen = new ShopScreen(this.ui);
+      this.shopScreen.onClose = () => {
+        this.audio.ui('back');
+        this.shopScreen.hide();
+        this.refreshMenu();
+        if (this.state === 'menu') this.menu.show();
+      };
+      this.shopScreen.onPreview = (skin, beam) => {
+        const c = this.save.get().cosmetics;
+        this.applyLook(skin ?? c.skin, beam ?? c.beam);
+        if (skin || beam) this.audio.ui('hover');
+      };
+      this.shopScreen.onBuy = (kind, id, price) => {
+        const s = this.save.get();
+        if (s.cores < price) {
+          this.audio.ui('deny');
+          return false;
+        }
+        this.save.update((d) => {
+          d.cores -= price;
+          if (!d.cosmetics.owned.includes(`${kind}:${id}`)) d.cosmetics.owned.push(`${kind}:${id}`);
+        }, true);
+        this.audio.ui('buy');
+        this.vfx.levelUp(this.ufo.position, this.stats.radius);
+        return true;
+      };
+      this.shopScreen.onEquip = (kind, id) => {
+        this.save.update((d) => {
+          if (kind === 'skin') d.cosmetics.skin = id;
+          else d.cosmetics.beam = id;
+        }, true);
+        this.applyLook();
+        this.audio.ui('pick');
+      };
     }
     if (!this.dexScreen) {
       this.dexScreen = new DexScreen(this.ui, this.thumbs);
@@ -777,6 +829,8 @@ export class Game {
   private resetRunState(seed: number, mode: GameMode, city: CityDef): void {
     this.upgrades.reset();
     this.regrowth.reset(mode === 'arena' || mode === 'online');
+    // online: no size ceiling worth mentioning, the big players must look huge
+    this.stats.maxScale = mode === 'online' ? ONLINE_MAX_SCALE : BALANCE.ufo.maxScale;
     // online rooms: keep the frame light (effects cost, powers don't change)
     this.quality.setCap(mode === 'online' ? (this.input.isTouchDevice ? 1 : 2) : null);
     this.run.start(seed, mode, city);
@@ -1224,7 +1278,8 @@ export class Game {
     const net = new ArenaNet();
     const name = this.online.profile?.nickname ?? `Visitante${Math.floor(1000 + Math.random() * 9000)}`;
     try {
-      const w = await net.connect(name, 0x5dffa0);
+      const c = this.save.get().cosmetics;
+      const w = await net.connect(name, 0x5dffa0, c.skin, c.beam);
       note.remove();
       this.pendingNet = net;
       void this.startRun('online', w.city as CityId, w.seed);
@@ -1454,7 +1509,24 @@ export class Game {
     if (this.save.get().settings.showFps) this.fpsMeter.textContent = `${this.quality.fps.toFixed(0)} FPS · ${this.quality.current.name}`;
   }
 
+  /** Wears the equipped look (or the given preview ids). */
+  applyLook(skinId?: string, beamId?: string): void {
+    const c = this.save.get().cosmetics;
+    this.lookSkin = getSkin(skinId ?? c.skin);
+    this.lookBeam = getBeam(beamId ?? c.beam);
+    this.ufoVisuals?.applySkin(this.lookSkin);
+  }
+
+  /** Rim-light colour of the current look (the royal ones cycle through the rainbow). */
+  private lookAccent(): number {
+    const fx = this.lookSkin.fx;
+    if (fx === 'royal' || fx === 'mothership') return hslHex((this.time.realElapsed * 0.15) % 1, 0.85, 0.65);
+    return this.lookSkin.accent;
+  }
+
   private updateMenu(dt: number): void {
+    this.ufoVisuals.setAccent(this.lookAccent());
+    this.beam.setColor(beamColorAt(this.lookBeam, this.time.realElapsed));
     this.computeStats(dt);
     this.ufo.update(dt, this.input.move, this.stats);
     this.updateAmbient(dt);
@@ -1627,8 +1699,8 @@ export class Game {
     this.updateTutorial(dt);
     this.updateAudioState(dt);
     this.updateHUD(dt);
-    this.ufoVisuals.setAccent(r.combo.frenzy ? 0xc28bff : this.state === 'extracting' ? 0xffffff : 0x5dffa0);
-    this.beam.setColor(r.combo.frenzy ? 0xb36bff : this.state === 'extracting' ? 0xffffff : 0x4dffa0);
+    this.ufoVisuals.setAccent(r.combo.frenzy ? 0xc28bff : this.state === 'extracting' ? 0xffffff : this.lookAccent());
+    this.beam.setColor(r.combo.frenzy ? 0xb36bff : this.state === 'extracting' ? 0xffffff : beamColorAt(this.lookBeam, this.time.realElapsed));
     this.ufoVisuals.update(dt, this.abduction.load + (r.combo.frenzy ? 0.6 : 0));
   }
 

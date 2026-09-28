@@ -36,8 +36,11 @@ export function tierFromMatter(matter: number): number {
   return last + Math.log(matter / lastTh) / Math.log(ratio);
 }
 
+/** Online ships keep growing far past the solo cap (9), so big players look huge. */
+export const MAX_SCALE = 30;
+
 export function shipScale(matter: number): number {
-  return Math.min(9, Math.pow(1.215, Math.max(0, tierFromMatter(matter) - 1)));
+  return Math.min(MAX_SCALE, Math.pow(1.215, Math.max(0, tierFromMatter(matter) - 1)));
 }
 export const shipRadius = (m: number) => 1.7 * shipScale(m);
 /** Players carry beam upgrades: a little wider than the bare formula. */
@@ -79,6 +82,9 @@ export interface Ship {
   born: number;
   /** A player has sent its first state (left the intro). */
   flying?: boolean;
+  /** Cosmetics (ids from the client's LOJA). */
+  skin: string;
+  beamStyle: string;
 }
 
 export type RoomEvent =
@@ -91,6 +97,8 @@ const BOT_NAMES = [
   'Marcianinho', 'Tia do Óvni', 'Cometa Lindo', 'Neblina', 'Seu Alienígena', 'Pão de Queijo X', 'Açaí Estelar',
   'Bate-Latinha', 'Dona Nave', 'Capitão Farofa', 'Kombi Sideral', 'Tapioca Turbo', 'Guaraná Nebular',
 ];
+const BOT_SKINS = ['classico', 'carbono', 'camuflado', 'canarinho', 'neon_rosa', 'oceano', 'cromo'];
+const BOT_BEAMS = ['verde', 'azul', 'rosa', 'laranja', 'roxo', 'vermelho'];
 const COLORS = [0xff5ad1, 0xffb020, 0x4dc9ff, 0xff4d5e, 0xc28bff, 0xfff05a, 0x5affea, 0xff8a3d, 0x8aff5a, 0x5a7bff, 0xff7ab8, 0xffd166, 0x06d6a0, 0xef476f, 0x9b5de5];
 
 export class RoomSim {
@@ -105,9 +113,9 @@ export class RoomSim {
     return [...this.ships.values()].filter((s) => !s.bot);
   }
 
-  addPlayer(id: string, name: string, color: number, now: number): Ship {
+  addPlayer(id: string, name: string, color: number, now: number, skin = 'classico', beamStyle = 'verde'): Ship {
     const p = this.spawnPoint();
-    const s: Ship = { id, name, color, bot: false, x: p.x, z: p.z, vx: 0, vz: 0, m: 0, alive: true, beam: true, held: 0, heldBy: null, skill: 1, goalX: 0, goalZ: 0, think: 0, respawn: 0, seen: now, born: this.time };
+    const s: Ship = { id, name, color, bot: false, x: p.x, z: p.z, vx: 0, vz: 0, m: 0, alive: true, beam: true, held: 0, heldBy: null, skill: 1, goalX: 0, goalZ: 0, think: 0, respawn: 0, seen: now, born: this.time, skin, beamStyle };
     this.ships.set(id, s);
     this.events.push({ k: 'join', id });
     return s;
@@ -169,6 +177,7 @@ export class RoomSim {
       id, name, color: COLORS[this.botSeq % COLORS.length] as number, bot: true, x: p.x, z: p.z, vx: 0, vz: 0,
       m: 5 + this.rand() * this.paceFor(skill) * skill * 0.6, alive: true, beam: true, held: 0, heldBy: null,
       skill, goalX: p.x, goalZ: p.z, think: 0, respawn: 0, seen: 0, born: this.time,
+      skin: BOT_SKINS[this.botSeq % BOT_SKINS.length] as string, beamStyle: BOT_BEAMS[this.botSeq % BOT_BEAMS.length] as string,
     });
   }
 

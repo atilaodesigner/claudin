@@ -7,8 +7,8 @@ export interface Welcome {
   tile: number;
 }
 
-/** [id, name, color, x, z, vx, vz, matter, bot] */
-export type ShipRow = [string, string, number, number, number, number, number, number, number];
+/** [id, name, color, x, z, vx, vz, matter, bot, skin, beam] */
+export type ShipRow = [string, string, number, number, number, number, number, number, number, string?, string?];
 
 export interface Snapshot {
   s: ShipRow[];
@@ -37,7 +37,7 @@ export class ArenaNet {
   private closedByUs = false;
 
   /** Opens the socket and waits for the room's welcome. */
-  connect(name: string, color: number, timeoutMs = 7000): Promise<Welcome> {
+  connect(name: string, color: number, skin = 'classico', beam = 'verde', timeoutMs = 7000): Promise<Welcome> {
     return new Promise((resolve, reject) => {
       let settled = false;
       const fail = (why: string) => {
@@ -56,7 +56,7 @@ export class ArenaNet {
         return;
       }
       this.ws = ws;
-      ws.onopen = () => ws.send(JSON.stringify({ t: 'hello', name, color }));
+      ws.onopen = () => ws.send(JSON.stringify({ t: 'hello', name, color, skin, beam }));
       ws.onerror = () => fail('unreachable');
       ws.onclose = () => {
         clearTimeout(timer);

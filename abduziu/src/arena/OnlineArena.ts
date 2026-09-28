@@ -9,6 +9,10 @@ import { TractorBeam } from '../ufo/TractorBeam';
 import { UFOVisuals } from '../ufo/UFOVisuals';
 import { clamp, damp, formatInt } from '../utils/math';
 import { EAT_MARGIN } from './ArenaSystem';
+import { beamColorAt, getBeam, getSkin, hslHex, type BeamStyle, type Skin } from '../config/cosmetics';
+
+/** Same ceiling as the room (server/src/logic.ts MAX_SCALE): big players look huge. */
+export const ONLINE_MAX_SCALE = 30;
 
 const _v = new Vector3();
 const _p = new Vector3();
@@ -31,6 +35,9 @@ class Remote {
   alt = 10;
   level = 1;
   fresh = true;
+  skin: Skin = getSkin(null);
+  beamStyle: BeamStyle = getBeam(null);
+  wearing = '';
   /** Out of view range: not drawn nor animated. */
   far = false;
 
@@ -57,7 +64,7 @@ class Remote {
     return tierFromMatter(this.shownM);
   }
   get scale(): number {
-    return Math.min(BALANCE.ufo.maxScale, Math.pow(BALANCE.ufo.scaleBase, Math.max(0, this.tier - 1)));
+    return Math.min(ONLINE_MAX_SCALE, Math.pow(BALANCE.ufo.scaleBase, Math.max(0, this.tier - 1)));
   }
   get radius(): number {
     return BALANCE.ufo.baseRadius * this.scale;
@@ -86,6 +93,8 @@ export class OnlineArena {
   eatenBy: string | null = null;
   private captorId: string | null = null;
   playerName = 'VOCÊ';
+  private leaderId: string | null = null;
+  private wasLeader = false;
   onPlayerEaten: ((by: string) => void) | null = null;
   onDisconnect: (() => void) | null = null;
   net: ArenaNet | null = null;
@@ -217,7 +226,8 @@ export class OnlineArena {
     if (s) {
       this.snap = null;
       const present = new Set<string>();
-      for (const [id, name, color, x, z, vx, vz, m, bot] of s.s) {
+      this.leaderId = s.lb[0]?.id ?? null;
+      for (const [id, name, color, x, z, vx, vz, m, bot, skin, beam] of s.s) {
         if (id === this.myId) continue;
         present.add(id);
         let r = this.ships.get(id);
@@ -234,6 +244,13 @@ export class OnlineArena {
           r.gone = 0;
           r.visuals.root.visible = true;
           r.beam.setActive(true);
+        }
+        const look = `${skin ?? ''}|${beam ?? ''}`;
+        if (r.wearing !== look) {
+          r.wearing = look;
+          r.skin = getSkin(skin);
+          r.beamStyle = getBeam(beam);
+          r.visuals.applySkin(r.skin);
         }
         r.target.set(x, 0, z);
         r.vel.set(vx, 0, vz);
@@ -300,6 +317,9 @@ export class OnlineArena {
       const inv = 1 / Math.max(1, BALANCE.ufo.baseSpeed * sc);
       r.visuals.body.rotation.x = damp(r.visuals.body.rotation.x, r.vel.z * inv * BALANCE.ufo.maxTilt, 5, dt);
       r.visuals.body.rotation.z = damp(r.visuals.body.rotation.z, -r.vel.x * inv * BALANCE.ufo.maxTilt, 5, dt);
+      const fx = r.skin.fx;
+      r.visuals.setAccent(fx === 'royal' || fx === 'mothership' ? hslHex((now / 1000) * 0.15 % 1, 0.85, 0.65) : r.skin.accent);
+      r.beam.setColor(beamColorAt(r.beamStyle, now / 1000));
       r.visuals.update(dt, 0.5);
       const ground = g.world.groundAt(r.pos.x, r.pos.z);
       if (r.beam.group.visible) r.beam.update(dt, r.vis, ground, r.radius, r.beamRadius, 1 + r.tier * 0.3, 0, 0, () => ground);
@@ -329,8 +349,12 @@ export class OnlineArena {
       const y = clamp((-_p.y * 0.5 + 0.5) * hh, 40, hh - 10);
       r.label.style.transform = `translate(-50%,-100%) translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
       const danger = r.tier >= pt + EAT_MARGIN ? 'bad' : pt >= r.tier + EAT_MARGIN ? 'prey' : '';
-      const text = `${r.bot ? '' : '● '}${r.name} · ${formatInt(r.m)}`;
+      // the room's #1 wears a crown; giants get a bigger name tag
+      const crown = r.id === this.leaderId ? '♛ ' : '';
+      const text = `${crown}${r.bot ? '' : '● '}${r.name} · ${formatInt(r.m)}`;
       if (r.label.textContent !== text) r.label.textContent = text;
+      const fs = `${clamp(10 + r.radius * 0.45, 10, 26).toFixed(0)}px`;
+      if (r.label.style.fontSize !== fs) r.label.style.fontSize = fs;
       if (r.label.dataset.k !== danger) {
         r.label.dataset.k = danger;
         r.label.className = `arena-tag ${danger}`;
@@ -347,6 +371,8 @@ export class OnlineArena {
     list.push({ n: this.playerName, m: mine, me: true, bot: false });
     list.sort((a, b) => b.m - a.m);
     const me = list.findIndex((e) => e.me);
+    if (me === 0 && !this.wasLeader && list.length > 1) this.g.hud.toast('♛ VOCÊ É O Nº1 DA SALA', 'Todo mundo agora quer te engolir', 'gold', 2.6);
+    this.wasLeader = me === 0;
     const shown = list.slice(0, 5).map((e, i) => ({ e, i }));
     if (me >= 5) shown.push({ e: list[me]!, i: me });
     this.clock.textContent = `AO VIVO · ${s.n} ${s.n === 1 ? 'JOGADOR' : 'JOGADORES'}`;

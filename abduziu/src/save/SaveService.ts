@@ -86,6 +86,8 @@ export interface SaveData {
   rank: RankData;
   last: { mode: string; city: string };
   flags: { tutorialDone: boolean; introSeen: boolean; firstRunDone: boolean };
+  /** LOJA: cosmetics owned and worn. */
+  cosmetics: { owned: string[]; skin: string; beam: string };
 }
 
 export const SAVE_VERSION = 1;
@@ -108,6 +110,7 @@ export function defaultSettings(): Settings {
 
 export function defaultSave(): SaveData {
   return {
+    cosmetics: { owned: ['skin:classico', 'beam:verde'], skin: 'classico', beam: 'verde' },
     version: SAVE_VERSION,
     cores: 0,
     totalCoresEarned: 0,
@@ -164,6 +167,8 @@ export function migrate(raw: unknown): SaveData {
   merged.version = SAVE_VERSION;
   if (!Number.isFinite(merged.cores) || merged.cores < 0) merged.cores = 0;
   if (merged.history.length > 30) merged.history = merged.history.slice(-30);
+  if (!Array.isArray(merged.cosmetics.owned)) merged.cosmetics.owned = [];
+  for (const free of ['skin:classico', 'beam:verde']) if (!merged.cosmetics.owned.includes(free)) merged.cosmetics.owned.push(free);
   return merged;
 }
 

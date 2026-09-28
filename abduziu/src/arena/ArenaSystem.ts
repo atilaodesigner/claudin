@@ -1,6 +1,7 @@
 import { Vector3, type Scene, type Texture } from 'three';
 import { BALANCE } from '../config/gameBalance';
 import { getObjectDef } from '../config/objects';
+import { BOT_SKINS, getSkin } from '../config/cosmetics';
 import { levelFromXp, matterForTier, tierFromMatter } from '../progression/RunProgression';
 import { h } from '../ui/dom';
 import type { RadarBlip } from '../ui/HUD';
@@ -209,6 +210,7 @@ export class ArenaSystem {
     for (let i = 0; i < count; i++) {
       const b = new Bot(names[i % names.length] as string, ACCENTS[i % ACCENTS.length] as number, this.env, this.noise, this.g.hud.root);
       b.skill = skills[i] as number;
+      b.visuals.applySkin(getSkin(BOT_SKINS[i % BOT_SKINS.length]));
       this.scene.add(b.visuals.root);
       this.scene.add(b.beam.group);
       // bots "joined" at different times: some are already big and hungry

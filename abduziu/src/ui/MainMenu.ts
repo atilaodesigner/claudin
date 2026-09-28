@@ -1,7 +1,7 @@
 import { formatInt } from '../utils/math';
 import { h, onTap, Screen } from './dom';
 
-export type MenuAction = 'play' | 'daily' | 'meta' | 'dex' | 'records' | 'settings' | 'account';
+export type MenuAction = 'play' | 'daily' | 'meta' | 'shop' | 'dex' | 'records' | 'settings' | 'account';
 
 /** Cinematic title: the city and the saucer live behind it. */
 export class MainMenu extends Screen {
@@ -34,6 +34,7 @@ export class MainMenu extends Screen {
     this.metaBtn = h('button', 'btn ghost', 'Evoluções');
     const items: Array<[string, MenuAction, HTMLButtonElement?]> = [
       ['Evoluções', 'meta', this.metaBtn],
+      ['Loja', 'shop'],
       ['Coleção', 'dex'],
       ['Recordes', 'records'],
       ['Configurações', 'settings'],
