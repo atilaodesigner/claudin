@@ -1,6 +1,6 @@
 // Renders trailer shots to JPEG frames by driving the real game with director.js.
 //   node capture.mjs <gameUrl> <outDir> [every=1] shotId [shotId...]
-// Env: W/H (viewport, default 1920x1080), DIRECTOR (script path, default ./director.js).
+// Env: W/H (viewport, default 1920x1080), DPR (device scale), DIRECTOR (script path, default ./director.js).
 // Writes events-<shot>.json (abductions, level-ups) next to the frames for the sound design.
 import { chromium } from 'playwright-core';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -17,7 +17,7 @@ const browser = await chromium.launch({
   args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
 });
 for (const id of shots) {
-  const ctx = await browser.newContext({ viewport: { width: Number(process.env.W || 1920), height: Number(process.env.H || 1080) }, serviceWorkers: 'block' });
+  const ctx = await browser.newContext({ viewport: { width: Number(process.env.W || 1920), height: Number(process.env.H || 1080) }, deviceScaleFactor: Number(process.env.DPR || 1), serviceWorkers: 'block' });
   const page = await ctx.newPage();
   // heavy frames on a busy CPU can take a while: never give up on a frame
   page.setDefaultTimeout(0);
