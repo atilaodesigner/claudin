@@ -21,3 +21,4 @@ Detalhes e contexto no [`PLANO.md`](PLANO.md) §2.1.
 | D-13 | 2026-09-28 | proposta | Cliente no Cloudflare Pages; servidor Node persistente em SP | CDN existente; processo contínuo perto do jogador | custo/RTT medidos |
 | D-14 | 2026-09-28 | proposta | Convidado sem conta; banco só com progressão | acesso rápido | Marco F |
 | D-15 | 2026-09-28 | proposta | Erro de contato determinístico (cedo = curta, tarde = longa), sem RNG | justo e legível | playtest achar monótono |
+| D-16 | 2026-09-28 | aceita | Abertura em Canvas 2D puro (sem Three.js): vinheta GUETO (vermelha, vetorizada da arte do estúdio) → logo GINGA ARENA (branca, vetorial) → tela de título | ~6 KB gzip, aparece antes do motor 3D e do WASM carregarem | a logo final desenhada à mão substituir a versão vetorial |

@@ -4,7 +4,22 @@
 
 Futevôlei arcade 2,5D para navegador, com multiplayer online autoritativo (1v1 no MVP, 2v2 na beta).
 
-**Status:** Marco A (Definição). Ainda não há código; a implementação começa pelo Marco B.
+**Status:** Marco A (Definição). Primeiro código: a abertura (vinheta GUETO GAME STUDIO → logo GINGA ARENA → tela de título). O jogo começa pelo Marco B.
+
+## Rodando
+
+Precisa de Node 22+.
+
+```bash
+cd ginga-arena
+npm install
+npm run dev        # http://localhost:5173 (também na rede local, pra abrir no celular)
+npm run build      # typecheck + build de produção em packages/client/dist
+```
+
+- Qualquer tecla, clique ou toque adianta a abertura.
+- `?intro=0` abre direto na logo assentada (útil em desenvolvimento).
+- Com "reduzir movimento" ativo no sistema, as duas marcas só aparecem em fade.
 
 | Documento | Conteúdo |
 |---|---|

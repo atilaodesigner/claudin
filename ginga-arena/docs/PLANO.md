@@ -428,7 +428,7 @@ conceito (2D) → blockout 3D → modelagem low-poly → UV + atlas pintado
 ### 5.1 Fluxo principal
 
 ```
-abrir link ─► [Início] apelido ─► Jogar online ─► Criar sala ─► [Sala] copiar link / código
+abrir link ─► vinheta GUETO GAME STUDIO ─► logo GINGA ARENA (tela de título) ─► [Início] apelido ─► Jogar online ─► Criar sala ─► [Sala] copiar link / código
                   │                     └──────► Entrar por código ─┘        │
                   ├─► Treino (tutorial) ─► Treino livre                     confirmar presença
                   └─► Contra bot (BOT)                                        │
@@ -442,6 +442,7 @@ Um convite (`/?sala=K7QF`) cai direto na sala depois de o jogador escolher o ape
 
 | Tela | Conteúdo | Ações | Estados e erros |
 |---|---|---|---|
+| **Abertura** | vinheta animada GUETO GAME STUDIO (vermelha) que abre em portal para a logo GINGA ARENA (toda branca: bola quicando no I, letras chegando com ginga, ARENA entre linhas); a logo fica em loop como tela de título | qualquer tecla/toque adianta | reduzir movimento → só fades; ~5 s no total, carrega os assets por trás |
 | **Carregamento** | logo, barra de bytes reais, dica rotativa | n/a | falha de download → "Tentar de novo" |
 | **Início** | logo, campo de apelido (lembrado), 3 botões grandes, configurações | Jogar online, Treino, Contra bot | servidor fora → online desabilitado com aviso, treino segue funcionando |
 | **Treino** | tutorial em 5 passos (~90 s, pulável): mover/pular → toque para si → levantar e atacar → receber saque → partida curta até 3 contra bot lento | pular passo, repetir | n/a |

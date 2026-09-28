@@ -1,0 +1,53 @@
+:root {
+  --bg: #000;
+  --ink: #fff8ec;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  overflow: hidden;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+#intro {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+.title {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: max(9vh, 24px);
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.title[hidden] { display: none; }
+.press {
+  margin: 0;
+  padding: 0 16px;
+  font-size: clamp(12px, 1.6vw, 16px);
+  font-weight: 600;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  text-align: center;
+  animation: blink 1.6s ease-in-out infinite;
+}
+@keyframes blink { 50% { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) { .press { animation: none; } }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

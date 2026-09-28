@@ -1,0 +1,11 @@
+{
+  "name": "ginga-arena",
+  "private": true,
+  "type": "module",
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "dev": "npm run dev -w @ginga/client",
+    "build": "npm run build -w @ginga/client",
+    "typecheck": "npm run typecheck -w @ginga/client"
+  }
+}
