@@ -5,7 +5,7 @@
 import { CAMPAIGN, type CityId } from './cities';
 import { hashNumbers } from '../utils/rng';
 
-export type GameMode = 'casual' | 'campanha' | 'ranqueada' | 'diaria';
+export type GameMode = 'casual' | 'campanha' | 'ranqueada' | 'diaria' | 'arena';
 
 export interface ModeInfo {
   id: GameMode;
@@ -46,6 +46,15 @@ export const MODES: Record<GameMode, ModeInfo> = {
     coreMult: 1.2,
     enemies: true,
     damage: true,
+  },
+  arena: {
+    id: 'arena',
+    name: 'ARENA',
+    tag: '.IO',
+    description: 'Todo mundo começa pequeno. Abduza a cidade, cresça e engula as naves menores antes que uma maior engula você.',
+    coreMult: 0.8,
+    enemies: false,
+    damage: false,
   },
   diaria: {
     id: 'diaria',

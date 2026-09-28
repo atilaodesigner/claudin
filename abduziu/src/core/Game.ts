@@ -1,5 +1,6 @@
 import { Color, PerspectiveCamera, Scene, Vector3, type Texture } from 'three';
 import { AbductionSystem } from '../abduction/AbductionSystem';
+import { ArenaSystem } from '../arena/ArenaSystem';
 import { DynamicObjectPool } from '../abduction/DynamicObjectPool';
 import { loadModelOverrides } from '../assets/AssetLoader';
 import { ModelLibrary } from '../assets/ModelLibrary';
@@ -8,7 +9,7 @@ import { Haptics } from '../audio/Haptics';
 import { DamageSystem } from '../combat/DamageSystem';
 import { EMPSystem } from '../combat/EMPSystem';
 import { ShieldSystem } from '../combat/ShieldSystem';
-import { getCity, type CityDef, type CityId } from '../config/cities';
+import { CAMPAIGN, getCity, type CityDef, type CityId } from '../config/cities';
 import { BALANCE } from '../config/gameBalance';
 import { META_BY_ID } from '../config/meta';
 import { dailySetup, MODES, weekKey, weeklySetup, type GameMode } from '../config/modes';
@@ -106,6 +107,10 @@ export class Game {
   // assets & rendering
   private atlas!: TextureAtlas;
   private noise!: Texture;
+  private envMap: Texture | null = null;
+  /** ABDUZIU.io round (created on the first arena run). */
+  arena: ArenaSystem | null = null;
+  private arenaEndTimer = -1;
   lib!: ModelLibrary;
   sky!: Sky;
   clouds!: Clouds;
@@ -268,6 +273,7 @@ export class Game {
     this.vfx = new VFXManager(this.scene, this.cameraCtl, this.post, this.time, this.haptics);
     this.vfx.particles.setViewportHeight(this.renderer.height * this.renderer.pixelRatio);
     const env = createEnvironmentMap(this.renderer.gl);
+    this.envMap = env;
     this.ufoVisuals = new UFOVisuals(env);
     this.scene.add(this.ufoVisuals.root);
     this.beam = new TractorBeam(this.noise);
@@ -431,7 +437,12 @@ export class Game {
       this.audio.ui('pick');
       this.modeScreen.hide();
       if (m === 'ranqueada') this.openRank();
-      else this.mapScreen.open(m, this.save.get());
+      else if (m === 'arena') {
+        // arena drops you in a random city: the round is about the other ships
+        const pool = CAMPAIGN.filter((c) => isUnlocked(this.save.get().campaign, c.id));
+        const city = (pool[Math.floor(Math.random() * pool.length)] ?? CAMPAIGN[0]) as CityDef;
+        void this.startRun('arena', city.id);
+      } else this.mapScreen.open(m, this.save.get());
     };
     this.mapScreen.onClose = () => {
       this.audio.ui('back');
@@ -638,6 +649,8 @@ export class Game {
 
   private enterMenu(): void {
     this.state = 'menu';
+    this.arena?.clear();
+    this.arenaEndTimer = -1;
     this.hud.show(false);
     this.intro.hideNow();
     this.intro.setBlackout(false);
@@ -780,6 +793,8 @@ export class Game {
     const start = this.world.start;
     this.ufo.spawnAt(start.x, start.z, 150);
     this.introStep = 0;
+    if (this.run.mode === 'arena') this.startArena();
+    else this.arena?.clear();
   }
 
   private introStep = 0;
@@ -1082,6 +1097,40 @@ export class Game {
     this.bus.emit('extraction:start', {});
   }
 
+  private arenaSwallowed = false;
+
+  /** ABDUZIU.io: bots spawn around the city once the saucer arrives. */
+  private startArena(): void {
+    if (!this.arena) {
+      this.arena = new ArenaSystem(this, this.scene, this.envMap, this.noise);
+      this.arena.onPlayerEaten = (by) => {
+        if (this.state !== 'playing') return;
+        this.state = 'dying';
+        this.arenaSwallowed = true;
+        this.evoDock.close();
+        this.endTimer = 1.4;
+        this.input.enabled = false;
+        this.abduction.dropAll();
+        this.audio.crash();
+        this.haptics.light();
+        this.time.slowMo(0.4, 0.6);
+        this.hud.showBanner('ABDUZIDO!', `${by.toUpperCase()} ENGOLIU SUA NAVE`, 'var(--warning-red)');
+      };
+      this.arena.onRoundEnd = (place, total) => {
+        this.arenaEndTimer = 2.4;
+        this.input.enabled = false;
+        this.evoDock.close();
+        this.abduction.dropAll();
+        this.audio.levelUp();
+        this.hud.showBanner('FIM DA RODADA', `VOCÊ FICOU EM #${place} DE ${total}`, place === 1 ? 'var(--gold)' : 'var(--alien-green)');
+      };
+    }
+    this.arenaSwallowed = false;
+    this.arenaEndTimer = -1;
+    this.arena.playerName = this.online.profile?.nickname ?? 'VOCÊ';
+    this.arena.start(this.quality.level <= 1);
+  }
+
   private endRun(reason: 'extracted' | 'destroyed' | 'quit'): void {
     this.state = 'results';
     this.evoDock.close();
@@ -1102,6 +1151,13 @@ export class Game {
     const extracted = reason === 'extracted' || (reason === 'quit' && r.mode === 'casual');
     if (extracted) r.challenges.onExtracted();
     const modeInfo = MODES[r.mode];
+    let arenaInfo: { place: number; total: number; eatenBy: string | null } | undefined;
+    if (r.mode === 'arena' && this.arena) {
+      arenaInfo = { place: this.arena.place || this.arena.playerPlace(), total: this.arena.total, eatenBy: this.arena.eatenBy };
+      this.arena.clear();
+    }
+    this.arenaEndTimer = -1;
+    this.arenaSwallowed = false;
     const raw = r.computeResults(extracted);
     const cores = { ...raw, total: Math.round(raw.total * modeInfo.coreMult) };
     // campaign stars / ranked points
@@ -1181,6 +1237,7 @@ export class Game {
       newRecord: s.score > prevBest && prevBest > 0,
       daily: r.daily,
       modeName: modeInfo.name,
+      arena: arenaInfo,
       cityName: r.city.name.toUpperCase(),
       campaign: campaign
         ? { stars: campaign.progress.stars, earnedNow: r.challenges.active.map((c) => c.done), newStars: campaign.newStars, unlocked: campaign.unlocked ? campaign.unlocked.name.toUpperCase() : null, bonusCores: campaign.bonusCores }
@@ -1308,6 +1365,19 @@ export class Game {
         this.endRun('extracted');
         return;
       }
+    } else if (this.state === 'dying' && this.arenaSwallowed) {
+      // swallowed by a bigger ship: dragged up into its hatch, shrinking
+      this.endTimer -= dt;
+      const c = this.arena?.captorPosition;
+      if (c) this.ufo.position.lerp(c, 1 - Math.exp(-4 * dt));
+      this.ufoVisuals.root.position.copy(this.ufo.position);
+      this.ufoVisuals.root.scale.setScalar(this.stats.radius * Math.max(0.02, this.endTimer / 1.4));
+      this.ufoVisuals.body.rotation.y += dt * 12;
+      if (this.endTimer <= 0) {
+        this.ufoVisuals.root.visible = false;
+        this.endRun('destroyed');
+        return;
+      }
     } else if (this.state === 'dying') {
       this.endTimer -= dt;
       this.ufo.position.y = Math.max(this.world.groundAt(this.ufo.position.x, this.ufo.position.z) + 1, this.ufo.position.y - dt * (6 + (2 - this.endTimer) * 12));
@@ -1363,6 +1433,16 @@ export class Game {
     this.traffic.update(dt, this.ufo.position, this.stats.radius);
     this.enemies.spawningEnabled = playing && MODES[this.run.mode].enemies;
     this.enemies.update(dt, r.time, this.playerSnapshot(), r.threat.alert);
+    if (this.arena?.active) {
+      this.arena.update(dt, playing && this.arenaEndTimer < 0, beamOn);
+      if (this.arenaEndTimer >= 0) {
+        this.arenaEndTimer -= dt;
+        if (this.arenaEndTimer < 0) {
+          this.endRun('extracted');
+          return;
+        }
+      }
+    }
 
     // shield / hull
     if (this.shield.update(dt, this.ufo.position, this.stats.radius, this.stats.maxShield, this.stats.shieldRegen)) {
@@ -1490,6 +1570,7 @@ export class Game {
     if (hint) this.blips.push({ x: hint.pos.x, z: hint.pos.z, kind: 'rare' });
     // landmark objectives always show on the radar
     for (const o of this.landmarkTargets) if (o.alive) this.blips.push({ x: o.pos.x, z: o.pos.z, kind: 'event' });
+    this.arena?.blips(this.blips);
     hud.drawRadar(dt, p.x, p.z, 110 + this.stats.radius * 10, this.blips, this.time.realElapsed);
     hud.updateFloats(this.time.realDelta, this.cameraCtl.camera, w, hh);
   }

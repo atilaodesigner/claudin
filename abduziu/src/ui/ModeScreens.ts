@@ -62,8 +62,9 @@ export class ModeScreen extends Screen {
       casual: `${citiesUnlocked(save.campaign)} CIDADES LIBERADAS · SEM INIMIGOS`,
       campanha: `★ ${totalStars(save.campaign)} / ${CAMPAIGN.length * 3} · ${citiesUnlocked(save.campaign)}/${CAMPAIGN.length} CIDADES`,
       ranqueada: `${div.division.name} · ${formatInt(save.rank.rp)} RP`,
+      arena: 'NOVO · CONTRA BOTS · RODADA DE 4 MIN',
     };
-    const order: Array<Exclude<GameMode, 'diaria'>> = ['casual', 'campanha', 'ranqueada'];
+    const order: Array<Exclude<GameMode, 'diaria'>> = ['casual', 'campanha', 'ranqueada', 'arena'];
     order.forEach((m, i) => {
       const info = MODES[m];
       const card = h('button', `mode-card panel m-${m}`);

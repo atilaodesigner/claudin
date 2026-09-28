@@ -168,6 +168,8 @@ export class RunController {
   }
 
   get extractionMultiplier(): number {
+    // arena rounds end on the clock: no portal
+    if (this.mode === 'arena') return 0;
     return extractionMultiplierAt(this.time);
   }
 
