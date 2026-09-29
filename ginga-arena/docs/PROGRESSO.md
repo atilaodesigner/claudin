@@ -124,6 +124,18 @@ erros de página: nenhum
 - ⚠️ Containers da Cloudflare: a API negou acesso. Nenhum provedor de VM disponível. Por isso a produção usa Durable Objects (D-24); o Colyseus segue para desenvolvimento.
 - ✅ Worker `ginga-arena-server` publicado daqui (1,2 MB gzip, inicialização em 5 ms). O site é publicado pelo GitHub Actions (D-27): o upload do Pages direto deste ambiente foi recusado pelo proxy de credenciais.
 
+**No ar: https://ginga-arena.pages.dev (executado):**
+- ✅ Deploy pelo GitHub Actions ([run #1](https://github.com/atilaodesigner/claudin/actions/runs/36502635288)): typecheck, 35 testes, Worker e Pages, com conferência final, tudo verde.
+- 🧪 Produção, por um cliente WebSocket de teste (túnel pelo proxy do sandbox):
+  - 60,1 ticks/s e 20,6 snapshots/s;
+  - o mesmo ponto chega aos dois jogadores;
+  - 3º jogador recusado (sala cheia);
+  - reconexão por token na mesma vaga;
+  - saída → W.O.
+- 🧪 Arquivos servidos pela CDN: abertura 16 KB, jogo 205 KB + 1,57 MB (gzip). Download do chunk grande em 0,66 s daqui.
+- ⚠️ O Chromium de teste deste sandbox não consegue carregar o jogo pelo proxy de saída (`ERR_TOO_MANY_RETRIES`), embora o `curl` baixe tudo. É limitação do ambiente de teste, não do site, mas significa que **a partida entre navegadores em produção ainda não foi vista rodando** por mim: falta o teste com pessoas.
+- ⚠️ Daqui (servidores nos EUA) a sala roda na América do Sul, então o RTT medido daqui não representa jogadores no Brasil.
+
 ## Próximos passos
 
 1. Medir no ar: laboratório contra `ginga-arena.pages.dev` e partidas entre pessoas em redes diferentes (checklist §11), com RTT real a partir de capitais brasileiras.

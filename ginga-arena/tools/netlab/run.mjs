@@ -19,10 +19,13 @@ const CLIENT = arg('client', 'http://localhost:4173');
 const BACKEND = arg('backend', 'colyseus');
 const server = arg('server-url', BACKEND === 'edge' ? `http://localhost:${PROXY}` : `ws://localhost:${PROXY}`);
 
-const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+// in sandboxes, outbound traffic must go through the environment's proxy (--insecure also trusts its CA)
+const proxy = process.argv.includes('--insecure') && process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY, bypass: 'localhost,127.0.0.1' } : undefined;
+const browser = await chromium.launch({ proxy, args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const errors = [];
 async function page(name, extra = '') {
-  const ctx = await browser.newContext({ viewport: { width: 480, height: 270 } });
+  // --insecure: only for sandboxes whose outbound HTTPS goes through an intercepting proxy
+  const ctx = await browser.newContext({ viewport: { width: 480, height: 270 }, ignoreHTTPSErrors: process.argv.includes('--insecure') });
   const p = await ctx.newPage();
   p.on('pageerror', (e) => errors.push(`${name}: ${e.message}`));
   await p.goto(`${CLIENT}/?intro=0&autobot=medium&backend=${BACKEND}&server=${encodeURIComponent(server)}${extra}`);
@@ -60,6 +63,7 @@ console.log(row('A', a));
 console.log(row('B', b));
 console.log(`placar A ${a.score.join('×')} | B ${b.score.join('×')} → ${same ? 'IGUAL' : 'DIFERENTE'}`);
 try {
+  if (BACKEND !== 'colyseus') throw new Error('no /stats on edge');
   const stats = await (await fetch(`http://localhost:${arg('server-http', '2567')}/stats`)).json();
   const room = stats.find((r) => r.code === code);
   if (room) console.log(`servidor: ${room.seats.map((x) => `vaga ${x.slot}: ${x.frames} frames, ${x.late} atrasados aplicados, ${x.lateDropped} descartados`).join(' | ')}`);
