@@ -26,6 +26,8 @@ async function boot(): Promise<void> {
   const theme = intro ? makeTheme() : null;
   if (intro && theme) {
     await fonts;
+    // celular em pé: pede pra deitar antes da abertura
+    await intro.rotate();
     const ok = await theme.play().then(() => true, () => false);
     if (!ok) {
       // navegador bloqueou som sem interação: um toque libera

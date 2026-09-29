@@ -329,8 +329,19 @@ export class Hud {
     $(this.root, '#r-tracks').innerHTML = st.tracks
       .map((t, i) => `<li class="${i === r.track % st.tracks.length && r.on ? 'on' : ''}"><span>${t.title}<small>${t.artist}</small></span><em>${fmtTime(t.length).slice(0, 5)}</em></li>`)
       .join('');
-    this.set('np', r.on ? `<b>${st.name}</b> ${tr.title} — ${tr.artist.toLowerCase()}` : '<b>RÁDIO</b> desligado', 'html');
+    const np = r.on ? `<b>${st.name}</b> ${tr.title} — ${tr.artist.toLowerCase()}` : '<b>RÁDIO</b> desligado';
+    if (this.last.np !== np) {
+      // nome da música aparece quando troca e some depois (tela limpa)
+      this.set('np', np, 'html');
+      const el = this.els.np;
+      if (el) {
+        el.classList.add('show');
+        clearTimeout(this.npTimer);
+        this.npTimer = window.setTimeout(() => el.classList.remove('show'), 5000);
+      }
+    }
   }
+  private npTimer = 0;
 
   setPaused(p: boolean): void {
     if (!this.started) return;

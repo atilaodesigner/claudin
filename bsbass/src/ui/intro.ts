@@ -68,7 +68,16 @@ export class Intro {
       <div class="i-lines"></div>
       <div class="i-foot"><span class="i-label">CARREGANDO A QUEBRADA</span><div class="i-bar"><i></i></div></div>
       <small class="i-hint">TOQUE PRA PULAR</small>
-      <button class="i-gate" hidden><span>TOQUE PRA ENTRAR</span><small>🔊 com som</small></button>`;
+      <button class="i-gate" hidden><span>TOQUE PRA ENTRAR</span><small>🔊 com som</small></button>
+      <div class="i-rotate" hidden role="dialog" aria-label="Deite o celular">
+        <div class="i-phone"><i></i></div>
+        <b>DEITA O CELULAR</b>
+        <p>Pra melhor experiência, jogue com o celular deitado: a tela fica maior e os controles ficam na ponta dos dedos.</p>
+        <div class="i-btns">
+          <button class="i-full" hidden>TELA CHEIA DEITADA</button>
+          <button class="i-skip">JOGAR ASSIM MESMO</button>
+        </div>
+      </div>`;
     parent.appendChild(el);
     this.el = el;
     this.video = el.querySelector('video')!;
@@ -87,6 +96,55 @@ export class Intro {
   }
 
   private cleanup: () => void;
+
+  /**
+   * Celular em pé: aviso pra deitar antes da abertura. Some sozinho quando o
+   * celular vira (ou no botão). Devolve true se o jogador tocou num botão
+   * (o toque já libera o som).
+   */
+  rotate(): Promise<boolean> {
+    const coarse = matchMedia('(pointer: coarse)').matches;
+    const portrait = matchMedia('(orientation: portrait)');
+    if (!coarse || !portrait.matches) return Promise.resolve(false);
+    const box = this.el.querySelector<HTMLElement>('.i-rotate')!;
+    const full = box.querySelector<HTMLButtonElement>('.i-full')!;
+    const skip = box.querySelector<HTMLButtonElement>('.i-skip')!;
+    const root = document.documentElement;
+    if (typeof (root as { requestFullscreen?: unknown }).requestFullscreen === 'function') full.hidden = false;
+    box.hidden = false;
+    return new Promise((resolve) => {
+      let done = false;
+      const finish = (tapped: boolean, delay = 0) => {
+        if (done) return;
+        done = true;
+        portrait.removeEventListener('change', onTurn);
+        setTimeout(() => {
+          box.hidden = true;
+          resolve(tapped);
+        }, delay);
+      };
+      const onTurn = () => {
+        if (portrait.matches) return;
+        box.classList.add('ok');
+        box.querySelector('b')!.textContent = 'BOA!';
+        finish(false, 700);
+      };
+      portrait.addEventListener('change', onTurn);
+      // os botões não contam como "pular a abertura"
+      box.addEventListener('pointerdown', (e) => e.stopPropagation());
+      skip.addEventListener('click', () => finish(true));
+      full.addEventListener('click', async () => {
+        try {
+          await root.requestFullscreen({ navigationUI: 'hide' });
+          const o = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> };
+          await o.lock?.('landscape');
+        } catch {
+          /* iPhone e afins: não trava, espera o jogador virar */
+        }
+        if (!portrait.matches) finish(true, 300);
+      });
+    });
+  }
 
   /** espera um toque/tecla (libera o som no navegador) */
   gate(): Promise<void> {
