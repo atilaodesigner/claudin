@@ -1,0 +1,15 @@
+BSBASS THE GAME - projeto de site (Cloudflare Pages)
+
+Subir:
+1. dash.cloudflare.com > Workers & Pages > Create > Pages > Upload assets
+2. Nome do projeto: bsbass
+3. Arraste TODO o conteudo desta pasta (index.html, assets/, vendor/, _headers)
+4. Deploy. Vai sair no ar em bsbass.pages.dev
+
+Dominio bsbass.fun:
+5. No projeto > Custom domains > Set up a domain > bsbass.fun
+6. Repita para www.bsbass.fun (opcional)
+Se o dominio ainda nao estiver na conta: Websites > Add a domain > bsbass.fun,
+e troque os nameservers no registrador para os que a Cloudflare mostrar.
+
+Atualizar depois: subir a pasta de novo no mesmo projeto.
