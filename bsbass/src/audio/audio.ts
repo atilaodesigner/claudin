@@ -22,6 +22,18 @@ export class AudioSystem {
   private windGain!: GainNode;
   private nitroGain!: GainNode;
 
+  // ---------- gravações reais (Freesound, CC0) ----------
+  private buf: Record<string, AudioBuffer> = {};
+  private engLayers: { src: AudioBufferSourceNode; gain: GainNode; native: number }[] = [];
+  private engBus!: GainNode;
+  private engLP!: BiquadFilterNode;
+  private tireSrc: AudioBufferSourceNode | null = null;
+  private tireSGain!: GainNode;
+  private tireLP!: BiquadFilterNode;
+  private ambGain!: GainNode;
+  private nextDog = 20;
+  samplesReady = false;
+
   carVolume = 0.8;
   musicVolume = 0.7;
   muted = false;
@@ -114,6 +126,8 @@ export class AudioSystem {
     windSrc.connect(wf).connect(this.windGain).connect(this.carBus);
 
     // ---------- nitro ----------
+    void this.loadSamples();
+
     const nSrc = this.loopNoise();
     const nf = ctx.createBiquadFilter();
     nf.type = 'highpass';
@@ -121,6 +135,98 @@ export class AudioSystem {
     this.nitroGain = ctx.createGain();
     this.nitroGain.gain.value = 0;
     nSrc.connect(nf).connect(this.nitroGain).connect(this.carBus);
+  }
+
+  private async loadSamples(): Promise<void> {
+    const ctx = this.ctx!;
+    const names = ['eng_0', 'eng_1', 'eng_2', 'eng_3', 'eng_4', 'tire_loop', 'crash_mid', 'hit_small', 'hit_tiny', 'horn', 'pop1', 'pop2', 'pop3'];
+    const mp3 = ['crash_big', 'rain_loop', 'dogs'];
+    const load = async (n: string, ext: string) => {
+      try {
+        const r = await fetch(`./sfx/${n}.${ext}`);
+        if (!r.ok) return;
+        this.buf[n] = await ctx.decodeAudioData(await r.arrayBuffer());
+      } catch {
+        /* sem esse som: fica o sintetizado */
+      }
+    };
+    await Promise.all([...names.map((n) => load(n, 'wav')), ...mp3.map((n) => load(n, 'mp3'))]);
+
+    // motor: 5 loops de rotação fixa, misturados e afinados pelo RPM
+    const native = [1100, 1426, 1864, 3677, 4054]; // proporcional à frequência de disparo de cada gravação
+    if (native.every((_, i) => this.buf[`eng_${i}`])) {
+      this.engLP = ctx.createBiquadFilter();
+      this.engLP.type = 'lowpass';
+      this.engLP.frequency.value = 3000;
+      this.engLP.Q.value = 0.7;
+      this.engBus = ctx.createGain();
+      this.engBus.gain.value = 0;
+      this.engBus.connect(this.engLP).connect(this.carBus);
+      native.forEach((nat, i) => {
+        const src = ctx.createBufferSource();
+        src.buffer = this.buf[`eng_${i}`]!;
+        src.loop = true;
+        const gain = ctx.createGain();
+        gain.gain.value = 0;
+        src.connect(gain).connect(this.engBus);
+        src.start(0, Math.random() * src.buffer.duration);
+        this.engLayers.push({ src, gain, native: nat });
+      });
+    }
+    // pneu cantando de verdade
+    if (this.buf.tire_loop) {
+      this.tireLP = ctx.createBiquadFilter();
+      this.tireLP.type = 'lowpass';
+      this.tireLP.frequency.value = 12000;
+      this.tireSGain = ctx.createGain();
+      this.tireSGain.gain.value = 0;
+      this.tireSrc = ctx.createBufferSource();
+      this.tireSrc.buffer = this.buf.tire_loop;
+      this.tireSrc.loop = true;
+      this.tireSrc.connect(this.tireLP).connect(this.tireSGain).connect(this.carBus);
+      this.tireSrc.start();
+    }
+    // chuva de fundo
+    this.ambGain = ctx.createGain();
+    this.ambGain.gain.value = 0;
+    this.ambGain.connect(this.carBus);
+    if (this.buf.rain_loop) {
+      const r = ctx.createBufferSource();
+      r.buffer = this.buf.rain_loop;
+      r.loop = true;
+      // corta o silêncio de borda do mp3 pra emenda não estalar
+      r.loopStart = 0.06;
+      r.loopEnd = r.buffer.duration - 0.06;
+      r.connect(this.ambGain);
+      r.start(0, 0.06);
+    }
+    this.samplesReady = this.engLayers.length > 0;
+  }
+
+  /** toca uma gravação; devolve false se ela não carregou */
+  play(name: string, gain = 1, rate = 1, pan = 0, when = 0): boolean {
+    const ctx = this.ctx;
+    const b = this.buf[name];
+    if (!ctx || !b) return false;
+    const src = ctx.createBufferSource();
+    src.buffer = b;
+    src.playbackRate.value = rate;
+    const g = ctx.createGain();
+    g.gain.value = gain;
+    const p = ctx.createStereoPanner();
+    p.pan.value = Math.max(-1, Math.min(1, pan));
+    src.connect(g).connect(p).connect(this.carBus);
+    src.start(ctx.currentTime + when);
+    return true;
+  }
+
+  /** pipocos do escapamento (tirou o pé em alta) */
+  pops(n: number): void {
+    let t = 0;
+    for (let i = 0; i < n; i++) {
+      this.play(`pop${1 + Math.floor(Math.random() * 3)}`, 0.35 + Math.random() * 0.3, 0.85 + Math.random() * 0.35, (Math.random() - 0.5) * 0.3, t);
+      t += 0.05 + Math.random() * 0.11;
+    }
   }
 
   private loopNoise(): AudioBufferSourceNode {
@@ -150,6 +256,9 @@ export class AudioSystem {
     const t = ctx.currentTime;
     const k = 0.04;
     if (paused) {
+      if (this.engBus) this.engBus.gain.setTargetAtTime(0, t, 0.1);
+      if (this.tireSGain) this.tireSGain.gain.setTargetAtTime(0, t, 0.1);
+      if (this.ambGain) this.ambGain.gain.setTargetAtTime(0.12, t, 0.3);
       this.eGain.gain.setTargetAtTime(0, t, 0.1);
       this.tireGain.gain.setTargetAtTime(0, t, 0.1);
       this.windGain.gain.setTargetAtTime(0, t, 0.1);
@@ -171,6 +280,39 @@ export class AudioSystem {
     this.tireFilter2.frequency.setTargetAtTime(1700 + speed * 8, t, 0.05);
     this.windGain.gain.setTargetAtTime(Math.min(0.35, (speed / 70) ** 2 * 0.35) + (surfaceDirt ? Math.min(0.2, speed / 100) : 0), t, 0.1);
     this.nitroGain.gain.setTargetAtTime(nitro ? 0.2 : 0, t, 0.06);
+
+    if (this.ambGain) this.ambGain.gain.setTargetAtTime(0.32, t, 0.5);
+    // cachorro latindo lá longe de vez em quando
+    this.nextDog -= 1 / 60;
+    if (this.nextDog <= 0) {
+      this.nextDog = 25 + Math.random() * 35;
+      this.play('dogs', 0.12 + Math.random() * 0.1, 0.9 + Math.random() * 0.2, Math.random() * 1.6 - 0.8);
+    }
+
+    if (!this.samplesReady) return;
+    // com as gravações carregadas, o sintetizado vira só um reforço grave
+    this.eGain.gain.setTargetAtTime((0.16 + throttle * 0.24) * 0.22, t, k);
+    const r = 900 + (rpm - 900) * 0.72; // rotação "de áudio"
+    const L = this.engLayers;
+    let i = 0;
+    while (i < L.length - 2 && r > L[i + 1]!.native) i++;
+    const a = L[i]!, b = L[i + 1]!;
+    const x = Math.min(1, Math.max(0, Math.log(r / a.native) / Math.log(b.native / a.native)));
+    L.forEach((l, j) => {
+      const w = j === i ? Math.cos(x * Math.PI / 2) : j === i + 1 ? Math.sin(x * Math.PI / 2) : 0;
+      l.gain.gain.setTargetAtTime(w, t, 0.03);
+      l.src.playbackRate.setTargetAtTime(Math.min(2, Math.max(0.5, r / l.native)), t, 0.03);
+    });
+    this.engBus.gain.setTargetAtTime(0.5 + throttle * 0.5, t, 0.05);
+    this.engLP.frequency.setTargetAtTime(1400 + throttle * 7000 + rpm * 0.4, t, 0.05);
+    if (this.tireSrc) {
+      const g = surfaceDirt ? rearSlip * 0.18 : Math.max(0, rearSlip - 0.15) * 0.75 * Math.min(1, speed / 6);
+      this.tireSGain.gain.setTargetAtTime(g, t, 0.06);
+      this.tireSrc.playbackRate.setTargetAtTime(0.88 + Math.min(0.3, speed / 150) + Math.sin(t * 7) * 0.02, t, 0.08);
+      this.tireLP.frequency.setTargetAtTime(surfaceDirt ? 700 : 12000, t, 0.1);
+      // o chiado sintetizado baixa pra não embolar
+      this.tireGain.gain.setTargetAtTime(tire * 0.25, t, 0.05);
+    }
   }
 
   // ---------- efeitos ----------
@@ -183,6 +325,8 @@ export class AudioSystem {
   crash(strength: number): void {
     const ctx = this.ctx;
     if (!ctx) return;
+    const rate = 0.9 + Math.random() * 0.2;
+    if (strength > 8 ? this.play('crash_big', Math.min(1, 0.5 + strength * 0.03), rate) : strength > 4 ? this.play('crash_mid', 0.7, rate) : this.play('hit_small', 0.5, rate)) return;
     const t = ctx.currentTime;
     const n = ctx.createBufferSource();
     n.buffer = this.noise;
@@ -262,6 +406,7 @@ export class AudioSystem {
   horn(pan: number): void {
     const ctx = this.ctx;
     if (!ctx) return;
+    if (this.play('horn', 0.35, 0.9 + Math.random() * 0.25, pan)) return;
     const t = ctx.currentTime;
     const p = ctx.createStereoPanner();
     p.pan.value = Math.max(-1, Math.min(1, pan));

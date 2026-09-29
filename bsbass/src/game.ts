@@ -130,6 +130,9 @@ export class Game {
   private save: Save;
   private started = false;
   private crashCd = 0;
+  private prevThrottle = 0;
+  private prevGear = 1;
+  private popFlash = 0;
   private autopilot: ((t: number) => Partial<import('./physics/car').CarInput>) | null = null;
   private frameTimes: number[] = [];
   private pixelRatio: number;
@@ -204,8 +207,25 @@ export class Game {
     }
 
     // ---------- carro ----------
-    const env = this.makeEnvMap();
+    let env: THREE.Texture;
+    if (assets.env) {
+      // HDRI de verdade (rua à noite com luz de sódio) pros reflexos
+      const pmrem = new THREE.PMREMGenerator(this.renderer);
+      env = pmrem.fromEquirectangular(assets.env).texture;
+      pmrem.dispose();
+      this.scene.environment = env;
+      this.scene.environmentIntensity = 0.05;
+    } else {
+      env = this.makeEnvMap();
+    }
     this.rig = buildMustang(env);
+    if (assets.env) {
+      // o HDRI real é bem mais forte que o ambiente sintético
+      this.rig.root.traverse((o) => {
+        const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | THREE.MeshStandardMaterial[] | undefined;
+        for (const mm of Array.isArray(m) ? m : m ? [m] : []) if (mm.envMap) mm.envMapIntensity *= 0.22;
+      });
+    }
     this.scene.add(this.rig.root);
     // luz de "estúdio" que segue o carro (senão ele vira silhueta contra a luz de sódio)
     this.heroLight = new THREE.PointLight(0xbfd0ff, 14, 14, 1.4);
@@ -721,6 +741,29 @@ export class Game {
           }
         }
         this.skids.add(wi, this.tmpV.x, this.carY, this.tmpV.z, surf.dirt ? Math.min(0.5, car.speed / 25) : slip > 0.35 ? slip : 0, surf.dirt);
+      }
+      // pipoco no escapamento: tirou o pé em giro alto, ou troca de marcha no talo
+      const lift = this.prevThrottle > 0.7 && car.throttle < 0.2 && car.rpm > 4200;
+      const shift = car.gear > this.prevGear && car.throttle > 0.8;
+      if (lift || shift) {
+        const n = lift ? 2 + Math.floor(Math.random() * 3) : 1;
+        this.audio.pops(n);
+        this.popFlash = lift ? 0.35 : 0.12;
+      }
+      this.prevThrottle = car.throttle;
+      this.prevGear = car.gear;
+      if (this.popFlash > 0) {
+        this.popFlash -= dt;
+        if (Math.random() < 0.5) {
+          for (const e of rig.exhausts) {
+            toWorld(e.x, e.y, e.z, this.tmpV);
+            this.sparks.emit({
+              x: this.tmpV.x, y: this.tmpV.y, z: this.tmpV.z,
+              vx: car.vx - s * 3, vy: 0.3, vz: car.vz - c * 3,
+              life: 0.07, size: 0.32, grow: -1, r: 3.6, g: 1.5, b: 0.3, a: 1, drag: 4,
+            });
+          }
+        }
       }
       // nitro: chama azul nas 4 ponteiras
       if (car.nitroActive) {

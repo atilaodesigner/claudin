@@ -3,6 +3,7 @@
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
 
 export const MODEL_NAMES = [
   'barrel_03', 'Barrel_02', 'old_tyre', 'covered_car', 'exterior_aircon_unit', 'fire_hydrant',
@@ -10,8 +11,8 @@ export const MODEL_NAMES = [
 ] as const;
 export type ModelName = (typeof MODEL_NAMES)[number];
 
-// a versão publicada como artifact serve os .glb com outra extensão (ver README)
-const MODEL_EXT: string = import.meta.env.VITE_MODEL_EXT || '.glb';
+// a versão publicada como artifact serve .glb/.hdr com um sufixo a mais (ver README)
+const BIN_SUFFIX: string = import.meta.env.VITE_BIN_SUFFIX || '';
 
 export const PHOTO_NAMES = ['plaster', 'brick', 'concrete'] as const;
 export type PhotoName = (typeof PHOTO_NAMES)[number];
@@ -20,6 +21,8 @@ export interface Assets {
   photos: Partial<Record<PhotoName, HTMLImageElement>>;
   tex: Partial<Record<'asphalt' | 'asphalt_n' | 'asphalt_r' | 'sidewalk' | 'sidewalk_n' | 'dirt' | 'dirt_n', THREE.Texture>>;
   models: Partial<Record<ModelName, THREE.Group>>;
+  /** HDRI de rua à noite (Poly Haven) pros reflexos */
+  env?: THREE.DataTexture;
 }
 
 function loadImage(url: string): Promise<HTMLImageElement | null> {
@@ -36,7 +39,7 @@ export async function loadAssets(onProgress?: (done: number, total: number) => v
   const texLoader = new THREE.TextureLoader();
   const gltf = new GLTFLoader();
   const texNames = ['asphalt', 'asphalt_n', 'asphalt_r', 'sidewalk', 'sidewalk_n', 'dirt', 'dirt_n'] as const;
-  const total = PHOTO_NAMES.length + texNames.length + MODEL_NAMES.length;
+  const total = PHOTO_NAMES.length + texNames.length + MODEL_NAMES.length + 1;
   let done = 0;
   const tick = () => onProgress?.(++done, total);
 
@@ -64,7 +67,7 @@ export async function loadAssets(onProgress?: (done: number, total: number) => v
   for (const n of MODEL_NAMES) {
     jobs.push(
       gltf
-        .loadAsync(`./models/${n}${MODEL_EXT}`)
+        .loadAsync(`./models/${n}.glb${BIN_SUFFIX}`)
         .then((g) => {
           assets.models[n] = g.scene;
         })
@@ -72,6 +75,16 @@ export async function loadAssets(onProgress?: (done: number, total: number) => v
         .finally(tick),
     );
   }
+  jobs.push(
+    new HDRLoader()
+      .loadAsync(`./tex/night.hdr${BIN_SUFFIX}`)
+      .then((t) => {
+        t.mapping = THREE.EquirectangularReflectionMapping;
+        assets.env = t;
+      })
+      .catch(() => undefined)
+      .finally(tick),
+  );
   await Promise.all(jobs);
   return assets;
 }

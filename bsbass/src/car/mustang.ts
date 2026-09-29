@@ -291,7 +291,7 @@ export function buildMustang(envMap: THREE.Texture | null): MustangRig {
     envMap,
     envMapIntensity: 1.0,
     transparent: true,
-    opacity: 0.6,
+    opacity: 0.82,
   });
   const trim = new THREE.MeshStandardMaterial({ color: 0x0a0a0c, roughness: 0.5, metalness: 0.4, envMap, envMapIntensity: 0.5 });
   const chrome = new THREE.MeshStandardMaterial({ color: 0xd6dade, roughness: 0.12, metalness: 1, envMap, envMapIntensity: 1.3 });
