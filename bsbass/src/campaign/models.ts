@@ -95,7 +95,7 @@ export async function loadCampaignModels(loader: GLTFLoader, onEach?: () => void
   await Promise.all(
     CAMPAIGN_MODELS.map(async (k) => {
       try {
-        const [g, map] = await Promise.all([loader.loadAsync(`./campaign/models/${k}.glb${BIN_SUFFIX}`), tex(`./campaign/tex/${k}.webp`)]);
+        const [g, map] = await Promise.all([loader.loadAsync(`./campaign/models/${k}.glb${BIN_SUFFIX}`), k === 'police' ? null : tex(`./campaign/tex/${k}.webp`)]); // a viatura usa só as cores do material, igual ao site
         MODELS[k] = { scene: g.scene, map };
       } catch {
         /* sem esse modelo: a parte que usa ele fica de fora */
