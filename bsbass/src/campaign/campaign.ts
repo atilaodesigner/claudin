@@ -65,6 +65,8 @@ interface Point {
   beamMat: THREE.MeshBasicMaterial;
   ringMat: THREE.MeshBasicMaterial;
   discMat: THREE.MeshBasicMaterial;
+  icon: THREE.Mesh;
+  iconMat: THREE.MeshBasicMaterial;
 }
 
 type Interact =
@@ -81,9 +83,9 @@ function beamTexture(): THREE.CanvasTexture {
   c.height = 256;
   const g = c.getContext('2d')!;
   const grd = g.createLinearGradient(0, 256, 0, 0);
-  grd.addColorStop(0, 'rgba(255,255,255,1)');
-  grd.addColorStop(0.08, 'rgba(255,255,255,0.7)');
-  grd.addColorStop(0.5, 'rgba(255,255,255,0.28)');
+  grd.addColorStop(0, 'rgba(255,255,255,0.75)');
+  grd.addColorStop(0.08, 'rgba(255,255,255,0.45)');
+  grd.addColorStop(0.5, 'rgba(255,255,255,0.16)');
   grd.addColorStop(1, 'rgba(255,255,255,0)');
   g.fillStyle = grd;
   g.fillRect(0, 0, 4, 256);
@@ -116,6 +118,115 @@ function numberTexture(n: number): THREE.CanvasTexture {
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
+
+/**
+ * ícone de cada capítulo, girando no meio do feixe:
+ * 1 Na Mira = mira · 2 O Corre = setas de velocidade · 3 A Carga = caminhão ·
+ * 4 No Retrovisor = sirene · 5 Sumir na Noite = lua
+ */
+function iconTexture(idx: number): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d')!;
+  g.fillStyle = 'rgba(11,11,15,0.72)';
+  g.beginPath();
+  g.arc(128, 128, 118, 0, Math.PI * 2);
+  g.fill();
+  g.strokeStyle = '#fff';
+  g.fillStyle = '#fff';
+  g.lineWidth = 9;
+  g.beginPath();
+  g.arc(128, 128, 114, 0, Math.PI * 2);
+  g.stroke();
+  g.lineCap = 'round';
+  g.lineJoin = 'round';
+  if (idx === 0) {
+    g.lineWidth = 12;
+    g.beginPath();
+    g.arc(128, 128, 56, 0, Math.PI * 2);
+    g.stroke();
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+      g.beginPath();
+      g.moveTo(128 + dx * 34, 128 + dy * 34);
+      g.lineTo(128 + dx * 84, 128 + dy * 84);
+      g.stroke();
+    }
+    g.beginPath();
+    g.arc(128, 128, 10, 0, Math.PI * 2);
+    g.fill();
+  } else if (idx === 1) {
+    g.lineWidth = 16;
+    for (const x of [72, 118, 164]) {
+      g.beginPath();
+      g.moveTo(x - 16, 84);
+      g.lineTo(x + 22, 128);
+      g.lineTo(x - 16, 172);
+      g.stroke();
+    }
+  } else if (idx === 2) {
+    g.fillRect(52, 88, 96, 62); // baú
+    g.beginPath(); // cabine
+    g.moveTo(154, 104); g.lineTo(186, 104); g.lineTo(206, 128); g.lineTo(206, 150); g.lineTo(154, 150);
+    g.closePath();
+    g.fill();
+    g.fillStyle = 'rgba(11,11,15,1)';
+    g.fillRect(166, 112, 20, 14); // vidro
+    for (const x of [80, 126, 184]) {
+      g.beginPath();
+      g.arc(x, 158, 15, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.fillStyle = '#fff';
+    for (const x of [80, 126, 184]) {
+      g.beginPath();
+      g.arc(x, 158, 9, 0, Math.PI * 2);
+      g.fill();
+    }
+  } else if (idx === 3) {
+    g.beginPath(); // cúpula da sirene
+    g.moveTo(84, 168);
+    g.lineTo(84, 124);
+    g.arc(128, 124, 44, Math.PI, 0);
+    g.lineTo(172, 168);
+    g.closePath();
+    g.fill();
+    g.fillRect(70, 170, 116, 18);
+    g.lineWidth = 11;
+    for (const [a0, len] of [[-2.6, 26], [-1.57, 26], [-0.55, 26]] as const) {
+      g.beginPath();
+      g.moveTo(128 + Math.cos(a0) * 64, 118 + Math.sin(a0) * 64);
+      g.lineTo(128 + Math.cos(a0) * (64 + len), 118 + Math.sin(a0) * (64 + len));
+      g.stroke();
+    }
+  } else {
+    g.beginPath(); // lua crescente
+    g.arc(118, 128, 64, 0, Math.PI * 2);
+    g.fill();
+    g.globalCompositeOperation = 'destination-out';
+    g.beginPath();
+    g.arc(146, 112, 56, 0, Math.PI * 2);
+    g.fill();
+    g.globalCompositeOperation = 'source-over';
+    for (const [x, y, rr] of [[176, 150, 8], [168, 84, 6], [196, 116, 5]] as const) {
+      g.beginPath();
+      g.arc(x, y, rr, 0, Math.PI * 2);
+      g.fill();
+    }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
+
+/** cor do ícone por estado (sem estourar no bloom) */
+const ICON_COL = {
+  open: new THREE.Color('#ffb14a'),
+  done: new THREE.Color('#3ddc84'),
+  locked: new THREE.Color('#6b6b72'),
+};
+/** o feixe fica bem mais fraco que o chão (não estoura a tela) */
+const BEAM_K = 0.12;
 
 const COL = {
   open: new THREE.Color(1.7, 0.95, 0.22),
@@ -163,7 +274,7 @@ export class Campaign {
     for (const c of this.yard.colliders) host.grid.insert(c);
     // ---------- pontos dos capítulos ----------
     const beamTex = beamTexture();
-    const beamGeo = new THREE.CylinderGeometry(2.6, 2.6, 70, 24, 1, true);
+    const beamGeo = new THREE.CylinderGeometry(1.9, 1.9, 70, 24, 1, true);
     beamGeo.translate(0, 35, 0);
     const ringGeo = new THREE.RingGeometry(CIRCLE_R - 0.35, CIRCLE_R, 48).rotateX(-Math.PI / 2);
     this.routes.forEach((r, idx) => {
@@ -180,9 +291,14 @@ export class Campaign {
       const disc = new THREE.Mesh(new THREE.PlaneGeometry(CIRCLE_R * 1.7, CIRCLE_R * 1.7).rotateX(-Math.PI / 2), discMat);
       disc.position.y = 0.01;
       disc.layers.set(1);
-      g.add(beam, ring, disc);
+      const iconMat = new THREE.MeshBasicMaterial({ map: iconTexture(idx), color: ICON_COL.open.clone(), transparent: true, side: THREE.DoubleSide, depthWrite: false });
+      const icon = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.4), iconMat);
+      icon.position.y = 3.4;
+      icon.renderOrder = 3;
+      icon.layers.set(1);
+      g.add(beam, ring, disc, icon);
       host.scene.add(g);
-      this.points.push({ idx, route: r, group: g, beam, ring, disc, beamMat, ringMat, discMat });
+      this.points.push({ idx, route: r, group: g, beam, ring, disc, beamMat, ringMat, discMat, icon, iconMat });
     });
     host.scene.add(this.barrierGroup);
     this.barrierGroup.visible = false;
@@ -361,9 +477,10 @@ export class Campaign {
     for (const p of this.points) {
       const st = this.stateOf(p.idx);
       const c = COL[st];
-      p.beamMat.color.copy(c);
-      p.ringMat.color.copy(c);
-      p.discMat.color.copy(c);
+      p.beamMat.color.copy(c).multiplyScalar(BEAM_K);
+      p.iconMat.color.copy(ICON_COL[st]);
+      p.ringMat.color.copy(c).multiplyScalar(0.55);
+      p.discMat.color.copy(c).multiplyScalar(0.55);
     }
   }
 
@@ -447,7 +564,11 @@ export class Campaign {
       p.ringMat.opacity = near ? 0.6 + Math.sin(this.t * 6) * 0.4 : 0.85;
       const dc = Math.hypot(p.route.point.x - cam.x, p.route.point.z - cam.z);
       const fade = THREE.MathUtils.smoothstep(dc, 10, 36);
-      p.beamMat.opacity = (locked ? 0.35 : 1) * fade * (near ? 0.75 + Math.sin(this.t * 6) * 0.25 : 1);
+      p.beamMat.opacity = (locked ? 0.35 : 1) * fade * (near ? 0.8 + Math.sin(this.t * 6) * 0.2 : 1);
+      // ícone do capítulo girando e flutuando no meio do feixe
+      p.icon.rotation.y = this.t * 1.6 + p.idx;
+      p.icon.position.y = 3.4 + Math.sin(this.t * 2 + p.idx) * 0.25;
+      p.iconMat.opacity = locked ? 0.55 : 1;
     }
     this.interact(dt);
   }

@@ -18,7 +18,7 @@ import { buildSky } from './world/sky';
 import { Missions } from './world/missions';
 import { buildMustang, WHEEL_POS, type MustangRig } from './car/mustang';
 import { Traffic } from './traffic/traffic';
-import { Particles, DustMotes } from './fx/particles';
+import { makeCloudAtlas, Particles, DustMotes } from './fx/particles';
 import { LightTrail, SkidMarks } from './fx/trails';
 import { Doodle, Doodles } from './fx/doodles';
 import { WetReflection, NO_REFLECT } from './fx/wet';
@@ -296,7 +296,8 @@ export class Game {
     this.scene.add(this.missions.group);
     this.traffic = new Traffic(touch ? 22 : 30, 7, assets.cars.filter((c) => c.entry.role === 'traffic'));
     this.scene.add(this.traffic.group);
-    this.smoke = new Particles(900, tx.puff, false);
+    // fumaça de pneu, poeira e batida: nuvens "brócolis" de desenho
+    this.smoke = new Particles(900, makeCloudAtlas(), false, true);
     this.sparks = new Particles(400, tx.glow, true);
     this.dust = new DustMotes(tx.glow);
     this.scene.add(this.smoke.points, this.sparks.points, this.dust.points, this.skids.mesh);
