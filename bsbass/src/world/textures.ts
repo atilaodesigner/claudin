@@ -60,7 +60,7 @@ function redDust(ctx: CanvasRenderingContext2D, x: number, y: number, w: number,
 }
 
 /** fotos reais (ambientCG, CC0) usadas como base das paredes, se carregaram */
-let PHOTOS: Partial<Record<'plaster' | 'brick' | 'concrete', HTMLImageElement>> = {};
+let PHOTOS: Partial<Record<'plaster' | 'brick' | 'concrete' | 'rebar' | 'plates' | 'painted' | 'corrugated', HTMLImageElement>> = {};
 
 /** preenche o retângulo com a foto repetida (tile = tamanho de cada repetição em px) */
 function photoFill(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: number, y: number, w: number, h: number, tile: number, rnd: Rng): void {
@@ -317,6 +317,19 @@ function grafiteWall(ctx: CanvasRenderingContext2D, x: number, y: number, w: num
 function rollingDoor(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, rnd: Rng, color: string, pixo: boolean): void {
   ctx.fillStyle = color;
   ctx.fillRect(x, y, w, h);
+  // chapa de metal de verdade por baixo; o portão verde é pintado e descascado
+  const plate = color === '#2f5a7a' ? PHOTOS.painted : PHOTOS.plates;
+  if (plate) {
+    photoFill(ctx, plate, x, y, w, h, 256, rnd);
+    if (plate === PHOTOS.plates) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.fillStyle = color;
+      ctx.globalAlpha = 0.55;
+      ctx.fillRect(x, y, w, h);
+      ctx.restore();
+    }
+  }
   for (let yy = y; yy < y + h; yy += 7) {
     ctx.fillStyle = 'rgba(0,0,0,0.25)';
     ctx.fillRect(x, yy, w, 2);
@@ -380,7 +393,8 @@ function windowTile(ctx: CanvasRenderingContext2D, x: number, y: number, w: numb
 function laje(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, rnd: Rng): void {
   ctx.fillStyle = '#8a8680';
   ctx.fillRect(x, y, w, h);
-  if (PHOTOS.concrete) photoFill(ctx, PHOTOS.concrete, x, y, w, h, 256, rnd);
+  if (PHOTOS.rebar) photoFill(ctx, PHOTOS.rebar, x, y, w, h, 256, rnd);
+  else if (PHOTOS.concrete) photoFill(ctx, PHOTOS.concrete, x, y, w, h, 256, rnd);
   noise(ctx, x, y, w, h, rnd, 0.18, 12000, 3);
   for (let i = 0; i < 20; i++) {
     ctx.fillStyle = `rgba(40,40,40,${range(rnd, 0.1, 0.3)})`;
@@ -392,9 +406,10 @@ function laje(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h:
 
 function telha(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, rnd: Rng): void {
   // fibrocimento ondulado
+  if (PHOTOS.corrugated) photoFill(ctx, PHOTOS.corrugated, x, y, w, h, 256, rnd);
   for (let xx = 0; xx < w; xx += 2) {
     const v = 120 + Math.sin(xx * 0.25) * 30;
-    ctx.fillStyle = `rgb(${v | 0},${v | 0},${(v - 4) | 0})`;
+    ctx.fillStyle = PHOTOS.corrugated ? `rgba(${v | 0},${v | 0},${(v - 4) | 0},0.45)` : `rgb(${v | 0},${v | 0},${(v - 4) | 0})`;
     ctx.fillRect(x + xx, y, 2, h);
   }
   noise(ctx, x, y, w, h, rnd, 0.2, 8000, 3);

@@ -11,6 +11,7 @@ import {
 } from './city';
 import { ATLAS_ROWS, ROW, SIGN_ROW, type Textures } from './textures';
 import { buildVehicle, PAINTS } from '../traffic/vehicles';
+import { patchTriplanar } from '../fx/triplanar';
 import type { Assets } from '../assets';
 import { isCovered } from './props';
 
@@ -50,7 +51,7 @@ export interface CityMeshes {
   beacon: THREE.MeshBasicMaterial; // luz de obstáculo da caixa d'água
 }
 
-export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = {}, hasProps = false): CityMeshes {
+export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = {}, hasProps = false, skipTrees = false): CityMeshes {
   const rnd = mulberry32(1961);
   const group = new THREE.Group();
 
@@ -164,15 +165,20 @@ export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = 
   for (const m of city.medians) {
     const len = m.x1 - m.x0;
     flat.setTransform((m.x0 + m.x1) / 2, 0, AVENUE_Z, 0);
+    flat.mat = 1;
     flat.box(0, 0.14, 0, len, 0.28, 1.6, hex(0xa8a39a));
+    flat.mat = 0;
     flat.box(0, 0.285, 0, len - 0.2, 0.01, 1.3, hex(0x28331f));
+    flat.mat = 1;
     // listras amarelas e pretas nas pontas
     for (const s of [-1, 1]) flat.box(s * (len / 2 - 0.4), 0.3, 0, 0.8, 0.02, 1.62, hex(0xe8b21e));
   }
   flat.resetTransform();
 
   // ================= balão + Caixa d'Água =================
+  flat.mat = 1;
   flat.cylinder(0, 0, 0, BALAO.island, BALAO.island, 0.3, 40, hex(0xa8a39a));
+  flat.mat = 0;
   flat.cylinder(0, 0.301, 0, BALAO.island - 0.4, BALAO.island - 0.4, 0.001, 40, hex(0x4a3a20));
   buildCaixaDagua(flat, emissive);
   // faixa do balão
@@ -190,8 +196,11 @@ export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = 
     const arms: [number, number][] = double ? [[0, 1], [0, -1]] : [[l.dirX, l.dirZ]];
     const H = 9;
     flat.setTransform(l.x, 0, l.z, 0);
+    flat.mat = 1;
     flat.box(0, H / 2, 0, 0.26, H, 0.26, hex(0x8c8a84));
+    flat.mat = 2;
     flat.box(0, 0.6, 0, 0.3, 1.2, 0.3, hex(0x6a6862)); // pé pixado/sujo
+    flat.mat = 3;
     flat.resetTransform();
     for (const [dx, dz] of arms) {
       const ax = l.x + dx * 2.2, az = l.z + dz * 2.2;
@@ -201,12 +210,14 @@ export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = 
       flat.box(0, H - 0.25, 2.2, 0.36, 0.2, 0.7, hex(0x3a3a38));
       emissive.setTransform(l.x, 0, l.z, rot);
       emissive.box(0, H - 0.37, 2.2, 0.3, 0.04, 0.6, hex(0xffb050, 3.2));
+      flat.mat = 3;
       lampLights.push(new THREE.Vector3(ax, H - 0.6, az));
       // mancha de luz no chão
       poolQuad(pools, ax, az, 10.5, hex(0xff9a3c, 0.32));
     }
   }
   flat.resetTransform();
+  flat.mat = 0;
   emissive.resetTransform();
 
   // fios entre postes vizinhos (mesma calçada)
@@ -237,11 +248,13 @@ export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = 
   // ================= placas verdes =================
   city.signs.forEach((s, k) => {
     flat.setTransform(s.x, 0, s.z, s.rot);
+    flat.mat = 3;
     flat.box(-1.6, 1.9, 0, 0.1, 3.8, 0.1, hex(0x777777));
     flat.box(1.6, 1.9, 0, 0.1, 3.8, 0.1, hex(0x777777));
     green.setTransform(s.x, 0, s.z, s.rot);
     green.wallZ(-1.9, 1.9, 3.0, 3.95, 0.06, signUV(k % 16));
     flat.box(0, 3.47, 0, 3.8, 0.95, 0.06, hex(0x0d5a34, 0.6));
+    flat.mat = 0;
   });
   flat.resetTransform();
   green.resetTransform();
@@ -259,7 +272,7 @@ export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = 
   void parkedB;
 
   // ================= árvores =================
-  for (const t of city.trees) buildTree(flat, t.x, t.z, t.s, t.kind, rnd);
+  if (!skipTrees) for (const t of city.trees) buildTree(flat, t.x, t.z, t.s, t.kind, rnd);
 
   // ================= muro do fim do mapa =================
   const W = BORDER;
@@ -281,6 +294,7 @@ export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = 
   // ================= materiais / meshes =================
   const wallMat = new THREE.MeshStandardMaterial({ map: tx.wall, vertexColors: true, roughness: 0.92, metalness: 0 });
   const flatMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0.05 });
+  patchTriplanar(flatMat, { conc: real.conc, rebar: real.rebar, metal: real.metal });
   const glowMat = new THREE.MeshBasicMaterial({ map: tx.litWindow, vertexColors: true });
   const signMat = new THREE.MeshBasicMaterial({ map: tx.shops, vertexColors: true });
   const emisMat = new THREE.MeshBasicMaterial({ vertexColors: true });
@@ -453,6 +467,7 @@ function balaoSlab(b: GeoBuilder, cx: number, cz: number): void {
     b.nor.push(0, 1, 0);
     b.uv.push(x / 2, z / 2);
     b.col.push(1, 1, 1);
+    b.mid.push(0);
   }
   // ShapeGeometry fica no plano XY virado pra +Z; depois do "flip" de z o sentido inverte
   for (let i = 0; i < ix.count; i += 3) b.idx.push(base + ix.getX(i), base + ix.getX(i + 2), base + ix.getX(i + 1));
@@ -538,7 +553,9 @@ function buildLot(lot: Lot, walls: GeoBuilder, glow: GeoBuilder, signs: GeoBuild
         }
         // letreiro aceso
         signs.wallZ(-hw + 0.3, hw - 0.3, 2.7, 3.35, zf + 0.06, signUV(lot.shop % SHOP_NAMES.length), [1.05, 1.05, 1.05]);
-        flat.box(0, 3.02, hz + 0.02, lot.w - 0.4, 0.7, 0.05, hex(0x111111));
+        flat.mat = 3;
+        flat.box(0, 3.02, hz + 0.02, lot.w - 0.4, 0.7, 0.05, hex(0x333333));
+        flat.mat = 0;
       } else if (!lot.muro) {
         // garagem + janela
         const gx = -hw + 2;
@@ -553,7 +570,9 @@ function buildLot(lot: Lot, walls: GeoBuilder, glow: GeoBuilder, signs: GeoBuild
       }
     }
     // laje (borda) entre andares
+    flat.mat = 2;
     flat.box(0, fy1 - 0.08, hz + 0.08, lot.w, 0.16, 0.18, hex(0x9c978e));
+    flat.mat = 0;
   }
 
   // ---- telhado ----
@@ -565,7 +584,9 @@ function buildLot(lot: Lot, walls: GeoBuilder, glow: GeoBuilder, signs: GeoBuild
   } else {
     walls.quad([-hw, H, hz], [hw, H, hz], [hw, H, back], [-hw, H, back], rowUV(ROW.laje, 0, Math.min(1, lot.w / TILE_W)), [1, 1, 1]);
     // platibanda (murinho da laje)
+    flat.mat = 2;
     flat.box(0, H + 0.3, hz - 0.1, lot.w, 0.6, 0.2, hex(0xb0aa9e));
+    flat.mat = 0;
     // ferros de espera pro próximo andar (sempre em construção)
     if (rnd() < 0.55) {
       for (const [px, pz] of [[-hw + 0.3, hz - 0.3], [hw - 0.3, hz - 0.3], [-hw + 0.3, back + 0.3], [hw - 0.3, back + 0.3]] as const) {
@@ -585,8 +606,10 @@ function buildLot(lot: Lot, walls: GeoBuilder, glow: GeoBuilder, signs: GeoBuild
     // antena / parabólica
     if (rnd() < 0.3) {
       const cx = range(rnd, -hw + 0.8, hw - 0.8);
+      flat.mat = 3;
       flat.box(cx, H + 1.0, back + 1, 0.05, 2, 0.05, hex(0x777777));
       flat.box(cx, H + 1.9, back + 1, 1.2, 0.03, 0.03, hex(0x777777));
+      flat.mat = 0;
     }
     // varal
     if (rnd() < 0.3) {
@@ -607,7 +630,9 @@ function buildLot(lot: Lot, walls: GeoBuilder, glow: GeoBuilder, signs: GeoBuild
     walls.wallZ(gx + gate / 2, hw, 0, mh, z, spanUV(mRow, hw - gx - gate / 2, rnd, 0, mh / FLOOR_H), mCol);
     walls.wallZ(gx - gate / 2, gx + gate / 2, 0, mh, z, tileUV(ROW.doors, Math.floor(rnd() * 4)), [0.9, 0.9, 0.9]);
     // topo do muro (com caco de vidro... fica só a faixa escura)
+    flat.mat = 1;
     flat.box(0, mh + 0.05, z - 0.08, lot.w, 0.1, 0.2, hex(0x8a857c));
+    flat.mat = 0;
     // laterais do quintal
     for (const s of [-1, 1]) walls.quad(
       s > 0 ? [hw, 0, z] : [-hw, 0, hz], s > 0 ? [hw, 0, hz] : [-hw, 0, z],
@@ -657,14 +682,19 @@ function plasticTables(flat: GeoBuilder, cx: number, z: number, rnd: () => numbe
 function buildCaixaDagua(flat: GeoBuilder, emissive: GeoBuilder): void {
   // a Caixa d'Água da Ceilândia: fuste de concreto + taça
   const c = hex(0xc9c3b6);
+  flat.mat = 2;
   flat.cylinder(0, 0.3, 0, 2.4, 2.0, 1, 16, hex(0x8a857c));
+  flat.mat = 1;
   flat.cylinder(0, 1.3, 0, 1.6, 1.4, 20, 16, c);
   flat.cylinder(0, 21.3, 0, 1.4, 6.5, 4.5, 20, c, false);
   flat.cylinder(0, 25.8, 0, 6.5, 6.5, 2.6, 20, hex(0xd6d0c2));
   flat.cylinder(0, 28.4, 0, 6.5, 1.2, 1.6, 20, hex(0xb0aa9c));
+  flat.mat = 3;
   flat.cylinder(0, 30.0, 0, 0.1, 0.1, 0.6, 6, hex(0x444444));
+  flat.mat = 1;
   // faixa pintada e luzes de baixo pra cima
   flat.cylinder(0, 26.6, 0, 6.52, 6.52, 0.5, 20, hex(0x1d4fb8), false);
+  flat.mat = 0;
   for (let k = 0; k < 8; k++) {
     const a = (k / 8) * Math.PI * 2;
     emissive.box(Math.cos(a) * 3.2, 0.5, Math.sin(a) * 3.2, 0.4, 0.2, 0.4, hex(0xffe0a0, 2));
@@ -675,9 +705,11 @@ function buildTerrao(flat: GeoBuilder, x: number, z: number): void {
   const white = hex(0xe8e8e8);
   for (const s of [-1, 1]) {
     const gz = z + s * 30;
+    flat.mat = 3;
     flat.box(x - 3.6, 1.2, gz, 0.12, 2.4, 0.12, white);
     flat.box(x + 3.6, 1.2, gz, 0.12, 2.4, 0.12, white);
     flat.box(x, 2.4, gz, 7.3, 0.12, 0.12, white);
+    flat.mat = 0;
   }
 }
 
@@ -686,7 +718,9 @@ function buildFeira(flat: GeoBuilder, emissive: GeoBuilder, signs: GeoBuilder, m
   for (let k = 0; k < 6; k++) {
     const bx = x - 25 + k * 10, bz = z + 28;
     const col = hex(tarps[k]!);
+    flat.mat = 3;
     for (const [dx, dz] of [[-3.3, -2.3], [3.3, -2.3], [-3.3, 2.3], [3.3, 2.3]] as const) flat.box(bx + dx, 1.3, bz + dz, 0.08, 2.6, 0.08, hex(0x999999));
+    flat.mat = 0;
     flat.box(bx, 2.65, bz, 7, 0.1, 5, col);
     flat.box(bx, 0.9, bz - 1.8, 6.4, 0.1, 1.2, hex(0x8a6a4a)); // bancada
     // caixotes de fruta
@@ -699,8 +733,10 @@ function buildFeira(flat: GeoBuilder, emissive: GeoBuilder, signs: GeoBuilder, m
   signs.setTransform(x, 0, z + 34, 0);
   signs.wallZ(-9, 9, 4.2, 6.2, 0.1, signUV(SIGN_ROW.feira), [1.5, 1.5, 1.5]);
   signs.resetTransform();
+  flat.mat = 3;
   flat.box(x - 8, 2.6, z + 34, 0.2, 5.2, 0.2, hex(0x555555));
   flat.box(x + 8, 2.6, z + 34, 0.2, 5.2, 0.2, hex(0x555555));
+  flat.mat = 0;
   // vagas pintadas
   for (let k = 0; k < 12; k++) {
     marks.setTransform(x - 33 + k * 6, 0.04, z - 20, 0);
@@ -712,11 +748,15 @@ function buildFeira(flat: GeoBuilder, emissive: GeoBuilder, signs: GeoBuilder, m
 function buildPosto(flat: GeoBuilder, emissive: GeoBuilder, signs: GeoBuilder, pools: GeoBuilder, walls: GeoBuilder, x: number, z: number): void {
   const cz = z + 15;
   // cobertura
+  flat.mat = 1;
   flat.box(x, 5.8, cz, 26, 0.9, 20, hex(0xe8e8e8));
+  flat.mat = 0;
   flat.box(x, 6.0, cz + 10.02, 26, 0.5, 0.05, hex(0xc01818));
   flat.box(x, 6.0, cz - 10.02, 26, 0.5, 0.05, hex(0xc01818));
   emissive.box(x, 5.33, cz, 24, 0.04, 18, hex(0xf0f6ff, 0.75));
+  flat.mat = 1;
   for (const sx of [-10, 10]) for (const sz of [-7, 7]) flat.box(x + sx, 2.7, cz + sz, 0.8, 5.4, 0.8, hex(0xd8d8d8));
+  flat.mat = 0;
   // bombas
   for (const sx of [-5, 5]) {
     flat.box(x + sx, 0.9, cz, 1.2, 1.8, 3.6, hex(0xe0e0e0));
@@ -734,7 +774,9 @@ function buildPosto(flat: GeoBuilder, emissive: GeoBuilder, signs: GeoBuilder, p
   signs.wallZ(-8, 8, 3.0, 4.0, 0, signUV(SIGN_ROW.conveniencia), [1.4, 1.4, 1.4]);
   signs.resetTransform();
   // totem
+  flat.mat = 3;
   flat.box(x + 16, 4, z + 36, 0.4, 8, 0.4, hex(0x666666));
+  flat.mat = 0;
   signs.setTransform(x + 16, 0, z + 36.3, 0);
   signs.wallZ(-3, 3, 7, 8.6, 0, signUV(SIGN_ROW.posto), [1.6, 1.6, 1.6]);
   signs.resetTransform();
@@ -745,8 +787,10 @@ function buildPosto(flat: GeoBuilder, emissive: GeoBuilder, signs: GeoBuilder, p
 
 function buildPraca(flat: GeoBuilder, emissive: GeoBuilder, marks: GeoBuilder, x: number, z: number): void {
   // quadra poliesportiva
+  flat.mat = 1;
   flat.box(x, CURB_H + 0.02, z, 30, 0.04, 20, hex(0x2d6a55));
   flat.box(x, CURB_H + 0.03, z, 26, 0.04, 14, hex(0x2a4f8a));
+  flat.mat = 3;
   marks.setTransform(x, CURB_H + 0.06, z, 0);
   marks.quad([-0.06, 0, 7], [0.06, 0, 7], [0.06, 0, -7], [-0.06, 0, -7], [0, 0, 0.2, 1], hex(0xffffff, 0.9));
   marks.resetTransform();
@@ -756,7 +800,9 @@ function buildPraca(flat: GeoBuilder, emissive: GeoBuilder, marks: GeoBuilder, x
   // tabelas de basquete
   for (const s of [-1, 1]) {
     flat.box(x + s * 14, CURB_H + 1.6, z, 0.12, 3.2, 0.12, hex(0x888888));
+    flat.mat = 0;
     flat.box(x + s * 13.8, CURB_H + 3.2, z, 0.06, 1.1, 1.7, hex(0xeeeeee));
+    flat.mat = 3;
   }
   // refletores da quadra
   for (const s of [-1, 1]) {
@@ -764,7 +810,9 @@ function buildPraca(flat: GeoBuilder, emissive: GeoBuilder, marks: GeoBuilder, x
     emissive.box(x + s * 16, CURB_H + 9, z + 10.8, 1.2, 0.5, 0.1, hex(0xf6fbff, 1.5));
   }
   // bancos
+  flat.mat = 1;
   for (let k = 0; k < 4; k++) flat.box(x - 24 + k * 16, CURB_H + 0.45, z + 16, 2, 0.1, 0.5, hex(0x9a948a));
+  flat.mat = 0;
 }
 
 function buildParedao(x: number, z: number, leds: THREE.MeshBasicMaterial): THREE.Group {

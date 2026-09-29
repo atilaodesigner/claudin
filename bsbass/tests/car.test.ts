@@ -74,28 +74,47 @@ describe('CarPhysics', () => {
     expect(c.speed * 3.6).toBeGreaterThan(30);
   });
 
-  it('segurando tudo pra um lado com o pé embaixo não roda (ângulo limitado)', () => {
-    const c = new CarPhysics();
-    c.reset(0, 0, 0);
-    sim(c, 4, (car) => ({ throttle: car.speed < 20 ? 1 : 0.3 }));
-    let maxSlip = 0;
-    sim(c, 6, (car) => {
-      maxSlip = Math.max(maxSlip, Math.abs(car.slipAngle));
-      return { steer: 1, throttle: 1 };
-    });
-    expect(maxSlip * 57.3).toBeLessThan(72);
-  });
-
-  it('freio de mão e volante travado segura o drift sem pião', () => {
+  it('freio de mão + volante pra dentro + pé embaixo gira o carro inteiro', () => {
     const c = new CarPhysics();
     c.reset(0, 0, 0);
     sim(c, 4, (car) => ({ throttle: car.speed < 22 ? 1 : 0.2 }));
+    const h0 = c.heading;
+    sim(c, 4, { steer: 1, handbrake: true, throttle: 1 });
+    expect(Math.abs(c.heading - h0) * 57.3).toBeGreaterThan(360);
+  });
+
+  it('donut: parado, volante travado e acelerador rodam mais de uma volta', () => {
+    const c = new CarPhysics();
+    c.reset(0, 0, 0);
     let maxSlip = 0;
-    sim(c, 5, (car) => {
-      if (car.speed > 8) maxSlip = Math.max(maxSlip, Math.abs(car.slipAngle));
-      return { steer: 1, handbrake: true, throttle: 0.7 };
+    sim(c, 7, (car) => {
+      if (car.speed > 3) maxSlip = Math.max(maxSlip, Math.abs(car.slipAngle));
+      return { steer: 1, throttle: 1 };
     });
-    expect(maxSlip * 57.3).toBeLessThan(75);
+    expect(Math.abs(c.heading) * 57.3).toBeGreaterThan(360);
+    expect(maxSlip * 57.3).toBeGreaterThan(45);
+  });
+
+  it('sem acelerar e sem freio de mão, volante travado em alta não vira pião', () => {
+    const c = new CarPhysics();
+    c.reset(0, 0, 0);
+    sim(c, 4, (car) => ({ throttle: car.speed < 17 ? 1 : 0.25 }));
+    let maxSlip = 0;
+    sim(c, 4, (car) => {
+      if (car.speed > 5) maxSlip = Math.max(maxSlip, Math.abs(car.slipAngle));
+      return { steer: 1, throttle: 0.2 };
+    });
+    expect(maxSlip * 57.3).toBeLessThan(55);
+  });
+
+  it('soltando tudo no meio do drift o carro endireita (não é sabão)', () => {
+    const c = new CarPhysics();
+    c.reset(0, 0, 0);
+    sim(c, 4, (car) => ({ throttle: car.speed < 22 ? 1 : 0.2 }));
+    sim(c, 0.5, { steer: 1, handbrake: true, throttle: 0.6 });
+    sim(c, 2, {});
+    expect(Math.abs(c.slipAngle) * 57.3).toBeLessThan(5);
+    expect(c.speed * 3.6).toBeGreaterThan(40);
   });
 
   it('volante solto em curva leve não vira pião', () => {

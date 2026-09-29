@@ -10,7 +10,7 @@ A cidade, o Mustang, o neon, o áudio e as três rádios são procedurais. Por c
 
 | O quê | Fonte | Onde |
 |---|---|---|
-| Asfalto rachado, tijolo, reboco, concreto, calçada, terra (fotos PBR) | [ambientCG](https://ambientcg.com) (Road012B, Bricks092, Plaster007, Concrete036, PavingStones136, Ground103) | `public/tex/` |
+| Asfalto rachado, tijolo, reboco, concreto, concreto com ferragem, ferro enferrujado, chapa, portão pintado, telha ondulada, calçada, terra, casca de árvore e folhas (fotos PBR) | [ambientCG](https://ambientcg.com) (Road012B, Bricks092, Plaster007, Concrete036, Concrete012, Concrete042C, Metal022, MetalPlates013, PaintedMetal006, CorrugatedSteel005, PavingStones136, Ground103, Bark012, LeafSet009) | `public/tex/` |
 | HDRI de rua à noite pros reflexos do carro (*Cobblestone Street Night*) | [Poly Haven](https://polyhaven.com) | `public/tex/night.hdr` |
 | Tambor, bombona, pneu velho, carro com capa, ar-condicionado, hidrante, lixeira, caixa de energia, barreira de concreto, saco de cimento, caixa de papelão, rádio | [Poly Haven](https://polyhaven.com) (coleção *Hidden Alley* e outros) | `public/models/` |
 
@@ -55,7 +55,7 @@ O build é estático (`base: './'`): dá pra hospedar `dist/` em qualquer lugar.
 ## Mecânica
 
 - **Física**: modelo de bicicleta com pneu tipo Pacejka, transferência de carga, tração traseira com círculo de atrito (acelerador demais faz a traseira sair), freio de mão travando a traseira, câmbio automático de 6 marchas e assist de contra-esterço. Roda a 120 Hz em passo fixo.
-- **Controle de drift**: o volante escolhe o ângulo (pra dentro da curva abre até ~60°, solto segura ~30°, contra-esterço endireita) e o carro não passa do ponto e roda. A luz **ESC** acende quando o controle está segurando.
+- **Controle de drift**: o carro é aderente (não é sabão): solto segura ~30°, contra-esterço endireita e soltando tudo ele volta a andar reto. Volante pra dentro **com** acelerador ou freio de mão libera a rotação: dá pra girar 180°, 360° e fazer donut. A luz **ESC** acende quando o controle está segurando.
 - **Drift**: acima de 28 km/h e 12° de ângulo os pontos sobem por ângulo × velocidade. O multiplicador sobe a cada 2,4 s de lado (até x10). Você tem 1,8 s pra emendar o próximo drift; depois disso o combo vai **pro bolso**. Bateu forte: **perdeu o combo**. O texto muda com o ângulo (DRIFT, BOM DRIFT, DRIFT BRABO, DRIFT INSANO, DRIFT LENDÁRIO).
 - **Raspando**: passar colado num carro durante o combo dá bônus, sobe o multiplicador e enche nitro.
 - **Nitro**: enche drifando, raspando e pegando fitas.

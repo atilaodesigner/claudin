@@ -24,7 +24,7 @@ export const CAR = {
   cgHeight: 0.5,
   halfWidth: 0.98,
   halfLength: 2.42,
-  mu: 1.12,
+  mu: 1.24,
   power: 290_000, // W
   maxDrive: 9_200, // N
   nitroForce: 6_500,
@@ -35,11 +35,11 @@ export const CAR = {
   maxSteer: 0.62,
   steerSpeed: 4.2,
   // curva do pneu (Pacejka "mágica" simplificada)
-  tireB: 9.5,
-  tireC: 1.45,
-  rearGripHandbrake: 0.4,
+  tireB: 10,
+  tireC: 1.32,
+  rearGripHandbrake: 0.45,
   reverseMax: 9,
-  maxDriftAngle: 1.08, // ~62°
+  maxDriftAngle: 1.15, // ~66°: limite só quando o jogador NÃO está forçando a rotação
 } as const;
 
 const G = 9.81;
@@ -112,7 +112,8 @@ export class CarPhysics {
     const lockBySpeed = CAR.maxSteer * (1 / (1 + speed * 0.035));
     const lock = Math.max(lockBySpeed, Math.min(CAR.maxSteer, Math.abs(beta) + 0.18));
     // assist de contra-esterço: com o volante solto as rodas apontam pra onde o carro vai
-    const assist = vLong > 2 ? clamp(beta * 0.75, -0.5, 0.5) : 0;
+    // (some quando o jogador esterça de propósito, pra ele poder girar o carro inteiro)
+    const assist = vLong > 2 ? clamp(beta * 0.75, -0.5, 0.5) * (1 - Math.min(1, Math.abs(input.steer) * 1.3)) : 0;
     const target = clamp(input.steer * lock + assist, -CAR.maxSteer, CAR.maxSteer);
     const maxDelta = CAR.steerSpeed * dt;
     this.steerAngle += clamp(target - this.steerAngle, -maxDelta, maxDelta);
@@ -182,10 +183,14 @@ export class CarPhysics {
     let rearGrip = 1;
     if (input.handbrake) rearGrip *= CAR.rearGripHandbrake;
     const usedLong = clamp(Math.abs(rearLong) / rearMax, 0, 0.93);
-    rearGrip *= Math.sqrt(1 - usedLong * usedLong) * (1 - this.wheelSpin * 0.3);
+    // círculo de atrito mais "grudado": acelerar solta a traseira, mas não vira sabão
+    rearGrip *= (1 - 0.5 * usedLong * usedLong) * (1 - this.wheelSpin * 0.2);
+    // volante travado + pé embaixo = traseira sai de propósito (giro completo / donut)
+    const lockIn = clamp((Math.abs(input.steer) - 0.75) / 0.25, 0, 1);
+    rearGrip *= 1 - 0.42 * lockIn * throttle * (reversing ? 0 : 1);
     let fyR = -tire(alphaR, loadR, mu) * rearGrip;
 
-    const lowSpeed = clamp(speed / 4, 0, 1);
+    const lowSpeed = clamp(speed / 2, 0, 1);
     fyF *= lowSpeed;
     fyR *= lowSpeed;
 
@@ -203,31 +208,36 @@ export class CarPhysics {
 
     // assist de drift: segurando o acelerador de lado o carro não "morre"
     const driftAmount = clamp((Math.abs(beta) - 0.12) / 0.5, 0, 1);
-    if (!reversing && vLong > 4) fLong += throttle * driftAmount * 3_800;
+    if (!reversing && vLong > 4) fLong += throttle * driftAmount * 1_600;
 
     let torque = CAR.cgToFront * fyF * cosD - CAR.cgToRear * fyR;
     torque -= this.yawRate * (600 + (1 - lowSpeed) * 4_000);
 
     // ---------- controle de drift ----------
-    // o jogador escolhe o ângulo com o volante (pra dentro = mais ângulo,
-    // contra-esterço = endireita) e o carro não passa do ponto e roda.
+    // volante solto segura ~30°, contra-esterço endireita. Esterçando pra dentro
+    // da curva (e/ou freio de mão) o controle sai de cena e o carro gira inteiro:
+    // dá pra fazer 180°, 360° e "donut".
     this.driftTarget = 0;
     if (speed > 5 && vLong > 0.5) {
       const ab = Math.abs(beta);
       const dir = Math.sign(beta);
       const into = clamp(-dir * input.steer, -1, 1);
-      let want = 0.55 + 0.32 * Math.max(0, into) + 0.1 * throttle - 0.45 * Math.max(0, -into);
-      if (input.handbrake) want += 0.12;
-      want = clamp(want, 0.12, CAR.maxDriftAngle);
-      this.driftTarget = want;
-      // olha um pouco à frente: se o ângulo está abrindo rápido, age antes de passar do ponto
-      const opening = -dir * this.yawRate;
-      const over = ab + 0.32 * Math.max(0, opening) - want;
-      if (over > 0) {
-        // torque que gira a frente de volta pra direção do movimento
-        torque += dir * (18_000 * over + 70_000 * Math.max(0, ab - CAR.maxDriftAngle));
-        // e freia a rotação que ainda está abrindo o ângulo
-        if (opening > 0) torque -= this.yawRate * 4_500 * clamp(over / 0.2, 0, 1);
+      // só gira livre se o jogador pedir: volante pra dentro E (pé embaixo OU freio de mão)
+      const forcing = (into > 0.55 && throttle > 0.5) || (input.handbrake && into > 0.2);
+      if (forcing) {
+        // empurrão de rotação: deixa o carro passar de 90° e girar inteiro
+        const push = 0.6 * throttle + (input.handbrake ? 0.5 : 0);
+        torque -= dir * 5_500 * push * clamp(Math.abs(input.steer), 0, 1);
+      } else {
+        let want = 0.55 + 0.3 * Math.max(0, into) + 0.1 * throttle - 0.45 * Math.max(0, -into);
+        want = clamp(want, 0.12, CAR.maxDriftAngle);
+        this.driftTarget = want;
+        const opening = -dir * this.yawRate;
+        const over = ab + 0.3 * Math.max(0, opening) - want;
+        if (over > 0) {
+          torque += dir * 16_000 * over;
+          if (opening > 0) torque -= this.yawRate * 4_000 * clamp(over / 0.2, 0, 1);
+        }
       }
     }
 

@@ -14,12 +14,12 @@ export type ModelName = (typeof MODEL_NAMES)[number];
 // a versão publicada como artifact serve .glb/.hdr com um sufixo a mais (ver README)
 const BIN_SUFFIX: string = import.meta.env.VITE_BIN_SUFFIX || '';
 
-export const PHOTO_NAMES = ['plaster', 'brick', 'concrete'] as const;
+export const PHOTO_NAMES = ['plaster', 'brick', 'concrete', 'rebar', 'plates', 'painted', 'corrugated'] as const;
 export type PhotoName = (typeof PHOTO_NAMES)[number];
 
 export interface Assets {
   photos: Partial<Record<PhotoName, HTMLImageElement>>;
-  tex: Partial<Record<'asphalt' | 'asphalt_n' | 'asphalt_r' | 'sidewalk' | 'sidewalk_n' | 'dirt' | 'dirt_n', THREE.Texture>>;
+  tex: Partial<Record<'asphalt' | 'asphalt_n' | 'asphalt_r' | 'sidewalk' | 'sidewalk_n' | 'dirt' | 'dirt_n' | 'conc' | 'rebar' | 'metal' | 'bark' | 'leaves', THREE.Texture>>;
   models: Partial<Record<ModelName, THREE.Group>>;
   /** HDRI de rua à noite (Poly Haven) pros reflexos */
   env?: THREE.DataTexture;
@@ -38,7 +38,7 @@ export async function loadAssets(onProgress?: (done: number, total: number) => v
   const assets: Assets = { photos: {}, tex: {}, models: {} };
   const texLoader = new THREE.TextureLoader();
   const gltf = new GLTFLoader();
-  const texNames = ['asphalt', 'asphalt_n', 'asphalt_r', 'sidewalk', 'sidewalk_n', 'dirt', 'dirt_n'] as const;
+  const texNames = ['asphalt', 'asphalt_n', 'asphalt_r', 'sidewalk', 'sidewalk_n', 'dirt', 'dirt_n', 'conc', 'rebar', 'metal', 'bark', 'leaves'] as const;
   const total = PHOTO_NAMES.length + texNames.length + MODEL_NAMES.length + 1;
   let done = 0;
   const tick = () => onProgress?.(++done, total);
@@ -53,7 +53,7 @@ export async function loadAssets(onProgress?: (done: number, total: number) => v
   for (const n of texNames) {
     jobs.push(
       texLoader
-        .loadAsync(`./tex/${n}.jpg`)
+        .loadAsync(`./tex/${n}.${n === 'leaves' ? 'png' : 'jpg'}`)
         .then((t) => {
           t.wrapS = t.wrapT = THREE.RepeatWrapping;
           t.anisotropy = 8;

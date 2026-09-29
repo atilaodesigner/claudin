@@ -24,6 +24,7 @@ import { WetReflection, NO_REFLECT } from './fx/wet';
 import { Rain, buildLightCones } from './fx/rain';
 import { buildNeon } from './world/neon';
 import { buildProps } from './world/props';
+import { buildTrees } from './world/trees';
 import type { Assets } from './assets';
 import { AudioSystem } from './audio/audio';
 import { Radio } from './audio/radio';
@@ -165,8 +166,10 @@ export class Game {
     this.city = buildCity();
     for (const c of this.city.colliders) this.grid.insert(c);
     const hasProps = Object.keys(assets.models).length > 0;
-    this.meshes = buildCityMeshes(this.city, tx, assets.tex, hasProps);
+    const realTrees = !!(assets.tex.bark && assets.tex.leaves);
+    this.meshes = buildCityMeshes(this.city, tx, assets.tex, hasProps, realTrees);
     this.scene.add(this.meshes.group);
+    if (realTrees) this.scene.add(buildTrees(this.city, assets.tex.bark!, assets.tex.leaves!));
     if (hasProps) {
       const props = buildProps(this.city, assets.models);
       this.scene.add(props.group);

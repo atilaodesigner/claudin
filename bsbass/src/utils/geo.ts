@@ -15,6 +15,9 @@ export class GeoBuilder {
   uv: number[] = [];
   col: number[] = [];
   idx: number[] = [];
+  mid: number[] = [];
+  /** material da peça (0 = cor lisa; 1 concreto; 2 concreto com ferragem; 3 ferro) */
+  mat = 0;
   // transformação corrente (rotação em Y + translação)
   private c = 1;
   private s = 0;
@@ -44,6 +47,7 @@ export class GeoBuilder {
     this.nor.push(nx * this.c + nz * this.s, ny, -nx * this.s + nz * this.c);
     this.uv.push(u, v);
     this.col.push(col[0], col[1], col[2]);
+    this.mid.push(this.mat);
   }
 
   /** quad a-b-c-d (anti-horário visto de frente) */
@@ -131,6 +135,7 @@ export class GeoBuilder {
     g.setAttribute('normal', new THREE.Float32BufferAttribute(this.nor, 3));
     g.setAttribute('uv', new THREE.Float32BufferAttribute(this.uv, 2));
     g.setAttribute('color', new THREE.Float32BufferAttribute(this.col, 3));
+    if (this.mid.some((m) => m > 0)) g.setAttribute('mid', new THREE.Float32BufferAttribute(this.mid, 1));
     g.setIndex(this.vertexCount > 65535 ? new THREE.Uint32BufferAttribute(this.idx, 1) : new THREE.Uint16BufferAttribute(this.idx, 1));
     g.computeBoundingSphere();
     return g;
