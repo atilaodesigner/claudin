@@ -509,3 +509,36 @@ body.tilt .controls .brake-b { order: -2; }
   .m-rscore { grid-area: score; } .m-rstars { grid-area: stars; } .m-rstats { grid-area: stats; align-self: start; margin-top: 6px; }
   .m-rbtns { grid-area: btns; align-self: end; }
 }
+
+/* ---------------- ferro-velho: menu da garagem / personagens ---------------- */
+.m-menu { position: fixed; inset: 0; display: none; place-items: center; padding: 10px; background: rgba(5, 6, 9, 0.55); pointer-events: auto; z-index: 30; }
+.m-menu.on { display: grid; }
+.mm-box { width: min(94vw, 640px); max-height: calc(100% - 8px); overflow: auto; background: rgba(11, 11, 15, 0.95); border: 1.5px solid var(--bone); box-shadow: 4px 4px 0 var(--blood); padding: 10px 12px 12px; }
+.mm-box header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.mm-box header div { flex: 1; line-height: 1.1; }
+.mm-box header b { display: block; font-family: Anton, sans-serif; font-weight: 400; font-size: 18px; letter-spacing: 0.06em; }
+.mm-box header small { font-size: 9px; letter-spacing: 0.14em; color: rgba(243, 240, 232, 0.55); text-transform: uppercase; }
+.mm-box header .coins { font-size: 11px; font-weight: 700; color: var(--amber); }
+.mm-box header button { padding: 5px 10px; font-size: 9px; letter-spacing: 0.16em; background: #16171c; border: 1px solid #333; color: #fff; }
+.mm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 7px; }
+.mm-card { display: flex; flex-direction: column; gap: 3px; padding: 7px 8px 8px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(243, 240, 232, 0.14); min-width: 0; }
+.mm-card.current { border-color: var(--btn); background: rgba(242, 13, 36, 0.12); }
+.mm-card.locked { opacity: 0.6; }
+.mm-card svg { width: 100%; height: 30px; }
+.mm-card > b { font-family: Anton, sans-serif; font-weight: 400; font-size: 14px; letter-spacing: 0.03em; }
+.mm-card > small { font-size: 9px; color: rgba(243, 240, 232, 0.6); }
+.mm-note { font-size: 9px; line-height: 1.35; color: rgba(243, 240, 232, 0.7); }
+.mm-bars { display: grid; gap: 2px; margin: 2px 0; }
+.mm-bars span { font-size: 8px; letter-spacing: 0.04em; color: rgba(243, 240, 232, 0.6); }
+.mm-bars i { display: block; height: 3px; background: rgba(243, 240, 232, 0.15); }
+.mm-bars i b { display: block; height: 100%; background: var(--bone); }
+.mm-card button { margin-top: auto; padding: 6px 4px; font-size: 9px; font-weight: 700; letter-spacing: 0.1em; background: var(--btn); color: #fff; border: 0; }
+.mm-card button.buy { background: var(--amber); color: #111; }
+.mm-card button:disabled { background: rgba(255, 255, 255, 0.08); color: rgba(243, 240, 232, 0.6); }
+.mm-card button.cur { background: none; border: 1px solid var(--btn); color: #fff; }
+.mm-av { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--c); color: #111; font-style: normal; font-family: Anton, sans-serif; font-size: 17px; border: 2px solid var(--bone); }
+.mm-paint { margin-top: 9px; }
+.mm-paint small { font-size: 9px; letter-spacing: 0.16em; color: var(--amber); }
+.mm-paint .m-sw button { width: 32px; height: 32px; font-size: 11px; }
+/* com o menu aberto some o que ficaria por cima/atrás (aviso, controles, velocímetro) */
+body.yardmenu #hud .controls, body.yardmenu #hud .banner, body.yardmenu #hud .speedo, body.yardmenu #hud .nowplaying, body.yardmenu #hud .compass { visibility: hidden; }

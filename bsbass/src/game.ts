@@ -496,6 +496,7 @@ export class Game {
   private onAction(a: Action): void {
     if (a === 'pause') {
       if (this.hud.closeSub()) return;
+      if (this.campaign?.closeMenu()) return;
       if (!this.hud.started) return;
       this.hud.setPaused(!this.hud.paused);
       return;
@@ -675,7 +676,7 @@ export class Game {
     const inMission = !!cm && cm.missionActive;
     // câmera lenta das batidas/cinemáticas da missão vale pra física também
     const simDt = inMission && playing ? dt * cm!.mission.timeScale(dt) : dt;
-    if (inMission && !cm!.mission.controls()) {
+    if ((inMission && !cm!.mission.controls()) || cm?.menuOpen) {
       input.throttle = input.brake = input.steer = 0;
       input.handbrake = input.nitro = false;
     }

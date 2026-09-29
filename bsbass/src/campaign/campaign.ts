@@ -75,7 +75,18 @@ type Interact =
   | { kind: 'pilot'; id: string }
   | { kind: 'paint' }
   | { kind: 'racha'; idx: number }
+  | { kind: 'menu'; which: 'garage' | 'crew' }
   | null;
+
+/** lugar no ferro-velho onde para e segura pra abrir um menu (garagem / personagens) */
+interface Station {
+  which: 'garage' | 'crew';
+  x: number;
+  z: number;
+  icon: THREE.Mesh;
+  ringMat: THREE.MeshBasicMaterial;
+}
+const STATION_R = 3.2;
 
 function beamTexture(): THREE.CanvasTexture {
   const c = document.createElement('canvas');
@@ -198,6 +209,45 @@ function iconTexture(idx: number): THREE.CanvasTexture {
       g.lineTo(128 + Math.cos(a0) * (64 + len), 118 + Math.sin(a0) * (64 + len));
       g.stroke();
     }
+  } else if (idx === 5) {
+    // garagem: carro de lado
+    g.beginPath();
+    g.moveTo(40, 150); g.lineTo(48, 124); g.lineTo(88, 116); g.lineTo(112, 92); g.lineTo(162, 92); g.lineTo(188, 116); g.lineTo(216, 124); g.lineTo(218, 150);
+    g.closePath();
+    g.fill();
+    g.fillStyle = 'rgba(11,11,15,1)';
+    g.beginPath();
+    g.moveTo(118, 100); g.lineTo(158, 100); g.lineTo(174, 116); g.lineTo(104, 116);
+    g.closePath();
+    g.fill();
+    for (const x of [82, 178]) {
+      g.beginPath();
+      g.arc(x, 154, 20, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.fillStyle = '#fff';
+    for (const x of [82, 178]) {
+      g.beginPath();
+      g.arc(x, 154, 11, 0, Math.PI * 2);
+      g.fill();
+    }
+  } else if (idx === 6) {
+    // personagens: dois bustos
+    const bust = (x: number, y: number, k: number) => {
+      g.beginPath();
+      g.arc(x, y - 38 * k, 24 * k, 0, Math.PI * 2);
+      g.fill();
+      g.beginPath();
+      g.moveTo(x - 44 * k, y + 40 * k);
+      g.quadraticCurveTo(x - 44 * k, y - 6 * k, x, y - 6 * k);
+      g.quadraticCurveTo(x + 44 * k, y - 6 * k, x + 44 * k, y + 40 * k);
+      g.closePath();
+      g.fill();
+    };
+    g.globalAlpha = 0.55;
+    bust(158, 132, 0.8);
+    g.globalAlpha = 1;
+    bust(110, 146, 1);
   } else {
     g.beginPath(); // lua crescente
     g.arc(118, 128, 64, 0, Math.PI * 2);
@@ -258,6 +308,9 @@ export class Campaign {
   private paintSel: string | null = null;
   private lastResult: MissionResult | null = null;
   private chapterIdx = 0;
+  private stations: Station[] = [];
+  /** menu aberto no ferro-velho (garagem / personagens) */
+  menuOpen: 'garage' | 'crew' | null = null;
 
   constructor(private host: CampaignHost) {
     this.save = K.SaveStore(safeStorage(), SAVE_KEY);
@@ -267,11 +320,35 @@ export class Campaign {
     this.hud.onRetry = () => this.retry();
     this.hud.onLeave = () => this.leave();
     this.hud.onSwatch = (id) => this.previewPaint(id);
+    this.hud.onMenuPick = (what, id) => this.menuPick(what, id);
+    this.hud.onMenuClose = () => this.closeMenu();
     // ---------- ferro-velho ----------
     this.yard = new Yard();
     host.scene.add(this.yard.group);
     this.yard.setLights(true);
     for (const c of this.yard.colliders) host.grid.insert(c);
+    // garagem (carros e pintura) e personagens: para no círculo e segura
+    for (const [which, a, b, col, icon] of [
+      ['garage', 9.5, 6, '#33e0ff', 5],
+      ['crew', -5, 11, '#ff5ab4', 6],
+    ] as const) {
+      const p = this.yard.pt(a, b);
+      const g = new THREE.Group();
+      g.position.set(p.x, 0.07, p.z);
+      const ringMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(col).multiplyScalar(0.8), transparent: true, depthWrite: false });
+      const ring = new THREE.Mesh(new THREE.RingGeometry(STATION_R - 0.25, STATION_R, 40).rotateX(-Math.PI / 2), ringMat);
+      const iconMesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.7, 1.7),
+        new THREE.MeshBasicMaterial({ map: iconTexture(icon), color: new THREE.Color(col), transparent: true, side: THREE.DoubleSide, depthWrite: false }),
+      );
+      iconMesh.position.y = 2.2;
+      iconMesh.renderOrder = 3;
+      ring.layers.set(1);
+      iconMesh.layers.set(1);
+      g.add(ring, iconMesh);
+      host.scene.add(g);
+      this.stations.push({ which, x: p.x, z: p.z, icon: iconMesh, ringMat });
+    }
     // ---------- pontos dos capítulos ----------
     const beamTex = beamTexture();
     const beamGeo = new THREE.CylinderGeometry(1.9, 1.9, 70, 24, 1, true);
@@ -547,10 +624,20 @@ export class Campaign {
     this.inYard = this.mode === 'free' && this.yard.inside(car.x, car.z, 2);
     this.host.audio.setMusicDuck(this.inYard ? 0.35 : 1);
     if (this.inYard && !wasIn) this.host.banner('FERRO-VELHO', 'BASE DO BONDE · LUGAR SEGURO', 1.8);
-    if (this.mode !== 'free') {
+    for (const st of this.stations) {
+      st.icon.rotation.y = this.t * 1.6;
+      st.icon.position.y = 2.2 + Math.sin(this.t * 2 + st.x) * 0.15;
+    }
+    if (this.mode !== 'free' || this.menuOpen) {
       this.hud.card(null);
       this.hud.hold(null);
       this.hud.panel(null);
+      if (this.menuOpen) {
+        const c = this.host.car;
+        c.vx *= 0.8;
+        c.vz *= 0.8;
+      }
+      if (this.mode !== 'free') this.closeMenu();
       return;
     }
     // pontos pulsando; o feixe some quando a câmera entra nele (senão estoura a tela)
@@ -618,93 +705,20 @@ export class Campaign {
         label = 'LARGAR';
       }
     }
-    // ---------- ferro-velho ----------
+    // ---------- ferro-velho: garagem e personagens ----------
     if (this.inYard) {
-      // carro parado: chegar perto e segurar pra trocar
-      let bestK: DriveKey | null = null, bd = 4.6;
-      for (const k of DRIVE_KEYS) {
-        const p = this.parked[k];
-        if (!p) continue;
-        const d = Math.hypot(p.x - car.x, p.z - car.z);
-        if (d < bd) {
-          bd = d;
-          bestK = k;
-        }
-      }
-      if (bestK) {
-        const def = K.CARS[bestK];
-        const st = bestK === 'mustang' ? { owned: true } : K.carUnlockState(this.save.data, bestK);
-        const stats = def ? K.carStats(def) : null;
-        const bars = stats
-          ? `<div class="stat-bars">${[['Velocidade', stats.velocidade], ['Resposta', stats.resposta], ['Drift', stats.drift], ['Resistência', stats.resistencia]]
-              .map(([n, v]) => `<span>${n}<i><b style="width:${Math.round((v as number) * 100)}%">.</b></i></span>`)
-              .join('')}</div>`
-          : '<div>O Mustang azul da madrugada.</div>';
-        let action: string | null = null;
-        if (st.owned) {
-          if (stopped) {
-            it = { kind: 'car', key: bestK };
-            label = `TROCAR PRO ${DRIVE_NAMES[bestK].toUpperCase()}`;
-          } else action = 'PARA DO LADO PRA TROCAR';
-        } else if (!st.requirementMet) action = `BLOQUEADO: ${(st.label || '').toUpperCase()}`;
-        else if (!st.affordable) action = `FALTAM MOEDAS · ${st.coins} (VOCÊ TEM ${this.save.data.coins})`;
-        else if (stopped) {
-          it = { kind: 'car', key: bestK };
-          label = `DESBLOQUEAR · ${st.coins} MOEDAS`;
-        }
-        panel = { tag: 'CARRO DO BONDE', title: def ? `${def.name}` : 'Mustang', body: (def ? def.tag : 'Carro de sempre') + bars, action };
-      }
-      // personagem do bonde
-      if (!panel) {
-        let bestP: string | null = null, bp = 3.2;
-        for (const id in this.crew) {
-          const g = this.crew[id]!;
-          if (!g.visible || id === this.save.data.pilot) continue;
-          const d = Math.hypot(g.position.x - car.x, g.position.z - car.z);
-          if (d < bp) {
-            bp = d;
-            bestP = id;
-          }
-        }
-        // o piloto atual fica do lado da vaga: mostra quem é
-        const sel = this.crew[this.save.data.pilot];
-        if (!bestP && sel && Math.hypot(sel.position.x - car.x, sel.position.z - car.z) < 3.2) {
-          const pl = K.pilotById(this.save.data.pilot);
-          panel = { tag: 'PILOTANDO', title: pl.name, body: pl.perk, action: null };
-        }
-        if (bestP) {
-          const pl = K.pilotById(bestP);
-          panel = { tag: 'PILOTO', title: pl.name, body: `${pl.tag}. ${pl.perk}`, action: stopped ? null : 'PARA DO LADO PRA ESCOLHER' };
-          if (stopped) {
-            it = { kind: 'pilot', id: bestP };
-            label = `PILOTAR COM ${pl.name.split(' ')[0]!.toUpperCase()}`;
-          }
-        }
-      }
-      // pintura: em frente ao contêiner do grafite
-      if (!panel) {
-        const ps = this.yard.pt(0, -10.5);
-        if (Math.hypot(ps.x - car.x, ps.z - car.z) < 4.5) {
-          const cur = this.drive === 'mustang' ? this.mustangPaint : this.save.data.paints[this.drive] || 'orig';
-          if (this.paintSel === null) this.paintSel = cur;
-          if (inp.digit >= 1 && inp.digit <= K.PAINTS.length) this.previewPaint(K.PAINTS[inp.digit - 1]!.id);
-          const swatches = K.PAINTS.map((p) => ({ id: p.id, color: p.color, name: p.name, locked: !K.paintUnlocked(this.save.data, p), sel: p.id === this.paintSel }));
-          const pn = K.PAINTS.find((p) => p.id === this.paintSel);
-          panel = {
-            tag: 'PINTURA',
-            title: `${DRIVE_NAMES[this.drive]} · ${pn?.name ?? ''}`,
-            body: this.host.touch ? 'Toca na cor pra ver no carro.' : 'Toca na cor ou aperta 1 a 6 pra ver no carro.',
-            action: this.paintSel === cur ? 'PINTURA ATUAL' : stopped ? null : 'PARA PRA PINTAR',
-            swatches,
-          };
-          if (stopped && this.paintSel !== cur) {
-            it = { kind: 'paint' };
-            label = 'PINTAR';
-          }
-        } else if (this.paintSel !== null) {
-          // saiu da cabine de pintura sem confirmar: volta a cor
-          this.paintSel = null;
-          this.applyPaint(this.drive === 'mustang' ? this.mustangPaint : this.save.data.paints[this.drive] || 'orig');
+      for (const st of this.stations) {
+        if (Math.hypot(st.x - car.x, st.z - car.z) > STATION_R) continue;
+        const garage = st.which === 'garage';
+        panel = {
+          tag: garage ? 'GARAGEM' : 'PERSONAGENS',
+          title: garage ? 'Carros e pintura' : 'Quem vai no volante',
+          body: '',
+          action: stopped ? null : 'PARA NO CÍRCULO',
+        };
+        if (stopped) {
+          it = { kind: 'menu', which: st.which };
+          label = garage ? 'ABRIR A GARAGEM' : 'VER O BONDE';
         }
       }
     }
@@ -730,6 +744,7 @@ export class Campaign {
   private activate(it: NonNullable<Interact>): void {
     if (it.kind === 'chapter') this.startChapter(it.idx);
     else if (it.kind === 'racha') this.host.startRacha(it.idx);
+    else if (it.kind === 'menu') this.openMenu(it.which);
     else if (it.kind === 'car') this.swapCar(it.key);
     else if (it.kind === 'pilot') {
       this.save.data.pilot = it.id;
@@ -747,6 +762,76 @@ export class Campaign {
     }
   }
 
+  // ================= menus do ferro-velho =================
+  private openMenu(which: 'garage' | 'crew'): void {
+    this.menuOpen = which;
+    this.host.car.vx = this.host.car.vz = 0;
+    document.body.classList.add('yardmenu');
+    this.renderMenu();
+  }
+
+  /** fecha o menu (Esc / VOLTAR); devolve se tinha menu aberto */
+  closeMenu(): boolean {
+    if (!this.menuOpen) return false;
+    this.menuOpen = null;
+    this.hud.menu(null);
+    document.body.classList.remove('yardmenu');
+    return true;
+  }
+
+  private renderMenu(): void {
+    const d = this.save.data;
+    if (this.menuOpen === 'garage') {
+      const cars = DRIVE_KEYS.map((k) => {
+        const def = K.CARS[k];
+        const st = k === 'mustang' ? { owned: true } : K.carUnlockState(d, k);
+        const stats = def ? K.carStats(def) : null;
+        const paint = k === 'mustang' ? this.mustangPaint : d.paints[k] || 'orig';
+        const color = K.PAINTS.find((p) => p.id === paint)?.color ?? (k === 'mustang' ? MUSTANG_BLUE : '#9aa0aa');
+        return {
+          key: k,
+          name: DRIVE_NAMES[k],
+          tag: def ? def.tag : 'Muscle car',
+          color,
+          stats: stats ? ([['Velocidade', stats.velocidade], ['Resposta', stats.resposta], ['Drift', stats.drift], ['Resistência', stats.resistencia]] as [string, number][]) : null,
+          status: k === this.drive ? 'current' : st.owned ? 'owned' : st.requirementMet && st.affordable ? 'buy' : 'locked',
+          price: st.coins,
+          reason: !st.owned ? (!st.requirementMet ? (st.label || 'BLOQUEADO').toUpperCase() : `🪙${st.coins}`) : undefined,
+        } as const;
+      });
+      const cur = this.drive === 'mustang' ? this.mustangPaint : d.paints[this.drive] || 'orig';
+      this.hud.menu({
+        kind: 'garage',
+        coins: d.coins,
+        cars,
+        paintOf: DRIVE_NAMES[this.drive],
+        swatches: K.PAINTS.map((p) => ({ id: p.id, color: p.id === 'orig' && this.drive === 'mustang' ? MUSTANG_BLUE : p.color, name: p.name, locked: !K.paintUnlocked(d, p), sel: p.id === cur })),
+      });
+    } else if (this.menuOpen === 'crew') {
+      this.hud.menu({
+        kind: 'crew',
+        coins: d.coins,
+        pilots: K.PILOTS.map((p) => ({ id: p.id, name: p.name, tag: p.tag, perk: p.perk, color: p.color, current: p.id === d.pilot })),
+      });
+    }
+  }
+
+  private menuPick(what: 'car' | 'paint' | 'pilot', id: string): void {
+    if (what === 'car') this.swapCar(id as DriveKey, true);
+    else if (what === 'pilot') this.activate({ kind: 'pilot', id });
+    else {
+      this.previewPaint(id);
+      if (this.paintSel === id) {
+        if (this.drive === 'mustang') this.mustangPaint = id;
+        else this.save.data.paints[this.drive] = id;
+        this.save.save();
+        this.saveGarage();
+      }
+      this.paintSel = null;
+    }
+    this.renderMenu();
+  }
+
   private previewPaint(id: string): void {
     const p = K.PAINTS.find((q) => q.id === id);
     if (!p || !K.paintUnlocked(this.save.data, p)) return;
@@ -761,7 +846,7 @@ export class Campaign {
   }
 
   /** troca: o carro escolhido vira o do jogador e o atual fica parado onde estava */
-  private swapCar(k: DriveKey): void {
+  private swapCar(k: DriveKey, inPlace = false): void {
     if (k !== 'mustang' && !this.save.data.unlockedCars.includes(k)) {
       if (!K.buyCar(this.save.data, k)) return;
       this.save.save();
@@ -770,12 +855,13 @@ export class Campaign {
     const car = this.host.car;
     const old = this.drive;
     const tgt = this.parked[k]!;
-    // o atual estaciona onde está
+    // o atual estaciona onde está (pela garagem: vai pra vaga do escolhido)
     const vis = this.buildParked(old);
     if (vis) {
-      this.parked[old] = { root: vis.root, x: car.x, z: car.z, h: car.heading, mat: vis.mat };
-      vis.root.position.set(car.x, 0, car.z);
-      vis.root.rotation.y = car.heading;
+      const px = inPlace ? tgt.x : car.x, pz = inPlace ? tgt.z : car.z, ph = inPlace ? tgt.h : car.heading;
+      this.parked[old] = { root: vis.root, x: px, z: pz, h: ph, mat: vis.mat };
+      vis.root.position.set(px, 0, pz);
+      vis.root.rotation.y = ph;
       this.host.scene.add(vis.root);
     }
     this.host.scene.remove(tgt.root);
@@ -787,8 +873,11 @@ export class Campaign {
       this.save.save();
     }
     this.host.setRig(this.rigFor(k));
-    car.reset(tgt.x, tgt.z, tgt.h);
-    this.host.resetCamera(tgt.h);
+    if (inPlace) car.reset(car.x, car.z, car.heading);
+    else {
+      car.reset(tgt.x, tgt.z, tgt.h);
+      this.host.resetCamera(tgt.h);
+    }
     this.setDriverModel();
     this.applyCarMods();
     this.paintSel = null;

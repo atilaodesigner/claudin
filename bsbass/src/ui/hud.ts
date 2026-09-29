@@ -865,7 +865,7 @@ const TEMPLATE = /* html */ `
       <h4>O ROLÊ</h4>
       <p>Derrapa de lado pra encher o combo. Quanto mais ângulo e velocidade, mais ponto por segundo. Emenda um drift no outro antes da barra vermelha zerar pra subir o multiplicador (até x10). Bater no muro ou num carro perde o combo; passar raspando dá bônus.</p>
       <p>Cata as 30 fitas K7 espalhadas pela quebrada e ganha os 5 rachas (os pontos azuis no minimapa).</p>
-      <p>Os 5 capítulos ficam espalhados pela cidade: segue a seta do topo até o feixe âmbar, para dentro do círculo e segura E. O próximo acende quando você conclui o anterior. O ferro-velho (ícone quadrado no mapa) é a base do bonde: lá dá pra trocar de carro, de piloto e de pintura. Segurando M a seta aponta pra lá.</p>
+      <p>Os 5 capítulos ficam espalhados pela cidade: segue a seta do topo até o feixe âmbar, para dentro do círculo e segura E. O próximo acende quando você conclui o anterior. O ferro-velho (ícone quadrado no mapa) é a base do bonde: lá dentro tem dois círculos, GARAGEM (carro e pintura) e PERSONAGENS (quem pilota); para dentro e segura E pra abrir. Segurando M a seta aponta pra lá.</p>
     </section>
     <section>
       <h4>TECLADO</h4>

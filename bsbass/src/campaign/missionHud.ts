@@ -36,6 +36,32 @@ export interface PanelView {
   swatches?: { id: string; color: string | null; name: string; locked: boolean; sel: boolean }[];
 }
 
+export interface GarageCar {
+  key: string;
+  name: string;
+  tag: string;
+  color: string;
+  stats: [string, number][] | null;
+  /** current = no volante · owned = é seu · buy = dá pra comprar · locked = ainda não */
+  status: 'current' | 'owned' | 'buy' | 'locked';
+  price?: number;
+  reason?: string;
+}
+
+export interface MenuView {
+  kind: 'garage' | 'crew';
+  coins: number;
+  cars?: GarageCar[];
+  paintOf?: string;
+  swatches?: { id: string; color: string | null; name: string; locked: boolean; sel: boolean }[];
+  pilots?: { id: string; name: string; tag: string; perk: string; color: string; current: boolean }[];
+}
+
+/** silhueta de carro (vista de lado) na cor da pintura */
+function carIcon(color: string): string {
+  return `<svg viewBox="0 0 64 26" aria-hidden="true"><path fill="${color}" d="M4 18 L6 12 L18 10 L26 4 L44 4 L52 10 L60 12 L61 18 Z"/><path fill="rgba(255,255,255,.35)" d="M28 6 L42 6 L47 10 L24 10 Z"/><circle cx="16" cy="19" r="5" fill="#111" stroke="#ddd" stroke-width="1.6"/><circle cx="49" cy="19" r="5" fill="#111" stroke="#ddd" stroke-width="1.6"/></svg>`;
+}
+
 const TEMPLATE = /* html */ `
 <div class="m-hud">
   <div class="m-top">
@@ -56,6 +82,7 @@ const TEMPLATE = /* html */ `
 <div class="m-graze" data-m="graze"></div>
 <div class="m-count" data-m="count"></div>
 <div class="m-story" data-m="story"></div>
+<div class="m-menu" data-m="menu" role="dialog"></div>
 <div class="m-finale" data-m="finale"><img src="./campaign/bsbass.webp" alt="BSBASS The Game" /><p></p></div>
 
 <div class="m-result" data-m="result">
@@ -99,6 +126,9 @@ export class MissionHud {
   onRetry: (() => void) | null = null;
   onLeave: (() => void) | null = null;
   onSwatch: ((id: string) => void) | null = null;
+  /** escolha no menu da garagem / personagens */
+  onMenuPick: ((what: 'car' | 'paint' | 'pilot', id: string) => void) | null = null;
+  onMenuClose: (() => void) | null = null;
   /** botão de ação na tela (celular): segura = mesma coisa que a tecla E */
   actHeld = false;
 
@@ -126,6 +156,12 @@ export class MissionHud {
     act.addEventListener('pointerup', off);
     act.addEventListener('pointercancel', off);
     act.addEventListener('pointerleave', off);
+    this.m.menu!.addEventListener('click', (e) => {
+      const t = e.target as HTMLElement;
+      if (t.closest('[data-close]')) return this.onMenuClose?.();
+      const b = t.closest<HTMLElement>('[data-pick]');
+      if (b && !b.hasAttribute('disabled')) this.onMenuPick?.(b.dataset.pick as 'car' | 'paint' | 'pilot', b.dataset.id!);
+    });
     this.m.pSw!.addEventListener('click', (e) => {
       const b = (e.target as HTMLElement).closest<HTMLElement>('[data-sw]');
       if (b && !b.hasAttribute('disabled')) this.onSwatch?.(b.dataset.sw!);
@@ -333,5 +369,43 @@ export class MissionHud {
           .join('')
       : '';
     this.setT('pSw', sw, true);
+  }
+
+  /** menu da garagem (carros + pintura) ou dos personagens; null fecha */
+  menu(v: MenuView | null): void {
+    const el = this.m.menu!;
+    el.classList.toggle('on', !!v);
+    if (!v) return;
+    const head = (title: string, sub: string) =>
+      `<header><div><b>${title}</b><small>${sub}</small></div><span class="coins">🪙 ${v.coins}</span><button data-close>VOLTAR</button></header>`;
+    if (v.kind === 'garage') {
+      const cars = (v.cars || [])
+        .map((c) => {
+          const bars = c.stats
+            ? `<div class="mm-bars">${c.stats.map(([n, x]) => `<span>${n}<i><b style="width:${Math.round(x * 100)}%"></b></i></span>`).join('')}</div>`
+            : '<div class="mm-note">o azul da madrugada</div>';
+          const btn =
+            c.status === 'current' ? '<button disabled class="cur">NO VOLANTE</button>'
+            : c.status === 'owned' ? `<button data-pick="car" data-id="${c.key}">USAR</button>`
+            : c.status === 'buy' ? `<button data-pick="car" data-id="${c.key}" class="buy">DESBLOQUEAR · 🪙${c.price}</button>`
+            : `<button disabled>🔒 ${c.reason ?? 'BLOQUEADO'}</button>`;
+          return `<div class="mm-card ${c.status}">${carIcon(c.color)}<b>${c.name}</b><small>${c.tag}</small>${bars}${btn}</div>`;
+        })
+        .join('');
+      const sw = (v.swatches || [])
+        .map((p) => `<button data-pick="paint" data-id="${p.id}" class="${p.sel ? 'sel' : ''}" ${p.locked ? 'disabled' : ''} title="${p.name}" style="--c:${p.color || 'linear-gradient(135deg,#888,#444)'}">${p.locked ? '🔒' : ''}</button>`)
+        .join('');
+      el.innerHTML = `<div class="mm-box">${head('GARAGEM', 'escolhe o carro do rolê')}<div class="mm-grid">${cars}</div><div class="mm-paint"><small>PINTURA · ${v.paintOf ?? ''}</small><div class="m-sw">${sw}</div></div></div>`;
+    } else {
+      const pilots = (v.pilots || [])
+        .map(
+          (p) =>
+            `<div class="mm-card ${p.current ? 'current' : ''}"><i class="mm-av" style="--c:${p.color}">${p.name.slice(0, 1)}</i><b>${p.name}</b><small>${p.tag}</small><div class="mm-note">${p.perk}</div>${
+              p.current ? '<button disabled class="cur">PILOTANDO</button>' : `<button data-pick="pilot" data-id="${p.id}">ESCOLHER</button>`
+            }</div>`,
+        )
+        .join('');
+      el.innerHTML = `<div class="mm-box">${head('PERSONAGENS', 'quem vai no volante')}<div class="mm-grid">${pilots}</div></div>`;
+    }
   }
 }
