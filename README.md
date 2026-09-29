@@ -1,4 +1,4 @@
-> **Outros projetos neste repositório:** [`abduziu/`](abduziu/): jogo web em Three.js, *ABDUZIU*.
+> **Outros projetos neste repositório:** [`abduziu/`](abduziu/): jogo web em Three.js, *ABDUZIU* · [`bsbass/`](bsbass/): jogo de drift em Three.js, *BSBass Drift Game*.
 
 # Balanço do Barco: color grading
 

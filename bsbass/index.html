@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#07070a" />
+    <meta name="description" content="BSBass Drift Game: drift de Mustang azul na madrugada da periferia do DF. Poeira vermelha, grave no talo, fitas K7 e rachas." />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="BSBass" />
+    <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+    <title>BSBass Drift Game</title>
+    <meta property="og:title" content="BSBass Drift Game" />
+    <meta property="og:description" content="Drift de Mustang azul na madrugada da quebrada do DF." />
+    <meta property="og:locale" content="pt_BR" />
+    <style>
+      #loading { position: fixed; inset: 0; display: grid; place-items: center; background: #07070a; color: #ffd21a; font: 700 12px/1 system-ui, sans-serif; letter-spacing: 0.4em; z-index: 50; }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div id="stage"></div>
+      <div id="ui"></div>
+    </div>
+    <div id="loading">CARREGANDO A QUEBRADA...</div>
+    <noscript>Esse jogo precisa de JavaScript e WebGL.</noscript>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
