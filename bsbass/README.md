@@ -78,6 +78,7 @@ O build é estático (`base: './'`): dá pra hospedar `dist/` em qualquer lugar.
 - **Campanha (BSBASS THE GAME no mundo aberto)**: os 5 capítulos ficam em pontos da cidade, cada um com um feixe de luz na cor do estado (âmbar = disponível, verde = feito, cinza = trancado) e o número no chão. Chegando perto (~25 m) aparece o cartão com nome, resumo e recorde. Pare dentro do círculo e segure a ação ~1 s (um anel enche); nada começa só de encostar. Os capítulos destrancam em ordem e cada um guarda feito, recorde e estrelas. As regras, inimigos, cinemáticas e recompensas são as mesmas do jogo original: a rota do capítulo vira um circuito fechado pelas ruas (com barreiras nas esquinas só durante a missão). Perdeu: **Tentar de novo** ou **Voltar ao mundo aberto** (o carro volta parado, do lado do ponto, virado pra rua). Ganhou: pontos, estrelas e moedas, o feixe fica verde, o próximo acende e um aviso diz a distância. A pausa tem **Abandonar missão**.
 - **Achando o caminho**: a bússola no topo aponta o ponto disponível mais perto (ou o próximo a destrancar); segurando o mapa ela aponta o ferro-velho e o mapa grande abre. Minimapa e mapa usam as mesmas cores.
 - **Ferro-velho (base do bonde)**: pátio de terra cercado com guindastes, torre de luz, contêiner, pilhas de pneu e de carro, tambor com fogo e a bandeira do BSBASS balançando entre os ganchos. O portão abre quando você chega e fecha depois. Lá dentro ficam os carros do bonde estacionados e a galera em pé: segure a ação do lado de um carro pra trocar (ou comprar), do lado de um piloto pra trocar de piloto, e escolha a pintura (1-6 ou toque nas cores). É lugar seguro: sem polícia, sem dano, sem pontuação, e a música abaixa. Tem ícone próprio no mapa desde o começo.
+- **Coisas que caem**: poste de calçada, lixeira, tambor, caixa de papelão, hidrante e caixa de energia não seguram o carro: batendo rápido o bastante eles saem voando (o poste tomba, apaga e arrebenta os fios, o hidrante vira chafariz, a caixa de energia solta faísca) e o carro perde só o embalo que o objeto leva, sem perder o combo. Devagar, o poste ainda segura. Longe dali, tudo volta pro lugar.
 - **Tráfego**: Gol quadrado, Uno, Kombi saia-e-blusa, picape e busão. Andam na mão, contornam o balão no sentido certo, buzinam se você parar na frente e saem rodando quando levam pancada.
 - **Superfícies**: asfalto, calçada e o **terrão** de terra vermelha (menos aderência, levanta poeira).
 - **Rádio**: GRAVE 61 FM (funk de quebrada), BSBASS PHONK (drift phonk) e EIXÃO TRAP, tudo sintetizado na hora. O paredão da feira pisca no grave. Volume de música e de carro separados.
@@ -103,6 +104,7 @@ src/
   fx/rain.ts            chuva e cones de luz dos postes
   world/neon.ts         neon, LED e outdoors
   world/props.ts        objetos de rua (Poly Haven) instanciados
+  world/breakables.ts   postes e objetos derrubáveis (física solta, respawn)
   assets.ts             carrega texturas e modelos
   traffic/              modelos e IA do tráfego
   fx/doodles.ts         rabiscos estilo Unbound (atlas em canvas + pontos na GPU)

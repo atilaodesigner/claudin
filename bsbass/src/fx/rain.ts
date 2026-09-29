@@ -82,9 +82,13 @@ export class Rain {
   }
 }
 
+const CONE_SEG = 14;
+/** vértices de cada cone (na ordem das cabeças) */
+export const CONE_VERTS = (CONE_SEG + 1) * 2;
+
 /** cones de luz dos postes (luz "volumétrica" barata na chuva) */
 export function buildLightCones(heads: THREE.Vector3[]): THREE.Mesh {
-  const seg = 14;
+  const seg = CONE_SEG;
   const pos: number[] = [], nor: number[] = [], hh: number[] = [], idx: number[] = [];
   for (const h of heads) {
     const top = h.y - 0.1, r0 = 0.28, r1 = 5.2, bottom = 0.05;

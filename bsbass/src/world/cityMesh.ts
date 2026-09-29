@@ -7,7 +7,7 @@ import { GeoBuilder, hex, type RGB, type UVRect } from '../utils/geo';
 import { mulberry32, pick, range } from '../utils/rng';
 import {
   AVENUE_Z, BALAO, BLOCK_HALF, BORDER, CURB_H, EXTENT, NODES, PITCH, ROAD, SHOP_NAMES, SIDEWALK,
-  inBalao, nodePos, type City, type Lot,
+  inBalao, nodePos, type City, type Lamp, type Lot,
 } from './city';
 import { ATLAS_ROWS, ROW, SIGN_ROW, type Textures } from './textures';
 import { buildVehicle, PAINTS } from '../traffic/vehicles';
@@ -49,6 +49,38 @@ export interface CityMeshes {
   lampLights: THREE.Vector3[]; // posição das cabeças dos postes
   paredaoLeds: THREE.MeshBasicMaterial; // pisca com o grave
   beacon: THREE.MeshBasicMaterial; // luz de obstáculo da caixa d'água
+  /** postes que dá pra derrubar (instanciados, um por instância) */
+  lampInst: LampInstances | null;
+  /** fios: cada trecho liga dois postes (pra sumir quando um deles cai) */
+  wires: { mesh: THREE.LineSegments; ranges: { a: Lamp; b: Lamp; start: number; end: number }[] };
+}
+
+export interface LampInstances {
+  lamps: Lamp[];
+  /** índice em lampLights de cada poste */
+  light: number[];
+  /** poste inteiro (corpo + braço + cabeça) e a luz da cabeça, que caem juntos */
+  body: THREE.InstancedMesh[];
+  /** mancha de luz no chão (some quando o poste cai) */
+  pool: THREE.InstancedMesh;
+  /** matriz de cada poste em pé */
+  base: THREE.Matrix4[];
+}
+
+const LAMP_H = 9;
+
+/** poste de braço único, com o braço apontando pra +Z local */
+function lampProto(flat: GeoBuilder, emissive: GeoBuilder): void {
+  const H = LAMP_H;
+  flat.mat = 1;
+  flat.box(0, H / 2, 0, 0.26, H, 0.26, hex(0x8c8a84));
+  flat.mat = 2;
+  flat.box(0, 0.6, 0, 0.3, 1.2, 0.3, hex(0x6a6862)); // pé pixado/sujo
+  flat.mat = 3;
+  flat.box(0, H - 0.1, 1.1, 0.1, 0.1, 2.3, hex(0x55544f));
+  flat.box(0, H - 0.25, 2.2, 0.36, 0.2, 0.7, hex(0x3a3a38));
+  emissive.box(0, H - 0.37, 2.2, 0.3, 0.04, 0.6, hex(0xffb050, 3.2));
+  flat.mat = 0;
 }
 
 export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = {}, hasProps = false, skipTrees = false): CityMeshes {
@@ -66,6 +98,7 @@ export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = 
   const pools = new GeoBuilder(); // manchas de luz no chão
   const dirt = new GeoBuilder();
   const lines: number[] = []; // fios de poste
+  const wireRanges: CityMeshes['wires']['ranges'] = [];
   const lampLights: THREE.Vector3[] = [];
 
   // ================= casas =================
@@ -191,7 +224,17 @@ export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = 
   }
 
   // ================= postes =================
+  // os de calçada (com colisor) viram instâncias pra poder cair um por um
+  const breakLamps = city.lamps.filter((l) => l.shape && (l.dirX !== 0 || l.dirZ !== 0));
+  const lampLight: number[] = [];
+  const lampBase: THREE.Matrix4[] = [];
+  for (const l of breakLamps) {
+    lampLight.push(lampLights.length);
+    lampLights.push(new THREE.Vector3(l.x + l.dirX * 2.2, LAMP_H - 0.6, l.z + l.dirZ * 2.2));
+    lampBase.push(new THREE.Matrix4().makeRotationY(Math.atan2(l.dirX, l.dirZ)).setPosition(l.x, 0, l.z));
+  }
   for (const l of city.lamps) {
+    if (l.shape && (l.dirX !== 0 || l.dirZ !== 0)) continue;
     const double = l.dirX === 0 && l.dirZ === 0;
     const arms: [number, number][] = double ? [[0, 1], [0, -1]] : [[l.dirX, l.dirZ]];
     const H = 9;
@@ -221,7 +264,7 @@ export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = 
   emissive.resetTransform();
 
   // fios entre postes vizinhos (mesma calçada)
-  const byLine = new Map<string, { x: number; z: number }[]>();
+  const byLine = new Map<string, Lamp[]>();
   for (const l of city.lamps) {
     if (l.dirX === 0 && l.dirZ === 0) continue;
     const key = l.dirX !== 0 ? `x${l.x.toFixed(1)}` : `z${l.z.toFixed(1)}`;
@@ -233,6 +276,8 @@ export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = 
     for (let k = 0; k + 1 < list.length; k++) {
       const a = list[k]!, b = list[k + 1]!;
       if (Math.hypot(a.x - b.x, a.z - b.z) > 40) continue;
+      const start = lines.length;
+      wireRanges.push({ a, b, start, end: 0 });
       for (const h of [8.2, 7.6, 7.0]) {
         const seg = 6;
         for (let s = 0; s < seg; s++) {
@@ -242,6 +287,7 @@ export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = 
           lines.push(a.x + (b.x - a.x) * t1, sag(t1), a.z + (b.z - a.z) * t1);
         }
       }
+      wireRanges[wireRanges.length - 1]!.end = lines.length;
     }
   }
 
@@ -352,6 +398,31 @@ export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = 
   wires.matrixAutoUpdate = false;
   group.add(wires);
 
+  // postes derrubáveis: mesmo desenho e materiais, uma instância por poste
+  let lampInst: LampInstances | null = null;
+  if (breakLamps.length) {
+    const pf = new GeoBuilder(), pe = new GeoBuilder(), pp = new GeoBuilder();
+    lampProto(pf, pe);
+    poolQuad(pp, 0, 2.2, 10.5, hex(0xff9a3c, 0.32));
+    const inst = (b: GeoBuilder, m: THREE.Material, name: string, order = 0) => {
+      const im = new THREE.InstancedMesh(b.build(), m, breakLamps.length);
+      lampBase.forEach((mx, i) => im.setMatrixAt(i, mx));
+      im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      im.computeBoundingSphere();
+      im.name = name;
+      im.renderOrder = order;
+      group.add(im);
+      return im;
+    };
+    lampInst = {
+      lamps: breakLamps,
+      light: lampLight,
+      body: [inst(pf, flatMat, 'lampPoles'), inst(pe, emisMat, 'lampHeads')],
+      pool: inst(pp, poolMat, 'lampPools', 2),
+      base: lampBase,
+    };
+  }
+
   // chão: asfalto + terra do cerrado em volta
   const aSize = EXTENT * 2 + ROAD;
   tx.asphalt.repeat.set(aSize / 9, aSize / 9);
@@ -400,7 +471,7 @@ export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = 
 
   group.add(buildHorizon(tx));
 
-  return { group, lampLights, paredaoLeds, beacon };
+  return { group, lampLights, paredaoLeds, beacon, lampInst, wires: { mesh: wires, ranges: wireRanges } };
 }
 
 // ------------------------------------------------------------------

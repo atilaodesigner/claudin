@@ -24,7 +24,8 @@ import { Doodle, Doodles } from './fx/doodles';
 import { WetReflection, NO_REFLECT } from './fx/wet';
 import { prepareCar } from './car/gltfCar';
 import { buildGltfRig } from './car/gltfRig';
-import { Rain, buildLightCones } from './fx/rain';
+import { CONE_VERTS, Rain, buildLightCones } from './fx/rain';
+import { Breakables } from './world/breakables';
 import { PRESETS, autoPreset, loadSettings, lowerPreset, saveSettings, type Preset, type Settings } from './settings';
 import { buildNeon } from './world/neon';
 import { buildProps } from './world/props';
@@ -155,6 +156,8 @@ export class Game {
   /** preset em uso (no modo auto, o que o ajuste automático escolheu) */
   preset: Preset;
   private cones: THREE.Mesh;
+  /** poste, lixeira, hidrante... que o carro derruba */
+  private breakables!: Breakables;
   private fpsAvg = 60;
   private lastSaveAt = 0;
   /** capítulos + ferro-velho (só existe se os modelos do BSBASS THE GAME carregaram) */
@@ -196,8 +199,8 @@ export class Game {
     this.meshes = buildCityMeshes(this.city, tx, assets.tex, hasProps, realTrees);
     this.scene.add(this.meshes.group);
     if (realTrees) this.scene.add(buildTrees(this.city, assets.tex.bark!, assets.tex.leaves!));
-    if (hasProps) {
-      const props = buildProps(this.city, assets.models);
+    const props = hasProps ? buildProps(this.city, assets.models) : null;
+    if (props) {
       this.scene.add(props.group);
       for (const c of props.colliders) this.grid.insert(c);
     }
@@ -205,7 +208,7 @@ export class Game {
     // asfalto molhado com reflexo de verdade
     this.reflScale = PRESETS[this.preset].reflection || 0.3;
     this.wet = new WetReflection(this.reflScale);
-    for (const name of ['asphalt', 'ground', 'sidewalk', 'marks', 'pools', 'dirt']) {
+    for (const name of ['asphalt', 'ground', 'sidewalk', 'marks', 'pools', 'lampPools', 'dirt']) {
       const m = this.meshes.group.getObjectByName(name) as THREE.Mesh | undefined;
       if (!m) continue;
       m.layers.set(NO_REFLECT);
@@ -220,6 +223,30 @@ export class Game {
     this.cones = buildLightCones(this.meshes.lampLights);
     this.cones.layers.set(NO_REFLECT);
     this.scene.add(this.cones);
+    this.breakables = new Breakables(this.grid, (x, z) => surfaceAt(this.city, x, z).height, {
+      sparks: (x, y, z, n) => {
+        for (let i = 0; i < n; i++) {
+          this.sparks.emit({
+            x, y, z, vx: (Math.random() - 0.5) * 7, vy: Math.random() * 4, vz: (Math.random() - 0.5) * 7,
+            life: 0.3 + Math.random() * 0.5, size: 0.12, grow: -0.1, r: 3, g: 1.7, b: 0.5, a: 1, drag: 1, gravity: 12,
+          });
+        }
+      },
+      water: (x, y, z) => {
+        // hidrante estourado: jato d'água
+        if (Math.random() < 0.6) {
+          this.smoke.emit({
+            x: x + (Math.random() - 0.5) * 0.15, y, z: z + (Math.random() - 0.5) * 0.15,
+            vx: (Math.random() - 0.5) * 1.2, vy: 5.5 + Math.random() * 2, vz: (Math.random() - 0.5) * 1.2,
+            life: 0.9 + Math.random() * 0.4, size: 0.16, grow: 0.45, r: 0.7, g: 0.8, b: 0.9, a: 0.22, drag: 0.4, gravity: 9,
+          });
+        }
+      },
+      sound: (v) => this.audio.crash(v),
+    });
+    this.breakables.addLamps(this.meshes.lampInst, this.meshes.lampLights.length, this.meshes.wires);
+    if (props) this.breakables.addProps(props.breakables, props.parts);
+    this.breakables.setCones(this.cones, CONE_VERTS);
     this.rain = new Rain(RAIN_MAX);
     this.rain.lines.layers.set(NO_REFLECT);
     this.scene.add(this.rain.lines);
@@ -618,6 +645,7 @@ export class Game {
         this.acc -= STEP;
         steps++;
       }
+      this.breakables.update(simDt, this.carRect, this.car.vx, this.car.vz);
       if (inMission) {
         cm!.mission.step(simDt, this.camera);
         if (cm!.mission.state === 'result' && !cm!.mission.player.dead) {
@@ -746,10 +774,35 @@ export class Game {
     for (const sh of this.nearShapes) {
       const c = collide(this.carRect, sh);
       if (!c) continue;
+      const br = this.breakables.get(sh);
+      if (br) {
+        // poste, lixeira, hidrante...: rápido o bastante, derruba e segue (perde só o impulso que o objeto leva)
+        const vn = -(car.vx * c.nx + car.vz * c.nz);
+        if (vn >= this.breakables.minV(sh)) {
+          const impact = resolve(car, CAR.mass, CAR.inertia, c, 0, 0.1, this.breakables.massOf(sh));
+          this.carRect.x = car.x;
+          this.carRect.z = car.z;
+          this.onBreak(sh, impact, c);
+          continue;
+        }
+      }
       const impact = resolve(car, CAR.mass, CAR.inertia, c, 0.18, 0.4);
       this.carRect.x = car.x;
       this.carRect.z = car.z;
       if (impact > 0) this.onImpact(impact, c.px, c.pz);
+    }
+  }
+
+  private onBreak(sh: Shape, v: number, c: { nx: number; nz: number; px: number; pz: number }): void {
+    const lamp = this.breakables.isLamp(sh);
+    this.breakables.hit(sh, this.car.vx, this.car.vz, c.nx, c.nz, v);
+    if (lamp) {
+      this.shake = Math.min(1, this.shake + 0.25);
+      this.lampTimer = 0; // apaga a luz de verdade na hora
+      // na missão o poste ainda amassa um pouco o carro (bem menos que parede)
+      if (this.campaign?.missionActive) this.campaign.mission.contact(v * 0.35, 'wall');
+    } else {
+      this.shake = Math.min(1, this.shake + Math.min(0.12, v * 0.02));
     }
   }
 
@@ -1272,7 +1325,10 @@ export class Game {
       const lamps = this.meshes.lampLights;
       const n = this.lampPool.length;
       const best: { p: THREE.Vector3; d: number }[] = [];
-      for (const p of lamps) {
+      const dead = this.breakables.dead;
+      for (let i = 0; i < lamps.length; i++) {
+        if (dead[i]) continue;
+        const p = lamps[i]!;
         const d = (p.x - fx) ** 2 + (p.z - fz) ** 2;
         if (best.length < n + 1 || d < best[best.length - 1]!.d) {
           best.push({ p, d });

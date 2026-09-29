@@ -49,6 +49,8 @@ export interface Lamp {
   z: number;
   dirX: number; // pra onde o braço aponta (rua)
   dirZ: number;
+  /** colisor (só os postes de calçada; dá pra derrubar) */
+  shape?: Shape;
 }
 
 export interface Parked {
@@ -225,8 +227,9 @@ export function buildCity(seed = 61): City {
         for (const p of [a, b]) {
           if (inBalao(p.x, p.z, 4)) continue;
           if (Math.abs(p.x) > EXTENT + ROAD || Math.abs(p.z) > EXTENT + ROAD) continue;
-          lamps.push(p);
-          colliders.push(circle(p.x, p.z, 0.22));
+          const sh = circle(p.x, p.z, 0.22);
+          lamps.push({ ...p, shape: sh });
+          colliders.push(sh);
         }
       }
     }
@@ -239,8 +242,9 @@ export function buildCity(seed = 61): City {
   for (let k = 0; k < 8; k++) {
     const a = (k / 8) * Math.PI * 2 + Math.PI / 8;
     const r = BALAO.ring + 2;
-    lamps.push({ x: Math.cos(a) * r, z: Math.sin(a) * r, dirX: -Math.cos(a), dirZ: -Math.sin(a) });
-    colliders.push(circle(Math.cos(a) * r, Math.sin(a) * r, 0.22));
+    const sh = circle(Math.cos(a) * r, Math.sin(a) * r, 0.22);
+    lamps.push({ x: sh.x, z: sh.z, dirX: -Math.cos(a), dirZ: -Math.sin(a), shape: sh });
+    colliders.push(sh);
   }
 
   // ---------- carros estacionados ----------

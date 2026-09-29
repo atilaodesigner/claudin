@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import type { Assets, ModelName } from '../assets';
 import { circle, rect, type Shape } from '../physics/collide';
+import type { BreakSpec, PropPart } from './breakables';
 import { mulberry32, pick, range } from '../utils/rng';
 import { AVENUE_Z, BALAO, CURB_H, EXTENT, NODES, PITCH, ROAD, inBalao, nodePos, type City, type Lot } from './city';
 
@@ -37,37 +38,66 @@ class Placer {
   private s = new THREE.Vector3();
   private p = new THREE.Vector3();
 
-  add(name: ModelName, x: number, y: number, z: number, rotY: number, scale = 1, rotX = 0, rotZ = 0): void {
+  /** devolve a matriz da instância (e o índice dela, pra mexer depois) */
+  add(name: ModelName, x: number, y: number, z: number, rotY: number, scale = 1, rotX = 0, rotZ = 0): { index: number; matrix: THREE.Matrix4 } {
     this.e.set(rotX, rotY, rotZ, 'YXZ');
     this.q.setFromEuler(this.e);
     this.p.set(x, y, z);
     this.s.setScalar(scale);
     if (!this.list.has(name)) this.list.set(name, []);
-    this.list.get(name)!.push(this.m.compose(this.p, this.q, this.s).clone());
+    const list = this.list.get(name)!;
+    const matrix = this.m.compose(this.p, this.q, this.s).clone();
+    list.push(matrix);
+    return { index: list.length - 1, matrix };
   }
 
-  build(models: Assets['models']): THREE.Group {
+  build(models: Assets['models'], dynamic: Set<ModelName>): { group: THREE.Group; parts: Map<ModelName, PropPart[]> } {
     const out = new THREE.Group();
     out.name = 'props';
+    const parts = new Map<ModelName, PropPart[]>();
     for (const [name, mats] of this.list) {
       const src = models[name];
       if (!src || !mats.length) continue;
       const obj = prepare(src, name);
       obj.updateMatrixWorld(true);
+      const list: PropPart[] = [];
+      parts.set(name, list);
       obj.traverse((o) => {
         const mesh = o as THREE.Mesh;
         if (!mesh.isMesh) return;
         const im = new THREE.InstancedMesh(mesh.geometry, mesh.material, mats.length);
         const tmp = new THREE.Matrix4();
         mats.forEach((m, i) => im.setMatrixAt(i, tmp.multiplyMatrices(m, mesh.matrixWorld)));
+        if (dynamic.has(name)) im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         im.instanceMatrix.needsUpdate = true;
         im.computeBoundingSphere();
         im.name = name;
         out.add(im);
+        list.push({ im, local: mesh.matrixWorld.clone() });
       });
     }
-    return out;
+    return { group: out, parts };
   }
+}
+
+/** objetos que o carro derruba em vez de parar nele */
+export const BREAKABLE: Partial<Record<ModelName, BreakSpec & { box?: boolean }>> = {
+  metal_trash_can: { mass: 18, minV: 0.4 },
+  barrel_03: { mass: 30, minV: 0.6 },
+  Barrel_02: { mass: 30, minV: 0.6 },
+  cardboard_box_01: { mass: 4, minV: 0.2, box: true },
+  fire_hydrant: { mass: 140, minV: 2.5, fx: 'water' },
+  utility_box_01: { mass: 90, minV: 2.5, fx: 'sparks', box: true },
+};
+
+export interface BreakProp {
+  name: ModelName;
+  index: number;
+  shape: Shape;
+  base: THREE.Matrix4;
+  h: number; // meia altura
+  r: number; // raio no chão
+  spec: BreakSpec;
 }
 
 function lotFront(lot: Lot): number {
@@ -81,11 +111,44 @@ function toWorld(lot: Lot, x: number, z: number): [number, number] {
   return [lot.x + x * c + z * s, lot.z - x * s + z * c];
 }
 
-export function buildProps(city: City, models: Assets['models']): { group: THREE.Group; colliders: Shape[] } {
+export interface Props {
+  group: THREE.Group;
+  colliders: Shape[];
+  breakables: BreakProp[];
+  parts: Map<ModelName, PropPart[]>;
+}
+
+export function buildProps(city: City, models: Assets['models']): Props {
   const rnd = mulberry32(3131);
   const P = new Placer();
   const colliders: Shape[] = [];
+  const breakables: BreakProp[] = [];
   const y0 = CURB_H;
+  // tamanho real de cada modelo (pro colisor e pra física quando cai)
+  const sizes = new Map<ModelName, THREE.Vector3 | null>();
+  const sizeOf = (name: ModelName): THREE.Vector3 | null => {
+    if (!sizes.has(name)) {
+      const src = models[name];
+      let v: THREE.Vector3 | null = null;
+      if (src) {
+        const o = prepare(src, name);
+        o.updateMatrixWorld(true);
+        v = new THREE.Box3().setFromObject(o).getSize(new THREE.Vector3());
+      }
+      sizes.set(name, v);
+    }
+    return sizes.get(name)!;
+  };
+  /** objeto derrubável: põe, cria o colisor e registra */
+  const loose = (name: ModelName, x: number, y: number, z: number, rot: number): void => {
+    const { index, matrix } = P.add(name, x, y, z, rot);
+    const spec = BREAKABLE[name], size = sizeOf(name);
+    if (!spec || !size) return;
+    const r = Math.max(size.x, size.z) / 2;
+    const shape = spec.box ? rect(x, z, size.x / 2, size.z / 2, rot) : circle(x, z, r * 0.9);
+    colliders.push(shape);
+    breakables.push({ name, index, shape, base: matrix, h: size.y / 2, r, spec });
+  };
 
   // ---------- fachadas ----------
   for (const lot of city.lots) {
@@ -105,7 +168,7 @@ export function buildProps(city: City, models: Assets['models']): { group: THREE
         P.add('cement_bag', x, y0 + Math.floor(k / 2) * 0.17, z, lot.rot + Math.PI / 2 + range(rnd, -0.2, 0.2));
       }
       const [bx, bz] = toWorld(lot, sx + 1.2, lot.d / 2 + 1.1);
-      P.add('barrel_03', bx, y0, bz, rnd() * 6);
+      loose('barrel_03', bx, y0, bz, rnd() * 6);
     }
     // borracharia e oficina: pilha de pneu e tambor azul
     if (lot.shop === 3 || lot.shop === 8) {
@@ -115,15 +178,15 @@ export function buildProps(city: City, models: Assets['models']): { group: THREE
         for (let k = 0; k < n; k++) P.add('old_tyre', x + range(rnd, -0.04, 0.04), y0 + 0.08 + k * 0.16, z, rnd() * 6, 1, Math.PI / 2);
       }
       const [bx, bz] = toWorld(lot, hw - 1, lot.d / 2 + 1.1);
-      P.add('barrel_03', bx, y0, bz, rnd() * 6);
+      loose('barrel_03', bx, y0, bz, rnd() * 6);
       const [cx, cz] = toWorld(lot, hw - 1.8, lot.d / 2 + 1.3);
-      P.add('Barrel_02', cx, y0, cz, rnd() * 6);
+      loose('Barrel_02', cx, y0, cz, rnd() * 6);
     }
     // mercadinho e lanchonete: caixas de papelão na porta
     if (lot.shop === 6 || lot.shop === 10) {
       for (let k = 0; k < 3; k++) {
         const [x, z] = toWorld(lot, range(rnd, -hw + 0.6, hw - 0.6), lot.d / 2 + 0.8);
-        P.add('cardboard_box_01', x, y0 + (k === 2 ? 0.34 : 0), z, rnd() * 6);
+        loose('cardboard_box_01', x, y0 + (k === 2 ? 0.34 : 0), z, rnd() * 6);
       }
     }
     // bar: rádio em cima da mesa de plástico
@@ -134,7 +197,7 @@ export function buildProps(city: City, models: Assets['models']): { group: THREE
     // tambor azul solto na frente de casa
     if (lot.shop < 0 && rnd() < 0.035) {
       const [x, z] = toWorld(lot, range(rnd, -hw + 0.6, hw - 0.6), lot.d / 2 + 0.7);
-      P.add(rnd() < 0.6 ? 'barrel_03' : 'Barrel_02', x, y0, z, rnd() * 6);
+      loose(rnd() < 0.6 ? 'barrel_03' : 'Barrel_02', x, y0, z, rnd() * 6);
     }
   }
 
@@ -158,15 +221,9 @@ export function buildProps(city: City, models: Assets['models']): { group: THREE
     if (!s) continue;
     const [x, z, f] = s;
     const kind = rnd();
-    if (kind < 0.45) {
-      P.add('metal_trash_can', x, y0, z, f + range(rnd, -0.5, 0.5));
-    } else if (kind < 0.7) {
-      P.add('utility_box_01', x, y0, z, f + Math.PI);
-      colliders.push(rect(x, z, 0.3, 0.3));
-    } else {
-      P.add('fire_hydrant', x, y0, z, f);
-      colliders.push(circle(x, z, 0.16));
-    }
+    if (kind < 0.45) loose('metal_trash_can', x, y0, z, f + range(rnd, -0.5, 0.5));
+    else if (kind < 0.7) loose('utility_box_01', x, y0, z, f + Math.PI);
+    else loose('fire_hydrant', x, y0, z, f);
   }
 
   // ---------- carros com capa (no lugar de parte dos estacionados) ----------
@@ -200,12 +257,12 @@ export function buildProps(city: City, models: Assets['models']): { group: THREE
   if (feira) {
     for (let k = 0; k < 6; k++) {
       const bx = feira.x - 25 + k * 10, bz = feira.z + 28;
-      for (let j = 0; j < 3; j++) P.add('cardboard_box_01', bx - 2.5 + j * 0.5 + range(rnd, -0.1, 0.1), 0.03, bz - 3.1, rnd() * 0.5);
-      if (k % 2 === 0) P.add('Barrel_02', bx + 3, 0.03, bz - 2.8, rnd() * 6);
+      for (let j = 0; j < 3; j++) loose('cardboard_box_01', bx - 2.5 + j * 0.5 + range(rnd, -0.1, 0.1), 0.03, bz - 3.1, rnd() * 0.5);
+      if (k % 2 === 0) loose('Barrel_02', bx + 3, 0.03, bz - 2.8, rnd() * 6);
     }
     // rádio no chão do lado do paredão
     P.add('boombox', feira.x - 27.5, 0.03, feira.z - 11.5, Math.PI / 5 + Math.PI);
-    P.add('metal_trash_can', feira.x + 30, 0.03, feira.z - 30, 1);
+    loose('metal_trash_can', feira.x + 30, 0.03, feira.z - 30, 1);
   }
   // balão: cones? não, tambor de obra da prefeitura
   for (let k = 0; k < 4; k++) {
@@ -214,5 +271,6 @@ export function buildProps(city: City, models: Assets['models']): { group: THREE
   }
 
   void pick;
-  return { group: P.build(models), colliders };
+  const built = P.build(models, new Set(breakables.map((b) => b.name)));
+  return { group: built.group, colliders, breakables, parts: built.parts };
 }
