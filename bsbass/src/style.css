@@ -51,6 +51,8 @@ h1 span { display: block; font-family: Anton, Impact, sans-serif; font-size: cla
   color: #fff; text-shadow: 0 0 24px rgba(61,139,255,0.55), 4px 4px 0 #0c2257; }
 h1 em { display: inline-block; font-style: normal; font-family: 'Permanent Marker', cursive; color: var(--y);
   font-size: clamp(30px, 9vw, 52px); transform: rotate(-4deg); text-shadow: 3px 3px 0 #000; }
+.game-logo { margin: 6px auto 2px; }
+.game-logo img { display: block; width: min(560px, 88vw); height: auto; margin: 0 auto; filter: drop-shadow(0 6px 18px rgba(0,0,0,0.6)); }
 .title-inner p { color: rgba(255,255,255,0.78); margin: 18px 0 26px; }
 .credits { display: block; margin-top: 26px; letter-spacing: 0.25em; font-size: 9px; color: rgba(255,255,255,0.35); }
 .btn-ghost { background: rgba(0,0,0,0.3); border: 1.5px solid rgba(255,255,255,0.8); padding: 12px 38px; letter-spacing: 0.3em; border-radius: 40px; font-weight: 600; }
@@ -312,3 +314,9 @@ body.touch .nowplaying { left: 12px; bottom: calc(132px + var(--safe-b)); right:
 #intro .i-hint { position: absolute; right: 16px; bottom: calc(14px + var(--safe-b)); font-size: 9px; letter-spacing: 0.3em; color: rgba(255,255,255,0.4); opacity: 0; transition: opacity 0.4s; }
 #intro .i-hint.on { opacity: 1; animation: blink 1.4s infinite; }
 @keyframes blink { 50% { opacity: 0.35; } }
+#intro .i-gate { position: absolute; inset: 0; display: grid; place-content: center; gap: 10px; background: none; border: 0; color: #fff; z-index: 2; }
+#intro .i-gate[hidden] { display: none; }
+#intro .i-gate span { font-family: Anton, sans-serif; font-size: clamp(26px, 6vw, 40px); letter-spacing: 0.12em; color: #ff1411;
+  text-shadow: 0 0 22px rgba(255,20,17,0.55); animation: blink 1.4s infinite; }
+#intro .i-gate small { font-size: 10px; letter-spacing: 0.35em; color: rgba(255,255,255,0.55); }
+@media (max-width: 420px) { .kicker { letter-spacing: 0.16em; font-size: 9px; } }

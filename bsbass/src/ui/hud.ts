@@ -539,7 +539,7 @@ const TEMPLATE = /* html */ `
   <div class="title-bg"></div>
   <div class="title-inner">
     <small class="kicker">CEILÂNDIA · SAMAMBAIA · SOL NASCENTE · DF 61</small>
-    <h1><span>BSBASS</span><em>DRIFT GAME</em></h1>
+    <h1 class="game-logo"><img src="./logo-game.webp" alt="BSBASS The Game" width="1200" height="519" /></h1>
     <p>Poeira vermelha, grave no talo e um Mustang azul na madrugada.</p>
     <nav class="main-menu">
       <button id="enter" class="mm primary"><span>JOGAR</span><small>a madrugada tá esperando</small></button>

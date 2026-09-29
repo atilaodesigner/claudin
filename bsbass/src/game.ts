@@ -289,6 +289,7 @@ export class Game {
     this.hud = new Hud(hudParent, this.input, this.radio, this.city);
     this.hud.vol = { ...this.save.vol };
     this.hud.onStart = () => {
+      this.fadeTheme();
       this.audio.start();
       this.radio.start();
       this.hud.renderRadio();
@@ -298,10 +299,14 @@ export class Game {
     };
     this.hud.onVolumes = (car, music) => {
       this.audio.setVolumes(car, music);
+      if (this.theme) this.theme.volume = music;
       this.save.vol = { car, music };
       this.persist();
     };
-    this.hud.onMute = (m) => this.audio.setMuted(m);
+    this.hud.onMute = (m) => {
+      this.audio.setMuted(m);
+      if (this.theme) this.theme.muted = m;
+    };
     this.hud.onRestart = () => {
       try { localStorage.removeItem(SAVE_KEY); } catch { /* sem storage */ }
       location.reload();
@@ -372,6 +377,7 @@ export class Game {
     }
     if (a === 'mute') {
       this.audio.setMuted(!this.audio.muted);
+      if (this.theme) this.theme.muted = this.audio.muted;
       this.hud.popup(this.audio.muted ? 'SEM SOM' : 'SOM LIGADO');
       return;
     }
@@ -452,6 +458,29 @@ export class Game {
     this.smoke.setViewportHeight(h * this.pixelRatio, this.camera.fov);
     this.sparks.setViewportHeight(h * this.pixelRatio, this.camera.fov);
     this.doodles.setViewportHeight(h * this.pixelRatio, this.camera.fov);
+  }
+
+  private theme: HTMLAudioElement | null = null;
+
+  /** música da abertura: segue no menu e some quando o jogador entra na rua */
+  setTheme(a: HTMLAudioElement): void {
+    this.theme = a;
+    a.muted = this.audio.muted;
+  }
+
+  private fadeTheme(): void {
+    const a = this.theme;
+    if (!a) return;
+    this.theme = null;
+    const v0 = a.volume;
+    const t0 = performance.now();
+    const step = () => {
+      const k = Math.min(1, (performance.now() - t0) / 1800);
+      a.volume = v0 * (1 - k);
+      if (k < 1) requestAnimationFrame(step);
+      else a.pause();
+    };
+    step();
   }
 
   /**

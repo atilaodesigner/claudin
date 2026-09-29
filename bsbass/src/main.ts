@@ -22,8 +22,16 @@ async function boot(): Promise<void> {
     loadAssets((done, total) => intro?.setProgress((done / total) * 0.75, `CARREGANDO A QUEBRADA ${Math.round((done / total) * 75)}%`)),
   );
 
-  if (intro) {
+  // música de abertura (já cortada 2 s pra entrar no ponto); toca nas logos e no menu
+  const theme = intro ? makeTheme() : null;
+  if (intro && theme) {
     await fonts;
+    const ok = await theme.play().then(() => true, () => false);
+    if (!ok) {
+      // navegador bloqueou som sem interação: um toque libera
+      await intro.gate();
+      await theme.play().catch(() => undefined);
+    }
     await intro.gueto();
     intro.startVideo();
   }
@@ -32,6 +40,7 @@ async function boot(): Promise<void> {
   // deixa o vídeo pegar embalo antes do trabalho pesado
   await new Promise((r) => setTimeout(r, intro ? 250 : 0));
   const game = new Game(document.getElementById('stage')!, document.getElementById('ui')!, assets);
+  if (theme) game.setTheme(theme);
   (window as unknown as { __game: Game }).__game = game;
   if (manual) {
     game.frame(1 / 60);
@@ -44,6 +53,20 @@ async function boot(): Promise<void> {
   await intro!.finish();
   // o loop só começa depois do fade (o menu já foi desenhado no warmup)
   game.start();
+}
+
+function makeTheme(): HTMLAudioElement {
+  const a = new Audio('./intro/tema.mp3');
+  a.preload = 'auto';
+  a.loop = true;
+  let vol = 0.7;
+  try {
+    vol = JSON.parse(localStorage.getItem('bsbass-drift-save-v1') || '{}')?.vol?.music ?? 0.7;
+  } catch {
+    /* sem storage */
+  }
+  a.volume = Math.min(1, Math.max(0, vol));
+  return a;
 }
 
 void boot();

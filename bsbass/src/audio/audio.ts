@@ -139,7 +139,7 @@ export class AudioSystem {
 
   private async loadSamples(): Promise<void> {
     const ctx = this.ctx!;
-    const names = ['eng_0', 'eng_1', 'eng_2', 'eng_3', 'eng_4', 'tire_loop', 'crash_mid', 'hit_small', 'hit_tiny', 'horn', 'pop1', 'pop2', 'pop3'];
+    const names = ['eng_0', 'eng_1', 'eng_2', 'eng_3', 'tire_loop', 'crash_mid', 'hit_small', 'hit_tiny', 'horn', 'pop1', 'pop2', 'pop3'];
     const mp3 = ['crash_big', 'rain_loop', 'dogs'];
     const load = async (n: string, ext: string) => {
       try {
@@ -152,8 +152,10 @@ export class AudioSystem {
     };
     await Promise.all([...names.map((n) => load(n, 'wav')), ...mp3.map((n) => load(n, 'mp3'))]);
 
-    // motor: 5 loops de rotação fixa, misturados e afinados pelo RPM
-    const native = [1100, 1426, 1864, 3677, 4054]; // proporcional à frequência de disparo de cada gravação
+    // motor: 4 loops de rotação fixa, misturados e afinados pelo RPM
+    // proporcional à frequência de disparo de cada gravação. A de 4.054 rpm saiu: tinha dois
+    // tons fortes (~400/600 Hz) que, acelerados no corte da 1ª marcha, soavam como buzina.
+    const native = [1100, 1426, 1864, 3677];
     if (native.every((_, i) => this.buf[`eng_${i}`])) {
       this.engLP = ctx.createBiquadFilter();
       this.engLP.type = 'lowpass';
@@ -292,6 +294,8 @@ export class AudioSystem {
     if (!this.samplesReady) return;
     // com as gravações carregadas, o sintetizado vira só um reforço grave
     this.eGain.gain.setTargetAtTime((0.16 + throttle * 0.24) * 0.22, t, k);
+    // reforço só no grave: os osciladores em tom puro no agudo também soavam como buzina
+    this.eFilter.frequency.setTargetAtTime(170 + rpm * 0.03, t, k);
     const r = 900 + (rpm - 900) * 0.72; // rotação "de áudio"
     const L = this.engLayers;
     let i = 0;
@@ -301,10 +305,11 @@ export class AudioSystem {
     L.forEach((l, j) => {
       const w = j === i ? Math.cos(x * Math.PI / 2) : j === i + 1 ? Math.sin(x * Math.PI / 2) : 0;
       l.gain.gain.setTargetAtTime(w, t, 0.03);
-      l.src.playbackRate.setTargetAtTime(Math.min(2, Math.max(0.5, r / l.native)), t, 0.03);
+      // tremidinha na rotação: motor de verdade nunca fica num tom parado
+      l.src.playbackRate.setTargetAtTime(Math.min(2, Math.max(0.5, r / l.native)) * (1 + (Math.random() - 0.5) * 0.014), t, 0.03);
     });
     this.engBus.gain.setTargetAtTime(0.5 + throttle * 0.5, t, 0.05);
-    this.engLP.frequency.setTargetAtTime(1400 + throttle * 7000 + rpm * 0.4, t, 0.05);
+    this.engLP.frequency.setTargetAtTime(1200 + throttle * 3800 + rpm * 0.3, t, 0.05);
     if (this.tireSrc) {
       const g = surfaceDirt ? rearSlip * 0.18 : Math.max(0, rearSlip - 0.15) * 0.75 * Math.min(1, speed / 6);
       this.tireSGain.gain.setTargetAtTime(g, t, 0.06);

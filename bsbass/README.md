@@ -14,7 +14,7 @@ A cidade, o Mustang, o neon, o áudio e as três rádios são procedurais. Por c
 | HDRI de rua à noite pros reflexos do carro (*Cobblestone Street Night*) | [Poly Haven](https://polyhaven.com) | `public/tex/night.hdr` |
 | Tambor, bombona, pneu velho, carro com capa, ar-condicionado, hidrante, lixeira, caixa de energia, barreira de concreto, saco de cimento, caixa de papelão, rádio | [Poly Haven](https://polyhaven.com) (coleção *Hidden Alley* e outros) | `public/models/` |
 
-| Motor (5 loops de rotação), pneu cantando, batidas, buzina, pipoco de escapamento, chuva, cachorro ao longe | [Freesound](https://freesound.org) (FreeCarSoundsGaming, audible-edge, magnuswaker, LPA134, qubodup, innov8_Music, Pól, craigsmith, mihnelis, FiretailHorizons) | `public/sfx/` |
+| Motor (4 loops de rotação), pneu cantando, batidas, buzina, pipoco de escapamento, chuva, cachorro ao longe | [Freesound](https://freesound.org) (FreeCarSoundsGaming, audible-edge, magnuswaker, LPA134, qubodup, innov8_Music, Pól, craigsmith, mihnelis, FiretailHorizons) | `public/sfx/` |
 
 **Carros de verdade (Sketchfab, CC-BY)**: `scripts/cars.json` lista o Mustang GT (S550, mesma carroceria do 2020) e os carros da rua (Gol, Gol G4, Uno, Uno com escada, Kombi, Fusca, Opala, Chevette, Palio, Corsa, Saveiro e um ônibus Comil). O Sketchfab só libera download com login, então precisa de um token (conta grátis → Settings → Password & API → API token) na variável `SKETCHFAB_TOKEN`:
 

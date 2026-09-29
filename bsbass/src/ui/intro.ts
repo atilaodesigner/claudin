@@ -67,7 +67,8 @@ export class Intro {
       </video></div>
       <div class="i-lines"></div>
       <div class="i-foot"><span class="i-label">CARREGANDO A QUEBRADA</span><div class="i-bar"><i></i></div></div>
-      <small class="i-hint">TOQUE PRA PULAR</small>`;
+      <small class="i-hint">TOQUE PRA PULAR</small>
+      <button class="i-gate" hidden><span>TOQUE PRA ENTRAR</span><small>🔊 com som</small></button>`;
     parent.appendChild(el);
     this.el = el;
     this.video = el.querySelector('video')!;
@@ -86,6 +87,23 @@ export class Intro {
   }
 
   private cleanup: () => void;
+
+  /** espera um toque/tecla (libera o som no navegador) */
+  gate(): Promise<void> {
+    const b = this.el.querySelector<HTMLButtonElement>('.i-gate')!;
+    b.hidden = false;
+    this.el.classList.add('loading');
+    return new Promise((resolve) => {
+      const go = (e: Event) => {
+        e.stopPropagation();
+        b.hidden = true;
+        window.removeEventListener('keydown', go, true);
+        resolve();
+      };
+      b.addEventListener('pointerdown', go, { once: true });
+      window.addEventListener('keydown', go, true);
+    });
+  }
 
   setProgress(f: number, label?: string): void {
     this.bar.style.transform = `scaleX(${Math.max(0, Math.min(1, f))})`;
