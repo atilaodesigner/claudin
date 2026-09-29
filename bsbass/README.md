@@ -13,7 +13,7 @@ A cidade, o Mustang, o neon, o áudio e as três rádios são procedurais. Por c
 | Asfalto rachado, tijolo, reboco, concreto, calçada, terra (fotos PBR) | [ambientCG](https://ambientcg.com) (Road012B, Bricks092, Plaster007, Concrete036, PavingStones136, Ground103) | `public/tex/` |
 | Tambor, bombona, pneu velho, carro com capa, ar-condicionado, hidrante, lixeira, caixa de energia, barreira de concreto, saco de cimento, caixa de papelão, rádio | [Poly Haven](https://polyhaven.com) (coleção *Hidden Alley* e outros) | `public/models/` |
 
-Os modelos foram otimizados com `gltf-transform` (texturas 512 px WebP, malha simplificada). Se algum asset não carregar, o jogo cai de volta na versão procedural.
+Os modelos foram otimizados com `gltf-transform` (texturas 512 px WebP, malha simplificada). Se algum asset não carregar, o jogo cai de volta na versão procedural. Pra hospedar onde `.glb` não é servido, dá pra buildar com `VITE_MODEL_EXT=.glb.wasm` e renomear os arquivos de `models/` (o carregador reconhece o GLB pelo conteúdo).
 
 ## Rodando
 

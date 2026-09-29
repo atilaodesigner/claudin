@@ -10,6 +10,9 @@ export const MODEL_NAMES = [
 ] as const;
 export type ModelName = (typeof MODEL_NAMES)[number];
 
+// a versão publicada como artifact serve os .glb com outra extensão (ver README)
+const MODEL_EXT: string = import.meta.env.VITE_MODEL_EXT || '.glb';
+
 export const PHOTO_NAMES = ['plaster', 'brick', 'concrete'] as const;
 export type PhotoName = (typeof PHOTO_NAMES)[number];
 
@@ -61,7 +64,7 @@ export async function loadAssets(onProgress?: (done: number, total: number) => v
   for (const n of MODEL_NAMES) {
     jobs.push(
       gltf
-        .loadAsync(`./models/${n}.glb`)
+        .loadAsync(`./models/${n}${MODEL_EXT}`)
         .then((g) => {
           assets.models[n] = g.scene;
         })
