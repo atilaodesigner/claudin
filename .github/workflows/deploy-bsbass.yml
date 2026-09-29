@@ -1,0 +1,126 @@
+# Publica o site BSBASS (bsbass/site) no Cloudflare Pages, projeto "bsbass", domínio bsbass.fun.
+# Usa os mesmos segredos do deploy do ABDUZIU (Settings → Secrets and variables → Actions):
+#   CLOUDFLARE_API_TOKEN   Account › Cloudflare Pages › Edit  (+ Zone › DNS › Edit e Zone › Single Redirect › Edit na zona bsbass.fun
+#                          para o DNS e o redirecionamento www → apex; sem elas o passo avisa e segue)
+#   CLOUDFLARE_ACCOUNT_ID  ID da conta
+name: Deploy BSBASS
+
+on:
+  push:
+    branches: [main, claude/lucid-wright-vi454a]
+    paths: ['bsbass/**', '.github/workflows/deploy-bsbass.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-bsbass
+  cancel-in-progress: true
+
+env:
+  PROJECT: bsbass
+  DOMAIN: bsbass.fun
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Criar o projeto no Cloudflare Pages (se ainda não existir)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4 pages project create "$PROJECT" --production-branch=main || echo "projeto já existe"
+
+      - name: Publicar o site (produção)
+        working-directory: bsbass/site
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4 pages deploy . --project-name="$PROJECT" --branch=main --commit-dirty=true
+
+      - name: Zona bsbass.fun na conta
+        id: zone
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          api() { curl -sS -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" "$@"; }
+          R=$(api "https://api.cloudflare.com/client/v4/zones?name=$DOMAIN")
+          ZONE=$(echo "$R" | jq -r '.result[0].id // empty')
+          if [ -z "$ZONE" ]; then
+            echo "zona $DOMAIN não encontrada; tentando adicionar à conta"
+            R=$(api -X POST "https://api.cloudflare.com/client/v4/zones" -d "{\"name\":\"$DOMAIN\",\"account\":{\"id\":\"$ACCOUNT\"},\"type\":\"full\"}")
+            echo "$R" | jq -c '{created: .success, errors: [.errors[]?.message]}'
+            ZONE=$(echo "$R" | jq -r '.result.id // empty')
+          fi
+          if [ -n "$ZONE" ]; then
+            api "https://api.cloudflare.com/client/v4/zones/$ZONE" | jq -c '{zone: .result.name, status: .result.status, nameservers: .result.name_servers, original_registrar: .result.original_registrar, original_nameservers: .result.original_name_servers}'
+          else
+            echo "::warning::zona $DOMAIN não está na conta e o token não consegue criá-la"
+          fi
+          echo "id=$ZONE" >> "$GITHUB_OUTPUT"
+
+      - name: Ligar bsbass.fun e www ao projeto (idempotente)
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ZONE: ${{ steps.zone.outputs.id }}
+        run: |
+          api() { curl -sS -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" "$@"; }
+          for HOST in "$DOMAIN" "www.$DOMAIN"; do
+            api -X POST "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/pages/projects/$PROJECT/domains" -d "{\"name\":\"$HOST\"}" | jq -c '{host: "'"$HOST"'", success, errors: [.errors[]?.message]}'
+            if [ -n "$ZONE" ]; then
+              EXISTS=$(api "https://api.cloudflare.com/client/v4/zones/$ZONE/dns_records?name=$HOST" | jq -r '.result | length // 0')
+              if [ "$EXISTS" = "0" ]; then
+                api -X POST "https://api.cloudflare.com/client/v4/zones/$ZONE/dns_records" \
+                  -d "{\"type\":\"CNAME\",\"name\":\"$HOST\",\"content\":\"$PROJECT.pages.dev\",\"proxied\":true}" | jq -c '{dns: "'"$HOST"'", success, errors: [.errors[]?.message]}'
+              else
+                api "https://api.cloudflare.com/client/v4/zones/$ZONE/dns_records?name=$HOST" | jq -c '.result[] | {dns: .name, type, content, proxied}'
+              fi
+            fi
+          done
+
+      - name: Redirecionar www.bsbass.fun → bsbass.fun (301, idempotente)
+        continue-on-error: true
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ZONE: ${{ steps.zone.outputs.id }}
+        run: |
+          [ -n "$ZONE" ] || { echo "::warning::sem zona, redirecionamento não criado"; exit 0; }
+          api() { curl -sS -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" "$@"; }
+          EP="https://api.cloudflare.com/client/v4/zones/$ZONE/rulesets/phases/http_request_dynamic_redirect/entrypoint"
+          RULE='{"description":"www-bsbass-to-apex","expression":"(http.host eq \"www.bsbass.fun\")","action":"redirect","action_parameters":{"from_value":{"status_code":301,"target_url":{"expression":"concat(\"https://bsbass.fun\", http.request.uri.path)"},"preserve_query_string":true}},"enabled":true}'
+          CUR=$(api "$EP")
+          if [ "$(echo "$CUR" | jq -r '.success')" = "true" ]; then
+            if echo "$CUR" | jq -e '.result.rules[]? | select(.description == "www-bsbass-to-apex")' >/dev/null; then
+              echo "regra www → apex já existe"
+            else
+              RID=$(echo "$CUR" | jq -r '.result.id')
+              api -X POST "https://api.cloudflare.com/client/v4/zones/$ZONE/rulesets/$RID/rules" -d "$RULE" | jq -c '{redirect: "added", success, errors: [.errors[]?.message]}'
+            fi
+          else
+            api -X PUT "$EP" -d "{\"rules\":[$RULE]}" | jq -c '{redirect: "created", success, errors: [.errors[]?.message]}'
+          fi
+
+      - name: Conferir (domínios, _headers, respostas)
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          sleep 20
+          api() { curl -sS -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" "$@"; }
+          api "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/pages/projects/$PROJECT/domains" | jq -c '.result[]? | {domain: .name, status, verification: .verification_data.status, validation: .validation_data.status, error: (.verification_data.error_message // .validation_data.error_message)}'
+          show() { echo "== $1"; curl -sS -o /dev/null -D - --max-time 20 "$1" | grep -iE '^(HTTP/|cache-control|location|content-type)' || echo "(sem resposta)"; }
+          show "https://$PROJECT.pages.dev/"
+          show "https://$PROJECT.pages.dev/assets/bsbass.webp"
+          show "https://$PROJECT.pages.dev/vendor/three.min.js"
+          show "https://$PROJECT.pages.dev/index.html"
+          show "https://$DOMAIN/"
+          show "https://$DOMAIN/assets/bsbass.webp"
+          show "https://www.$DOMAIN/assets/bsbass.webp?x=1"

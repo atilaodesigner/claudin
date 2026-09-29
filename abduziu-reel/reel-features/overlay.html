@@ -1,0 +1,128 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>ABDUZIU feature reel overlay</title>
+<style>
+  @font-face { font-family: 'BC'; font-weight: 900; font-style: italic; src: url(fonts/barlow-condensed-latin-900-italic.woff2) format('woff2'); }
+  @font-face { font-family: 'BC'; font-weight: 800; font-style: italic; src: url(fonts/barlow-condensed-latin-800-italic.woff2) format('woff2'); }
+  @font-face { font-family: 'BC'; font-weight: 900; font-style: normal; src: url(fonts/barlow-condensed-latin-900-normal.woff2) format('woff2'); }
+  @font-face { font-family: 'BC'; font-weight: 700; font-style: normal; src: url(fonts/barlow-condensed-latin-700-normal.woff2) format('woff2'); }
+  @font-face { font-family: 'CP'; font-weight: 700; src: url(fonts/chakra-petch-latin-700-normal.woff2) format('woff2'); }
+  @font-face { font-family: 'CP'; font-weight: 600; src: url(fonts/chakra-petch-latin-600-normal.woff2) format('woff2'); }
+
+  :root {
+    --green: #5dffa0;
+    --gold: #ffcf3f;
+    --pink: #ff5ad1;
+    --cyan: #4dc9ff;
+    --red: #ff4d5e;
+    --ink: #07110c;
+  }
+  html, body { margin: 0; width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+  #stage { position: absolute; inset: 0; overflow: hidden; }
+  .abs { position: absolute; }
+
+  /* ── caption */
+  .cap { position: absolute; left: 0; right: 0; top: 262px; display: flex; flex-direction: column; align-items: center; gap: 10px; transform-origin: 50% 0; }
+  .line { display: flex; gap: 22px; justify-content: center; align-items: baseline; }
+  .w {
+    display: inline-block; font-family: 'BC'; font-weight: 900; font-style: italic; font-size: 128px; line-height: 0.9;
+    color: #fff; letter-spacing: 0.005em; text-transform: uppercase; padding: 0 0.04em;
+    text-shadow: 0 7px 0 rgba(0, 0, 0, 0.55), 0 0 36px rgba(0, 0, 0, 0.55);
+    -webkit-text-stroke: 3px rgba(0, 0, 0, 0.28); paint-order: stroke fill;
+  }
+  .hl { position: relative; display: inline-block; padding: 6px 30px 10px 26px; }
+  .hl .box { position: absolute; inset: 0; background: var(--acc); transform: skewX(-10deg); transform-origin: 0 50%; box-shadow: 0 10px 0 rgba(0, 0, 0, 0.4), 0 0 60px color-mix(in srgb, var(--acc) 55%, transparent); border-radius: 6px; }
+  .hl .w { position: relative; color: var(--ink); text-shadow: none; -webkit-text-stroke: 0; }
+  .sub {
+    margin-top: 18px; font-family: 'CP'; font-weight: 700; font-size: 40px; letter-spacing: 0.08em; color: #fff; text-transform: uppercase;
+    background: rgba(6, 10, 18, 0.72); border: 2px solid color-mix(in srgb, var(--acc) 70%, transparent); padding: 10px 26px 12px; border-radius: 999px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+  }
+  .sub b { color: var(--acc); font-weight: 700; }
+
+  /* ── place chip */
+  .chip {
+    position: absolute; left: 50%; font-family: 'CP'; font-weight: 700; font-size: 32px; letter-spacing: 0.14em; color: #fff;
+    background: rgba(6, 10, 18, 0.66); border-radius: 999px; padding: 10px 26px 10px 18px; display: flex; align-items: center; gap: 12px;
+    transform: translateX(-50%); white-space: nowrap; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+  }
+  .chip svg { width: 30px; height: 30px; }
+
+  /* ── cut flash */
+  #flash { position: absolute; inset: 0; background: #fff; opacity: 0; }
+
+  /* ── world tags (legends, friends) */
+  .tag {
+    position: absolute; transform: translate(-50%, -100%); font-family: 'BC'; font-weight: 900; font-style: italic; font-size: 52px; letter-spacing: 0.02em;
+    color: var(--ink); background: var(--acc); padding: 4px 18px 6px; border-radius: 10px; white-space: nowrap; text-transform: uppercase;
+    box-shadow: 0 6px 0 rgba(0, 0, 0, 0.35), 0 0 30px color-mix(in srgb, var(--acc) 50%, transparent);
+  }
+  .tag::after { content: ''; position: absolute; left: 50%; bottom: -14px; margin-left: -12px; border: 12px solid transparent; border-bottom: 0; border-top-color: var(--acc); }
+  .nick {
+    position: absolute; transform: translate(-50%, -100%); font-family: 'CP'; font-weight: 700; font-size: 34px; color: #fff; white-space: nowrap;
+    background: rgba(6, 10, 18, 0.72); border: 2px solid var(--acc); padding: 5px 16px 6px 12px; border-radius: 999px; display: flex; align-items: center; gap: 10px;
+  }
+  .nick i { width: 14px; height: 14px; border-radius: 50%; background: var(--acc); box-shadow: 0 0 12px var(--acc); display: inline-block; }
+  .nick small { color: rgba(255, 255, 255, 0.55); font-size: 24px; }
+
+  /* ── toast (friend joined) */
+  .toast {
+    position: absolute; left: 50%; top: 588px; width: 820px; margin-left: -410px; display: flex; align-items: center; gap: 22px; box-sizing: border-box;
+    background: rgba(8, 14, 26, 0.88); border: 2px solid rgba(77, 201, 255, 0.55); border-radius: 26px; padding: 22px 28px; color: #fff;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+  }
+  .toast .av { width: 74px; height: 74px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff6, transparent 60%), var(--pink); flex: none; display: grid; place-items: center; font-family: 'BC'; font-weight: 900; font-size: 40px; color: var(--ink); }
+  .toast .tx { flex: 1; font-family: 'CP'; font-weight: 600; font-size: 30px; line-height: 1.25; }
+  .toast .tx b { font-weight: 700; color: var(--pink); }
+  .toast .tx small { display: block; color: rgba(255, 255, 255, 0.6); font-size: 24px; letter-spacing: 0.08em; }
+  .toast .bt { font-family: 'BC'; font-weight: 900; font-style: italic; font-size: 38px; background: var(--green); color: var(--ink); padding: 10px 22px; border-radius: 14px; }
+
+  /* ── counters, alerts, skin card */
+  .count { position: absolute; left: 50%; top: 1350px; transform: translateX(-50%); display: flex; align-items: baseline; gap: 16px; white-space: nowrap; }
+  .count .n { font-family: 'BC'; font-weight: 900; font-style: italic; font-size: 150px; line-height: 0.9; color: var(--acc); text-shadow: 0 8px 0 rgba(0, 0, 0, 0.5), 0 0 40px rgba(0, 0, 0, 0.5); }
+  .count .l { font-family: 'CP'; font-weight: 700; font-size: 34px; letter-spacing: 0.12em; color: #fff; text-shadow: 0 3px 10px rgba(0, 0, 0, 0.8); }
+  .alert {
+    position: absolute; left: 50%; top: 1380px; transform: translateX(-50%); font-family: 'CP'; font-weight: 700; font-size: 38px; letter-spacing: 0.16em; color: #fff;
+    background: rgba(120, 0, 16, 0.78); border: 3px solid var(--red); padding: 14px 30px; border-radius: 14px; white-space: nowrap; box-shadow: 0 0 50px rgba(255, 60, 80, 0.5);
+  }
+  .burst { position: absolute; transform: translate(-50%, -50%) rotate(-8deg); font-family: 'BC'; font-weight: 900; font-style: italic; font-size: 150px; color: var(--pink); white-space: nowrap;
+    text-shadow: 0 8px 0 #4a0035, 0 0 50px rgba(255, 90, 209, 0.6); -webkit-text-stroke: 5px #fff; paint-order: stroke fill; }
+  .skin { position: absolute; left: 50%; top: 1340px; transform: translateX(-50%); text-align: center; white-space: nowrap; }
+  .skin .tier { font-family: 'CP'; font-weight: 700; font-size: 34px; letter-spacing: 0.24em; color: var(--acc); text-shadow: 0 0 20px var(--acc); }
+  .skin .nm { font-family: 'BC'; font-weight: 900; font-style: italic; font-size: 110px; line-height: 0.95; color: #fff; text-shadow: 0 7px 0 rgba(0, 0, 0, 0.5), 0 0 40px rgba(0, 0, 0, 0.5); }
+  .skin .dots { display: flex; justify-content: center; gap: 12px; margin-top: 16px; }
+  .skin .dots i { width: 18px; height: 18px; border-radius: 50%; background: rgba(255, 255, 255, 0.25); display: block; }
+  .skin .dots i.on { background: var(--acc); box-shadow: 0 0 14px var(--acc); }
+  .gauge { position: absolute; left: 50%; top: 1350px; transform: translateX(-50%); width: 760px; }
+  .gauge .row { display: flex; justify-content: space-between; align-items: baseline; font-family: 'CP'; font-weight: 700; font-size: 32px; letter-spacing: 0.14em; color: #fff; text-shadow: 0 3px 10px rgba(0, 0, 0, 0.8); }
+  .gauge .row b { font-family: 'BC'; font-weight: 900; font-style: italic; font-size: 96px; letter-spacing: 0; color: var(--acc); text-shadow: 0 7px 0 rgba(0, 0, 0, 0.5); }
+  .gauge .bar { height: 22px; border-radius: 99px; background: rgba(6, 10, 18, 0.7); margin-top: 10px; overflow: hidden; border: 2px solid rgba(255, 255, 255, 0.2); }
+  .gauge .bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--green), var(--gold)); border-radius: 99px; }
+
+  /* ── end card */
+  #endShade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(3, 5, 14, 0.78) 0%, rgba(3, 5, 14, 0.35) 38%, rgba(3, 5, 14, 0.35) 62%, rgba(3, 5, 14, 0.85) 100%); opacity: 0; }
+  #end { position: absolute; left: 0; right: 0; top: 470px; display: flex; flex-direction: column; align-items: center; opacity: 0; }
+  .wordmark {
+    font-family: 'BC'; font-weight: 900; font-style: italic; font-size: 232px; line-height: 0.9; letter-spacing: 0.01em; padding: 0 0.08em;
+    background: linear-gradient(180deg, #fff3b0 0%, #ffcf3f 45%, #ff9f1c 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 8px 0 #9c5800) drop-shadow(0 0 50px rgba(255, 207, 63, 0.45));
+  }
+  .tagline { margin-top: 14px; font-family: 'CP'; font-weight: 700; font-size: 34px; letter-spacing: 0.3em; color: rgba(255, 255, 255, 0.85); }
+  .cta {
+    margin-top: 64px; font-family: 'BC'; font-weight: 900; font-style: italic; font-size: 104px; line-height: 1; color: var(--ink); background: var(--green);
+    padding: 22px 64px 28px; border-radius: 30px; box-shadow: 0 12px 0 #1a8a52, 0 0 80px rgba(93, 255, 160, 0.55);
+  }
+  .url { margin-top: 40px; font-family: 'CP'; font-weight: 700; font-size: 64px; letter-spacing: 0.04em; color: #fff; text-shadow: 0 4px 20px rgba(0, 0, 0, 0.8); }
+  .url b { color: var(--green); }
+  .fine { margin-top: 18px; font-family: 'CP'; font-weight: 700; font-size: 30px; letter-spacing: 0.2em; color: rgba(255, 255, 255, 0.72); }
+  .cities { margin-top: 44px; display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; width: 900px; }
+  .cities span { font-family: 'CP'; font-weight: 700; font-size: 26px; letter-spacing: 0.12em; color: #fff; background: rgba(255, 255, 255, 0.1); border: 2px solid rgba(255, 255, 255, 0.22); padding: 8px 18px; border-radius: 999px; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script src="overlay.js"></script>
+</body>
+</html>

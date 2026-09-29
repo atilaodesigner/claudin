@@ -1,0 +1,8 @@
+frames/
+preview*/
+ov_*/
+ovtest/
+sheets/
+*.wav
+*.log
+node_modules
