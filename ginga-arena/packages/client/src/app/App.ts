@@ -7,6 +7,7 @@ import { ERR, type BotLevel, type LobbyMsg, type SimEvent, type Team } from '@gi
 import { Sfx } from '../audio/Sfx';
 import { LocalGame } from '../game/LocalGame';
 import { NetGame } from '../game/NetGame';
+import { NetError } from '../net/NetRoom';
 import type { Game, View } from '../game/types';
 import { Controls } from '../input/Controls';
 import { Scene3D, TEAM_SYMBOL } from '../render/Scene3D';
@@ -76,6 +77,7 @@ export class App {
     const resumed = await NetGame.resume(this.controls, this.netHandlers());
     if (resumed) {
       this.net = resumed;
+      if (resumed.lobby) this.onLobby(resumed.lobby);
       this.toast('De volta à partida!');
       return;
     }
@@ -192,14 +194,16 @@ export class App {
     try {
       this.net = await connect();
       setSala(this.net.code);
+      // the room state may have arrived before this.net was set (fast servers)
+      if (this.net.lobby) this.onLobby(this.net.lobby);
     } catch (e) {
-      const code = (e as { code?: number }).code;
+      const code = e instanceof NetError ? e.code : 0;
       const msg =
         code === ERR.VERSION
           ? 'Tem versão nova do jogo. Recarregue a página.'
-          : code === ERR.FULL || /full|locked/i.test(String(e))
+          : code === ERR.FULL
             ? 'Sala cheia. Cria outra?'
-            : /not found|invalid|room/i.test(String(e))
+            : code === ERR.NOT_FOUND
               ? 'Código não encontrado. Confere aí?'
               : 'Não deu pra conectar no servidor. Tenta de novo, ou treina enquanto isso.';
       this.toast(msg, 'error');

@@ -14,13 +14,9 @@
  *   server event; unconfirmed ones are counted as rejected (debug panel).
  */
 
-import { Client, type Room } from '@colyseus/sdk';
 import {
   Bot,
   Match,
-  PROTOCOL_VERSION,
-  ROOM_NAME,
-  SIM_VERSION,
   SNAPSHOT_EVERY,
   TICK_HZ,
   type LobbyMsg,
@@ -29,20 +25,12 @@ import {
   type SnapMsg,
 } from '@ginga/shared';
 import { session } from '../app/storage';
+import { createRoom, joinRoom, resumeRoom, type NetRoom } from '../net/NetRoom';
 import type { Controls } from '../input/Controls';
 import { toWorld } from '../input/Controls';
 import { viewFromState, type Game, type View } from './types';
 
 const TICK_MS = 1000 / TICK_HZ;
-
-export function serverUrl(): string {
-  const param = new URLSearchParams(location.search).get('server');
-  if (param) return param;
-  const env = (import.meta.env.VITE_SERVER_URL as string | undefined) ?? '';
-  if (env) return env;
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  return `${proto}://${location.hostname || 'localhost'}:2567`;
-}
 
 export interface NetHandlers {
   onLobby(m: LobbyMsg): void;
@@ -111,7 +99,7 @@ export class NetGame implements Game {
   /** Lab mode (?autobot=level): a bot plays through the exact same input path. */
   private autobot: Bot | null = null;
 
-  private constructor(private readonly room: Room, private readonly controls: Controls, handlers: NetHandlers) {
+  private constructor(private readonly room: NetRoom, private readonly controls: Controls, handlers: NetHandlers) {
     session('reconnect', room.reconnectionToken);
     room.onMessage('lobby', (m: LobbyMsg) => {
       this.lobby = m;
@@ -140,13 +128,11 @@ export class NetGame implements Game {
   }
 
   static async create(name: string, controls: Controls, h: NetHandlers): Promise<NetGame> {
-    const room = await new Client(serverUrl()).create(ROOM_NAME, { name, pv: PROTOCOL_VERSION, sv: SIM_VERSION });
-    return new NetGame(room, controls, h);
+    return new NetGame(await createRoom(name), controls, h);
   }
 
   static async join(code: string, name: string, controls: Controls, h: NetHandlers): Promise<NetGame> {
-    const room = await new Client(serverUrl()).joinById(code.toUpperCase(), { name, pv: PROTOCOL_VERSION, sv: SIM_VERSION });
-    return new NetGame(room, controls, h);
+    return new NetGame(await joinRoom(code.toUpperCase(), name), controls, h);
   }
 
   /** After a page reload inside the 15 s window. */
@@ -154,8 +140,7 @@ export class NetGame implements Game {
     const token = session('reconnect');
     if (!token) return null;
     try {
-      const room = await new Client(serverUrl()).reconnect(token);
-      return new NetGame(room, controls, h);
+      return new NetGame(await resumeRoom(token), controls, h);
     } catch {
       session('reconnect', null);
       return null;
@@ -178,7 +163,7 @@ export class NetGame implements Game {
     this.disposed = true;
     session('reconnect', null);
     try {
-      await this.room.leave(true);
+      await this.room.leave();
     } catch {
       /* already gone */
     }
@@ -187,7 +172,7 @@ export class NetGame implements Game {
   // ── clock ──────────────────────────────────────────────────────────────────
 
   private ping(): void {
-    if (this.room.connection.isOpen) this.room.send('ping', { c: performance.now() });
+    if (this.room.isOpen) this.room.send('ping', { c: performance.now() });
   }
 
   private onPong(m: { c: number; t: number }): void {
@@ -333,7 +318,7 @@ export class NetGame implements Game {
   }
 
   private sendInputs(count: number): void {
-    if (!this.room.connection.isOpen) return;
+    if (!this.room.isOpen) return;
     this.room.send('in', { f: this.sent.slice(-count) });
   }
 

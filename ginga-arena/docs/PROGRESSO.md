@@ -104,9 +104,29 @@ erros de página: nenhum
   - A correção da bola no lado do jogador local deu 0,0 cm no p95. É esperado com simulação determinística: ali a bola só depende dos seus próprios inputs. As correções aparecem no avatar (inputs atrasados) e na bola vinda do adversário (suavizadas, fora da métrica).
   - Ainda não testado: Firefox, Safari, celular real, duas redes diferentes, 10 partidas completas seguidas. Continuam pendentes no checklist da §11.
 
+## 2026-09-29: toque atrasado e jogo no ar (B6)
+
+**Toque atrasado, executado:**
+- ✅ `RoomCore`: um toque/ataque que chega até **8 ticks** atrasado é aplicado no tick certo, re-simulando esses ticks. Só acontece se nada visível mudou no intervalo (contato, travessia, chão, falta, fase); senão mescla no tick atual como antes (D-26). Os ids de evento continuam crescendo.
+- ✅ Teste: dois bots pelo `RoomCore`, com o segundo chegando 4 ticks atrasado; o servidor re-simula e os toques dele acontecem. Ids nunca se repetem.
+
+**Hospedagem, executado:**
+- ✅ Regras da sala extraídas para `RoomCore` (packages/shared). O servidor Colyseus virou um adaptador de ~90 linhas (D-23), e os 7 testes de integração continuam passando.
+- ✅ `packages/edge`: Worker + Durable Object (uma sala por código, dica de região `sam`), JSON por WebSocket, reconexão por token (15 s), `POST /api/new`, `/api/health`.
+- ✅ Rapier no Worker: WASM extraído no build e importado como módulo, com os mesmos bytes (D-25).
+- 🧪 No `workerd` local (`wrangler dev`):
+  - 60,2 ticks/s e 20,6 snapshots/s;
+  - mesmo ponto nos dois clientes;
+  - 3º jogador recusado (sala cheia);
+  - queda → pausa → reconexão por token na mesma vaga;
+  - saída → W.O.
+- 🧪 Dois Chromium com bots pelo Worker local, 100 s: 75 toques previstos, 72 confirmados, placar igual, sem erros de página.
+- ⚠️ Containers da Cloudflare: a API negou acesso. Nenhum provedor de VM disponível. Por isso a produção usa Durable Objects (D-24); o Colyseus segue para desenvolvimento.
+- ✅ Worker `ginga-arena-server` publicado daqui (1,2 MB gzip, inicialização em 5 ms). O site é publicado pelo GitHub Actions (D-27): o upload do Pages direto deste ambiente foi recusado pelo proxy de credenciais.
+
 ## Próximos passos
 
-1. **B5, fechar a meta de 100 ms:** contato retroativo limitado no servidor (≤ 6 ticks, só com bola do próprio lado e sem contato no meio) e aceitar pressionamentos atrasados até ~30 ticks (movimento descartado, toque avaliado no tick original). Repetir o laboratório.
-2. **B6, staging:** cliente no Cloudflare Pages + servidor Node persistente em São Paulo. É custo, então precisa de confirmação antes de criar recurso pago.
+1. Medir no ar: laboratório contra `ginga-arena.pages.dev` e partidas entre pessoas em redes diferentes (checklist §11), com RTT real a partir de capitais brasileiras.
+2. Rodízio de logs de partida no Durable Object (hoje o log de inputs fica só no Colyseus/Node).
 3. Checklist §11 com pessoas: dois aparelhos em redes diferentes, 10 partidas, Firefox/Safari/iPhone/Android.
 4. Marco C: playtests, ajuste de janelas e alcance, finta, tutorial de 5 passos, remapeamento, controles de toque ajustáveis (hoje os botões da direita cobrem um pouco o canto da quadra no celular).

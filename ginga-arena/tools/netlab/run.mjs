@@ -5,6 +5,7 @@
 // Needs: the server running (npm run start:server), the client built and served
 // (npm run build && npx vite preview --port 4173 in packages/client), Playwright.
 //   node run.mjs --proxy 2600 --seconds 90 --label "100ms"
+//   node run.mjs --backend edge --server-url http://127.0.0.1:8787   (Cloudflare Worker, local or deployed)
 import { chromium } from 'playwright';
 
 const arg = (name, def) => {
@@ -15,7 +16,8 @@ const PROXY = arg('proxy', '2600');
 const SECONDS = Number(arg('seconds', '90'));
 const LABEL = arg('label', `proxy ${PROXY}`);
 const CLIENT = arg('client', 'http://localhost:4173');
-const server = `ws://localhost:${PROXY}`;
+const BACKEND = arg('backend', 'colyseus');
+const server = arg('server-url', BACKEND === 'edge' ? `http://localhost:${PROXY}` : `ws://localhost:${PROXY}`);
 
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const errors = [];
@@ -23,7 +25,7 @@ async function page(name, extra = '') {
   const ctx = await browser.newContext({ viewport: { width: 480, height: 270 } });
   const p = await ctx.newPage();
   p.on('pageerror', (e) => errors.push(`${name}: ${e.message}`));
-  await p.goto(`${CLIENT}/?intro=0&autobot=medium&server=${encodeURIComponent(server)}${extra}`);
+  await p.goto(`${CLIENT}/?intro=0&autobot=medium&backend=${BACKEND}&server=${encodeURIComponent(server)}${extra}`);
   await p.waitForTimeout(1200);
   await p.keyboard.press('Enter');
   await p.waitForSelector('.panel.home', { timeout: 20000 });

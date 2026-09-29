@@ -1,0 +1,9 @@
+# Cloudflare Pages config for GINGA ARENA (deployed from this folder).
+name = "ginga-arena"
+pages_build_output_dir = "./dist"
+compatibility_date = "2026-09-01"
+
+# /api/* goes to the match server Worker (packages/edge)
+[[services]]
+binding = "SERVER"
+service = "ginga-arena-server"

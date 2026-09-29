@@ -5,3 +5,4 @@ export * from './physics';
 export * from './sim';
 export * from './bot';
 export * from './protocol';
+export * from './room';

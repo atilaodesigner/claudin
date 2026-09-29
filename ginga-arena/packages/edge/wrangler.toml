@@ -1,0 +1,23 @@
+# GINGA ARENA match server on Cloudflare: one Durable Object per room code.
+# The site (Cloudflare Pages) reaches it through a service binding at /api/*.
+name = "ginga-arena-server"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+workers_dev = false
+
+# Rapier without runtime WASM compilation (see scripts/prepare-rapier.mjs)
+[alias]
+"@dimforge/rapier3d-deterministic-compat" = "./generated/rapier.mjs"
+
+[[rules]]
+type = "CompiledWasm"
+globs = ["**/*.wasm"]
+fallthrough = false
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "GameRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["GameRoom"]

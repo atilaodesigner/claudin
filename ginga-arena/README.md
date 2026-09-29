@@ -6,6 +6,20 @@ Futevôlei arcade 2,5D para navegador, com multiplayer online autoritativo (1v1 
 
 **Status:** Marco B (protótipo técnico online) jogável: 1v1 online com servidor autoritativo, treino e partida contra bot, abertura animada. Arte e animação definitivas vêm no Marco D.
 
+**Jogue:** https://ginga-arena.pages.dev: crie uma sala e mande o link.
+
+## No ar
+
+| Parte | Onde | Como |
+|---|---|---|
+| Site | Cloudflare Pages `ginga-arena` | `packages/client` (build com `VITE_BACKEND=edge`) |
+| Salas | Worker `ginga-arena-server`, um Durable Object por código (perto da América do Sul) | `packages/edge` |
+| Ligação | `/api/*` do site → Worker (service binding, mesma origem) | `packages/client/functions` + `wrangler.toml` |
+
+O deploy roda sozinho pelo GitHub Actions ([`deploy-ginga-arena.yml`](../.github/workflows/deploy-ginga-arena.yml)) a cada push que mexe em `ginga-arena/`: typecheck, testes, build, Worker e site. Ele usa os segredos `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID` do repositório.
+
+As regras da sala ficam em `RoomCore` (`packages/shared/src/room.ts`). O Durable Object (produção) e o Colyseus (desenvolvimento, ou uma VM Node no futuro) só transportam mensagens.
+
 ## Rodando
 
 Precisa de Node 22+.
@@ -22,9 +36,11 @@ Pra jogar online com outra pessoa na mesma rede: abra `http://SEU-IP:5173`, cliq
 |---|---|
 | `npm run dev` | servidor + cliente com hot reload |
 | `npm test` | testes de regras/simulação (shared) e de sala (server, com clientes reais) |
-| `npm run typecheck` | TypeScript estrito nos três pacotes |
+| `npm run typecheck` | TypeScript estrito nos quatro pacotes |
 | `npm run build` | build de produção do cliente (`packages/client/dist`) |
-| `npm run start:server` | só o servidor de partidas (`PORT`, `GINGA_LOG_DIR` opcionais) |
+| `npm run start:server` | só o servidor de partidas Colyseus (`PORT`, `GINGA_LOG_DIR` opcionais) |
+| `npm run dev:edge` | servidor de produção (Worker + Durable Object) rodando local no `workerd`, porta 8787; o cliente usa `?backend=edge&server=http://127.0.0.1:8787` |
+| `npm run deploy:server` | publica o Worker das salas (precisa de credenciais Cloudflare) |
 
 ### Controles
 
@@ -54,7 +70,8 @@ node tools/netlab/run.mjs --proxy 2600 --seconds 90       # precisa do pacote pl
 
 ```
 packages/shared   regras, parâmetros, simulação (Rapier), bot, protocolo: sem DOM
-packages/server   Node + Colyseus 0.18: salas por código, 60 Hz autoritativo
+packages/server   Node + Colyseus 0.18: host das salas para desenvolvimento local
+packages/edge     Cloudflare Worker + Durable Objects: host das salas em produção
 packages/client   Vite + Three.js + HTML/CSS: abertura, telas, HUD, previsão e interpolação
 tools/netlab      proxy de latência e executor de partidas com bots
 ```
