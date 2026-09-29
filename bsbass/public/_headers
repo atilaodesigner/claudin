@@ -1,0 +1,26 @@
+# Cloudflare Pages: cache. Os arquivos de /assets têm hash no nome (Vite): cache eterno.
+# O resto não tem hash: cache curto que revalida, pra atualização aparecer logo.
+/
+  Cache-Control: public, max-age=0, must-revalidate
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+/models/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/tex/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/sfx/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/campaign/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/intro/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/classico/
+  Cache-Control: public, max-age=0, must-revalidate
+/classico/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+/classico/assets/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/classico/vendor/*
+  Cache-Control: public, max-age=31536000, immutable

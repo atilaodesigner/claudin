@@ -48,6 +48,10 @@ npm run dev        # http://localhost:5173 (também na rede local pra testar no 
 
 O build é estático (`base: './'`): dá pra hospedar `dist/` em qualquer lugar.
 
+### No ar: bsbass.fun (Cloudflare Pages)
+
+`.github/workflows/deploy-bsbass.yml` publica a cada push em `main` (ou no branch do jogo) que mexa em `bsbass/`: testa, builda, junta o BSBASS THE GAME original (`site/`) em `/classico` e sobe tudo pro projeto `bsbass` do Cloudflare Pages, ligado a **bsbass.fun** (e www → apex). Usa os segredos do repositório `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID`. Cache em `public/_headers`. Na mão: `npm run build`, copiar `site/index.html`, `site/assets` e `site/vendor` pra `dist/classico/` e `npx wrangler pages deploy dist --project-name=bsbass --branch=main`.
+
 ## Controles
 
 | | Toque (celular) | Teclado | Controle |

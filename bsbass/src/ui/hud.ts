@@ -833,7 +833,7 @@ const TEMPLATE = /* html */ `
     </section>
     <section class="cred">
       <h4>CAMPANHA</h4>
-      <p>BSBASS THE GAME: capítulos, carros do bonde, pilotos, viatura, caminhão, ferro-velho e bandeira do jogo original.</p>
+      <p>BSBASS THE GAME: capítulos, carros do bonde, pilotos, viatura, caminhão, ferro-velho e bandeira do jogo original. O original continua em <a href="./classico/" target="_blank" rel="noopener">bsbass.fun/classico</a>.</p>
     </section>
     <section class="cred">
       <h4>TEXTURAS E HDRI</h4>
