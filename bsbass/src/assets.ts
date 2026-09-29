@@ -6,6 +6,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import type { CarEntry } from './car/gltfCar';
+import { CAMPAIGN_MODELS, loadCampaignModels } from './campaign/models';
 
 export const MODEL_NAMES = [
   'barrel_03', 'Barrel_02', 'old_tyre', 'covered_car', 'exterior_aircon_unit', 'fire_hydrant',
@@ -44,7 +45,7 @@ export async function loadAssets(onProgress?: (done: number, total: number) => v
   const gltf = new GLTFLoader();
   gltf.setMeshoptDecoder(MeshoptDecoder);
   const texNames = ['asphalt', 'asphalt_n', 'asphalt_r', 'sidewalk', 'sidewalk_n', 'dirt', 'dirt_n', 'conc', 'rebar', 'metal', 'bark', 'leaves'] as const;
-  const total = PHOTO_NAMES.length + texNames.length + MODEL_NAMES.length + 1;
+  const total = PHOTO_NAMES.length + texNames.length + MODEL_NAMES.length + CAMPAIGN_MODELS.length + 1;
   let done = 0;
   const tick = () => onProgress?.(++done, total);
 
@@ -109,6 +110,8 @@ export async function loadAssets(onProgress?: (done: number, total: number) => v
       )
       .then(() => undefined),
   );
+  // capítulos e ferro-velho do BSBASS THE GAME
+  jobs.push(loadCampaignModels(gltf, tick));
   await Promise.all(jobs);
   // ordem estável (o carregamento termina em ordem aleatória)
   assets.cars.sort((a, b) => a.entry.id.localeCompare(b.entry.id));

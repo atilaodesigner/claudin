@@ -182,6 +182,18 @@ export class SpatialGrid<T extends Shape> {
     }
   }
 
+  remove(s: T): void {
+    const [x0, z0, x1, z1] = shapeBounds(s);
+    for (let ix = Math.floor(x0 / this.cell); ix <= Math.floor(x1 / this.cell); ix++) {
+      for (let iz = Math.floor(z0 / this.cell); iz <= Math.floor(z1 / this.cell); iz++) {
+        const list = this.cells.get(this.key(ix, iz));
+        if (!list) continue;
+        const i = list.indexOf(s);
+        if (i >= 0) list.splice(i, 1);
+      }
+    }
+  }
+
   near(x0: number, z0: number, x1: number, z1: number, out: T[] = []): T[] {
     out.length = 0;
     const q = ++this.query;

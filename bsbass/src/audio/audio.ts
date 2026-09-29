@@ -244,7 +244,15 @@ export class AudioSystem {
     this.musicVolume = music;
     if (!this.ctx) return;
     this.carBus.gain.setTargetAtTime(car, this.ctx.currentTime, 0.05);
-    this.musicBus.gain.setTargetAtTime(music, this.ctx.currentTime, 0.05);
+    this.musicBus.gain.setTargetAtTime(music * this.duck, this.ctx.currentTime, 0.05);
+  }
+
+  /** abaixa a música (1 = normal), ex. dentro do ferro-velho */
+  duck = 1;
+  setMusicDuck(k: number): void {
+    if (Math.abs(k - this.duck) < 1e-3) return;
+    this.duck = k;
+    if (this.ctx) this.musicBus.gain.setTargetAtTime(this.musicVolume * k, this.ctx.currentTime, 0.6);
   }
 
   setMuted(m: boolean): void {

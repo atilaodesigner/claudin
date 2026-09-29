@@ -12,6 +12,12 @@ export class Input {
   private listeners: ((a: Action) => void)[] = [];
   usingPad = false;
   usingTouch = false;
+  /** segurando o botão de ação (E / X no controle / botão na tela) */
+  actHeld = false;
+  /** segurando o botão do mapa (M / View no controle / botão na tela) */
+  mapHeld = false;
+  touchAct = false;
+  touchMap = false;
   enabled = true;
   readonly state: CarInput = { throttle: 0, brake: 0, steer: 0, handbrake: false, nitro: false };
 
@@ -24,8 +30,8 @@ export class Input {
       this.keys.add(k);
       this.usingPad = false;
       const map: Record<string, Action> = {
-        KeyC: 'cam', KeyR: 'reset', Escape: 'pause', KeyP: 'pause', KeyE: 'radioNext', KeyQ: 'radioPrev',
-        KeyM: 'mute', Tab: 'radioPanel', KeyH: 'help',
+        KeyC: 'cam', KeyR: 'reset', Escape: 'pause', KeyP: 'pause', KeyQ: 'radioNext', KeyZ: 'radioPrev',
+        KeyO: 'mute', Tab: 'radioPanel', KeyH: 'help',
       };
       const a = map[k];
       if (a) this.emit(a);
@@ -57,6 +63,8 @@ export class Input {
     let handbrake = this.key('Space') || this.touch.drift;
     let nitro = this.key('ShiftLeft', 'ShiftRight', 'KeyN') || this.touch.nitro;
     let analog = false;
+    let act = this.key('KeyE', 'Enter') || this.touchAct;
+    let map = this.key('KeyM') || this.touchMap;
 
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
     for (const p of pads) {
@@ -74,8 +82,10 @@ export class Input {
       throttle = Math.max(throttle, b(7));
       brake = Math.max(brake, b(6));
       handbrake = handbrake || pressed(0);
-      nitro = nitro || pressed(1) || pressed(2);
-      const edges: [number, Action][] = [[3, 'cam'], [5, 'radioNext'], [4, 'radioPrev'], [9, 'pause'], [8, 'reset']];
+      nitro = nitro || pressed(1);
+      act = act || pressed(2);
+      map = map || pressed(8);
+      const edges: [number, Action][] = [[3, 'cam'], [5, 'radioNext'], [4, 'radioPrev'], [9, 'pause'], [13, 'reset']];
       for (const [i, a] of edges) {
         const now = pressed(i);
         if (now && !this.padPrev[i]) this.emit(a);
@@ -102,6 +112,8 @@ export class Input {
     s.steer = this.steerValue;
     s.handbrake = handbrake;
     s.nitro = nitro;
+    this.actHeld = this.enabled && act;
+    this.mapHeld = map;
     return s;
   }
 }

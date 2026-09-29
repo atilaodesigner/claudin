@@ -217,6 +217,18 @@ export class Missions {
     return best ? { x: best.x, z: best.z, label: 'SINAL DA FITA' } : null;
   }
 
+  private pendingStart = -1;
+
+  /** racha cuja largada está perto (pra ativar segurando o botão) */
+  nearRacha(x: number, z: number): number {
+    if (this.active || this.cooldown > 0) return -1;
+    return this.rachas.findIndex((r) => Math.hypot(r.start.x - x, r.start.z - z) < 6);
+  }
+
+  startRace(i: number): void {
+    if (!this.active && this.rachas[i]) this.pendingStart = i;
+  }
+
   cancelRace(): void {
     this.active = null;
     this.activeIndex = -1;
@@ -242,20 +254,20 @@ export class Missions {
     }
 
     if (!this.active) {
-      if (this.cooldown <= 0) {
-        this.rachas.forEach((r, i) => {
-          if (!this.active && Math.hypot(r.start.x - x, r.start.z - z) < 5 && speed < 25) {
-            this.active = r;
-            this.activeIndex = i;
-            this.cp = 0;
-            this.raceTime = 0;
-            this.countdown = 3.99;
-            this.startMarkers.forEach((m) => (m.visible = false));
-            ev.push({ type: 'rachaStart', racha: r, index: i });
-            ev.push({ type: 'countdown', n: 3 });
-          }
-        });
+      // largada só segurando o botão de ação no círculo (startRace), nunca por encostar
+      if (this.pendingStart >= 0 && this.cooldown <= 0) {
+        const i = this.pendingStart, r = this.rachas[i]!;
+        this.pendingStart = -1;
+        this.active = r;
+        this.activeIndex = i;
+        this.cp = 0;
+        this.raceTime = 0;
+        this.countdown = 3.99;
+        this.startMarkers.forEach((m) => (m.visible = false));
+        ev.push({ type: 'rachaStart', racha: r, index: i });
+        ev.push({ type: 'countdown', n: 3 });
       }
+      void speed;
       return ev;
     }
 

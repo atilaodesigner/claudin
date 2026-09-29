@@ -16,6 +16,8 @@ A cidade, o Mustang, o neon, o áudio e as três rádios são procedurais. Por c
 
 | Motor (4 loops de rotação), pneu cantando, batidas, buzina, pipoco de escapamento, chuva, cachorro ao longe | [Freesound](https://freesound.org) (FreeCarSoundsGaming, audible-edge, magnuswaker, LPA134, qubodup, innov8_Music, Pól, craigsmith, mihnelis, FiretailHorizons) | `public/sfx/` |
 
+**Campanha**: os carros do bonde (Rolê, Lâmina, Tanque), os pilotos (Duck Jay, Diey, Bella, Bozo), a viatura, o caminhão e as peças do ferro-velho (guindaste, contêiner, pilha de pneu, pilha de carro amassado, cerca, portão, guincho) vêm do **BSBASS THE GAME** (`site/`), com o mesmo visual de desenho (toon + contorno) e a mesma bandeira. Ficam em `public/campaign/`.
+
 **Carros de verdade (Sketchfab, CC-BY)**: `scripts/cars.json` lista o Mustang GT (S550, mesma carroceria do 2020) e os carros da rua (Gol, Gol G4, Uno, Uno com escada, Kombi, Fusca, Opala, Chevette, Palio, Corsa, Saveiro e um ônibus Comil). O Sketchfab só libera download com login, então precisa de um token (conta grátis → Settings → Password & API → API token) na variável `SKETCHFAB_TOKEN`:
 
 ```bash
@@ -56,8 +58,11 @@ O build é estático (`base: './'`): dá pra hospedar `dist/` em qualquer lugar.
 | Freio de mão | **DRIFT** | Espaço | A |
 | Nitro | **NITRO** | Shift / N | B ou X |
 | Câmera (perto / longe / capô) | CAM | C | Y |
-| Voltar pra pista | RESET | R | Back |
-| Trocar rádio | RÁDIO | Q / E | LB / RB |
+| Voltar pra pista | RESET | R | D-pad ↓ |
+| Ação (segurar ~1 s) | **AÇÃO** | E / Enter | X |
+| Mapa (segurar) | **MAPA** | M | Back |
+| Trocar rádio | RÁDIO | Q / Z | LB / RB |
+| Mudo | | O | |
 | Player do rádio | ícone de equalizador | Tab | |
 | Pausa | ☰ | Esc / P | Start |
 
@@ -69,7 +74,10 @@ O build é estático (`base: './'`): dá pra hospedar `dist/` em qualquer lugar.
 - **Raspando**: passar colado num carro durante o combo dá bônus, sobe o multiplicador e enche nitro.
 - **Nitro**: enche drifando, raspando e pegando fitas.
 - **Fitas K7**: 30 fitas espalhadas (cilindro amarelo). A bússola no topo aponta a mais perto ("SINAL DA FITA").
-- **Rachas**: 5 corridas de checkpoint contra o relógio. Pare no círculo azul pra começar.
+- **Rachas**: 5 corridas de checkpoint contra o relógio. Pare no círculo azul e segure a ação pra começar.
+- **Campanha (BSBASS THE GAME no mundo aberto)**: os 5 capítulos ficam em pontos da cidade, cada um com um feixe de luz na cor do estado (âmbar = disponível, verde = feito, cinza = trancado) e o número no chão. Chegando perto (~25 m) aparece o cartão com nome, resumo e recorde. Pare dentro do círculo e segure a ação ~1 s (um anel enche); nada começa só de encostar. Os capítulos destrancam em ordem e cada um guarda feito, recorde e estrelas. As regras, inimigos, cinemáticas e recompensas são as mesmas do jogo original: a rota do capítulo vira um circuito fechado pelas ruas (com barreiras nas esquinas só durante a missão). Perdeu: **Tentar de novo** ou **Voltar ao mundo aberto** (o carro volta parado, do lado do ponto, virado pra rua). Ganhou: pontos, estrelas e moedas, o feixe fica verde, o próximo acende e um aviso diz a distância. A pausa tem **Abandonar missão**.
+- **Achando o caminho**: a bússola no topo aponta o ponto disponível mais perto (ou o próximo a destrancar); segurando o mapa ela aponta o ferro-velho e o mapa grande abre. Minimapa e mapa usam as mesmas cores.
+- **Ferro-velho (base do bonde)**: pátio de terra cercado com guindastes, torre de luz, contêiner, pilhas de pneu e de carro, tambor com fogo e a bandeira do BSBASS balançando entre os ganchos. O portão abre quando você chega e fecha depois. Lá dentro ficam os carros do bonde estacionados e a galera em pé: segure a ação do lado de um carro pra trocar (ou comprar), do lado de um piloto pra trocar de piloto, e escolha a pintura (1-6 ou toque nas cores). É lugar seguro: sem polícia, sem dano, sem pontuação, e a música abaixa. Tem ícone próprio no mapa desde o começo.
 - **Tráfego**: Gol quadrado, Uno, Kombi saia-e-blusa, picape e busão. Andam na mão, contornam o balão no sentido certo, buzinam se você parar na frente e saem rodando quando levam pancada.
 - **Superfícies**: asfalto, calçada e o **terrão** de terra vermelha (menos aderência, levanta poeira).
 - **Rádio**: GRAVE 61 FM (funk de quebrada), BSBASS PHONK (drift phonk) e EIXÃO TRAP, tudo sintetizado na hora. O paredão da feira pisca no grave. Volume de música e de carro separados.
@@ -77,7 +85,7 @@ O build é estático (`base: './'`): dá pra hospedar `dist/` em qualquer lugar.
 - **Abertura**: logo da Gueto Game Studio animada em código (moldura desenhada por um rastro de lanterna, letras entrando de lado, separação de cor, GAME STUDIO acendendo como neon) e depois o vídeo da logo BSBASS, enquanto o jogo carrega, monta a cidade e compila os shaders por trás. Toque ou tecla pula.
 - **Menu**: JOGAR, CONFIGURAÇÕES, COMO JOGAR e CRÉDITOS (a pausa também abre as configurações e volta pro menu).
 - **Qualidade gráfica**: AUTO, BAIXA, MÉDIA, ALTA e ULTRA mudam resolução, reflexo do asfalto, bloom, chuva, luzes dinâmicas, cones de luz e partículas na hora, sem recarregar. No AUTO começa em MÉDIA (celular) ou ALTA (PC) e desce sozinho se o FPS cair. Dá pra desligar rabiscos, rastro de luz, chuva, tremida de câmera e efeito de lente, e mostrar o FPS.
-- Progresso (pontos, maior drift, fitas, rachas, câmera, rádio) e as configurações ficam salvos no navegador.
+- Progresso (pontos, maior drift, fitas, rachas, câmera, rádio, capítulos, moedas, carro, piloto e pintura) e as configurações ficam salvos no navegador.
 
 ## Estrutura
 
@@ -103,7 +111,13 @@ src/
   audio/                motor V8, pneu, efeitos e as rádios
   ui/intro.ts           abertura (Gueto Game Studio + vídeo BSBASS) e barra de carregamento
   car/gltfCar.ts        normaliza carros GLB (escala, frente, rodas, pintura)
-  ui/hud.ts             HUD, menu, configurações, intro, pausa, player do rádio, minimapa
+  ui/hud.ts             HUD, menu, configurações, intro, pausa, player do rádio, minimapa, mapa grande
+  campaign/core.js      núcleo do BSBASS THE GAME (carros, pilotos, capítulos, pontuação, save), igual ao do site
+  campaign/layout.ts    rotas dos capítulos e lugar do ferro-velho na grade da cidade
+  campaign/routes.ts    circuito de cada capítulo pelas ruas (quadro, curvatura, projeção, barreiras)
+  campaign/mission.js   missão: polícia, caminhão, bonde, bloqueios, kits, cinemáticas, resultado
+  campaign/yard.ts      o ferro-velho (cerca, portão, guindastes, bandeira de pano)
+  campaign/campaign.ts  pontos, segurar pra ativar, bússola/mapa, progressão, troca de carro e piloto
   game.ts               loop principal, câmera, pós-processamento
 tests/                  testes de lógica
 ```

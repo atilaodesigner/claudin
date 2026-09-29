@@ -26,6 +26,14 @@ export function driftLabel(angle: number): string {
   return 'DRIFT';
 }
 
+export interface MapMarker {
+  x: number;
+  z: number;
+  c: string;
+  shape?: 'dot' | 'yard' | 'beam';
+  label?: string;
+}
+
 export interface HudState {
   speedKmh: number;
   gear: string;
@@ -68,6 +76,7 @@ export class Hud {
   onVolumes: ((car: number, music: number) => void) | null = null;
   onMute: ((m: boolean) => void) | null = null;
   onSettings: ((s: Settings) => void) | null = null;
+  onAbandon: (() => void) | null = null;
   onCamera: ((mode: string) => void) | null = null;
   paused = false;
   started = false;
@@ -120,6 +129,18 @@ export class Hud {
       el.addEventListener('pointerleave', off);
     };
     (['left', 'right', 'gas', 'brake', 'drift', 'nitro'] as const).forEach(bind);
+    {
+      const el = $(this.root, '[data-hold="map"]');
+      const set = (v: boolean) => (e: Event) => {
+        e.preventDefault();
+        this.input.touchMap = v;
+        el.classList.toggle('on', v);
+      };
+      el.addEventListener('pointerdown', set(true));
+      el.addEventListener('pointerup', set(false));
+      el.addEventListener('pointercancel', set(false));
+      el.addEventListener('pointerleave', set(false));
+    }
     this.root.querySelectorAll<HTMLElement>('[data-act]').forEach((el) => {
       el.addEventListener('click', (e) => {
         e.preventDefault();
@@ -148,6 +169,7 @@ export class Hud {
       $(this.root, btn).addEventListener('click', () => this.openSub(screen));
     }
     this.root.querySelectorAll<HTMLElement>('[data-back]').forEach((b) => b.addEventListener('click', () => this.closeSub()));
+    $(this.root, '#p-abandon').addEventListener('click', () => this.onAbandon?.());
     $(this.root, '#p-menu').addEventListener('click', () => {
       $(this.root, '#pause').classList.add('hidden');
       $(this.root, '#enter span').textContent = 'CONTINUAR';
@@ -315,6 +337,7 @@ export class Hud {
     this.paused = p;
     $(this.root, '#pause').classList.toggle('hidden', !p);
     if (!p) $(this.root, '#title').classList.add('hidden');
+    document.body.classList.toggle('paused', p);
     this.onPauseChange?.(p);
   }
 
@@ -375,7 +398,12 @@ export class Hud {
     if (text) this.set('race', text, 'html');
   }
 
-  update(dt: number, s: HudState, traffic: { x: number; z: number }[], markers: { x: number; z: number; c: string }[]): void {
+  /** pausa durante a missão ganha "Abandonar missão" */
+  setMissionPause(on: boolean): void {
+    $(this.root, '#p-abandon').classList.toggle('hidden', !on);
+  }
+
+  update(dt: number, s: HudState, traffic: { x: number; z: number }[], markers: MapMarker[], route: Float32Array | null = null, big = false): void {
     // ---------- velocímetro ----------
     this.set('speed', String(Math.round(s.speedKmh)));
     this.set('gear', s.gear);
@@ -428,10 +456,84 @@ export class Hud {
     this.bannerTimer -= dt;
     if (this.bannerTimer <= 0) this.els.banner!.classList.remove('show');
 
-    this.drawMap(s, traffic, markers);
+    this.drawMap(s, traffic, markers, route);
+    this.drawBigMap(big, s, markers);
   }
 
-  private drawMap(s: HudState, traffic: { x: number; z: number }[], markers: { x: number; z: number; c: string }[]): void {
+  private bigCanvas: HTMLCanvasElement | null = null;
+  /** mapa inteiro, norte pra cima (segurando o botão do mapa) */
+  private drawBigMap(on: boolean, s: HudState, markers: MapMarker[]): void {
+    let wrap = document.getElementById('bigmap');
+    if (!on) {
+      wrap?.classList.remove('on');
+      return;
+    }
+    if (!wrap) {
+      wrap = document.createElement('div');
+      wrap.id = 'bigmap';
+      this.bigCanvas = document.createElement('canvas');
+      this.bigCanvas.width = this.bigCanvas.height = 720;
+      wrap.appendChild(this.bigCanvas);
+      document.body.appendChild(wrap);
+    }
+    wrap.classList.add('on');
+    const cv = this.bigCanvas!, c = cv.getContext('2d')!, W = cv.width;
+    const off = EXTENT + ROAD / 2 + 40, scale = W / (off * 2);
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.clearRect(0, 0, W, W);
+    // norte (+z) pra cima: y da tela = -z
+    c.setTransform(scale, 0, 0, -scale, W / 2, W / 2);
+    c.drawImage(this.mapBase, -off, -off, off * 2, off * 2);
+    for (const m of markers) this.drawMarker(c, m, scale, true);
+    c.setTransform(1, 0, 0, 1, W / 2 + s.x * scale, W / 2 - s.z * scale);
+    c.rotate(Math.PI - s.carHeading);
+    c.fillStyle = '#4da3ff';
+    c.strokeStyle = '#fff';
+    c.lineWidth = 2;
+    c.beginPath();
+    c.moveTo(0, -11);
+    c.lineTo(8, 9);
+    c.lineTo(0, 4);
+    c.lineTo(-8, 9);
+    c.closePath();
+    c.fill();
+    c.stroke();
+  }
+
+  /** marcador no mapa: ponto, feixe de capítulo (com número) ou ícone do ferro-velho */
+  private drawMarker(c: CanvasRenderingContext2D, m: MapMarker, scale: number, big: boolean): void {
+    const r = (big ? 9 : 6) / scale;
+    c.fillStyle = m.c;
+    if (m.shape === 'yard') {
+      // ícone quadrado com a "chave" do bonde
+      const h = r * 1.5;
+      c.fillStyle = '#0b0b0f';
+      c.fillRect(m.x - h, m.z - h, h * 2, h * 2);
+      c.strokeStyle = m.c;
+      c.lineWidth = r * 0.45;
+      c.strokeRect(m.x - h, m.z - h, h * 2, h * 2);
+      c.fillStyle = m.c;
+      c.fillRect(m.x - h * 0.45, m.z - h * 0.45, h * 0.9, h * 0.9);
+      return;
+    }
+    c.beginPath();
+    c.arc(m.x, m.z, m.shape === 'beam' ? r * 1.35 : r, 0, Math.PI * 2);
+    c.fill();
+    if (m.shape === 'beam' && m.label) {
+      c.save();
+      c.translate(m.x, m.z);
+      const t = c.getTransform();
+      c.setTransform(1, 0, 0, 1, t.e, t.f);
+      c.fillStyle = '#0b0b0f';
+      c.font = `bold ${big ? 14 : 10}px 'Chakra Petch', sans-serif`;
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText(m.label, 0, 1);
+      c.restore();
+    }
+  }
+
+  private drawMap(s: HudState, traffic: { x: number; z: number }[], markers: MapMarker[], route: Float32Array | null): void {
     const c = this.mapCtx;
     const W = this.map.width;
     const scale = (W / 2) / 170; // 170 m de raio
@@ -452,12 +554,19 @@ export class Hud {
     c.translate(-s.x, -s.z);
     const off = EXTENT + ROAD / 2 + 40;
     c.drawImage(this.mapBase, -off, -off, off * 2, off * 2);
-    for (const m of markers) {
-      c.fillStyle = m.c;
+    if (route) {
+      // circuito do capítulo em andamento
+      c.strokeStyle = 'rgba(255,177,74,0.9)';
+      c.lineWidth = 5 / scale;
       c.beginPath();
-      c.arc(m.x, m.z, 6 / scale, 0, Math.PI * 2);
-      c.fill();
+      for (let i = 0; i < route.length; i += 8) {
+        if (i === 0) c.moveTo(route[i]!, route[i + 1]!);
+        else c.lineTo(route[i]!, route[i + 1]!);
+      }
+      c.closePath();
+      c.stroke();
     }
+    for (const m of markers) this.drawMarker(c, m, scale, false);
     c.fillStyle = 'rgba(255,255,255,0.7)';
     for (const t of traffic) c.fillRect(t.x - 1.5, t.z - 1.5, 3, 3);
     c.restore();
@@ -500,7 +609,7 @@ function renderMapBase(city: City): HTMLCanvasElement {
   c.fillRect(-off, -off, off * 2, off * 2);
   // quadras
   for (const b of city.blocks) {
-    c.fillStyle = b.kind === 'terrao' ? '#7a3418' : b.kind === 'praca' ? '#27463a' : b.kind === 'feira' ? '#4a4038' : b.kind === 'posto' ? '#554a40' : '#1c1f26';
+    c.fillStyle = b.kind === 'terrao' ? '#7a3418' : b.kind === 'praca' ? '#27463a' : b.kind === 'feira' ? '#4a4038' : b.kind === 'posto' ? '#554a40' : b.kind === 'ferro' ? '#4a3a2c' : '#1c1f26';
     c.fillRect(b.x - 40, b.z - 40, 80, 80);
   }
   // ruas
@@ -570,8 +679,8 @@ const TEMPLATE = /* html */ `
       </ul>
       <button id="ride" class="btn-yellow">BORA!</button>
       <div class="keys">
-        <b>TECLADO</b> W/↑ acelera · S/↓ freia/ré · A D/← → vira · ESPAÇO freio de mão · SHIFT nitro · C câmera · R reset · Q/E rádio · TAB player · ESC pausa<br/>
-        <b>CONTROLE</b> RT/LT acelera/freia · analógico · A freio de mão · B nitro · Y câmera · LB/RB rádio
+        <b>TECLADO</b> W/↑ acelera · S/↓ freia/ré · A D/← → vira · ESPAÇO freio de mão · SHIFT nitro · C câmera · R reset · E ação (segura) · M mapa · Q/Z rádio · TAB player · ESC pausa<br/>
+        <b>CONTROLE</b> RT/LT acelera/freia · analógico · A freio de mão · B nitro · X ação · VIEW mapa · Y câmera · LB/RB rádio
       </div>
     </div>
   </div>
@@ -609,7 +718,7 @@ const TEMPLATE = /* html */ `
 
 <div class="controls">
   <div class="row small">
-    <button data-act="cam">CAM</button><button data-act="reset">RESET</button><button data-act="radioNext">RÁDIO</button>
+    <button data-act="cam">CAM</button><button data-act="reset">RESET</button><button data-act="radioNext">RÁDIO</button><button data-hold="map">MAPA</button>
     <span class="grow"></span>
     <button class="big drift-b" data-touch="drift">DRIFT</button><button class="big nitro-b" data-touch="nitro">NITRO</button>
   </div>
@@ -627,9 +736,10 @@ const TEMPLATE = /* html */ `
     <button data-act="cam" class="btn-ghost">TROCAR CÂMERA</button>
     <button data-act="radioPanel" class="btn-ghost">RÁDIO</button>
     <button id="p-settings" class="btn-ghost">CONFIGURAÇÕES</button>
+    <button id="p-abandon" class="btn-ghost hidden">ABANDONAR MISSÃO</button>
     <button id="p-menu" class="btn-ghost">MENU INICIAL</button>
     <button id="restart" class="btn-ghost">ZERAR PROGRESSO</button>
-    <div class="keys">W/↑ acelera · S/↓ freia/ré · A D vira · ESPAÇO freio de mão · SHIFT nitro · C câmera · R reset · Q/E rádio</div>
+    <div class="keys">W/↑ acelera · S/↓ freia/ré · A D vira · ESPAÇO freio de mão · SHIFT nitro · C câmera · R reset · E ação · M mapa · Q/Z rádio</div>
   </div>
 </div>
 
@@ -671,6 +781,7 @@ const TEMPLATE = /* html */ `
       <h4>O ROLÊ</h4>
       <p>Derrapa de lado pra encher o combo. Quanto mais ângulo e velocidade, mais ponto por segundo. Emenda um drift no outro antes da barra vermelha zerar pra subir o multiplicador (até x10). Bater no muro ou num carro perde o combo; passar raspando dá bônus.</p>
       <p>Cata as 30 fitas K7 espalhadas pela quebrada e ganha os 5 rachas (os pontos azuis no minimapa).</p>
+      <p>Os 5 capítulos ficam espalhados pela cidade: segue a seta do topo até o feixe âmbar, para dentro do círculo e segura E. O próximo acende quando você conclui o anterior. O ferro-velho (ícone quadrado no mapa) é a base do bonde: lá dá pra trocar de carro, de piloto e de pintura. Segurando M a seta aponta pra lá.</p>
     </section>
     <section>
       <h4>TECLADO</h4>
@@ -678,7 +789,8 @@ const TEMPLATE = /* html */ `
         <li><kbd>W</kbd><kbd>↑</kbd> acelera</li><li><kbd>S</kbd><kbd>↓</kbd> freia / ré</li>
         <li><kbd>A</kbd><kbd>D</kbd> vira</li><li><kbd>ESPAÇO</kbd> freio de mão</li>
         <li><kbd>SHIFT</kbd> nitro</li><li><kbd>C</kbd> câmera</li>
-        <li><kbd>R</kbd> volta pra pista</li><li><kbd>Q</kbd><kbd>E</kbd> troca a rádio</li>
+        <li><kbd>R</kbd> volta pra pista</li><li><kbd>E</kbd> segura pra ativar</li>
+        <li><kbd>M</kbd> mapa (segura)</li><li><kbd>Q</kbd><kbd>Z</kbd> troca a rádio</li>
         <li><kbd>TAB</kbd> player</li><li><kbd>ESC</kbd> pausa</li>
       </ul>
     </section>
@@ -688,7 +800,7 @@ const TEMPLATE = /* html */ `
     </section>
     <section>
       <h4>CONTROLE</h4>
-      <p>RT/LT acelera e freia · analógico vira · A freio de mão · B nitro · Y câmera · LB/RB rádio · START pausa</p>
+      <p>RT/LT acelera e freia · analógico vira · A freio de mão · B nitro · X segura pra ativar · VIEW mapa · Y câmera · LB/RB rádio · START pausa</p>
     </section>
     <section>
       <h4>DICA DO ZÉ</h4>
@@ -703,6 +815,10 @@ const TEMPLATE = /* html */ `
     <section>
       <h4>BSBASS DRIFT GAME</h4>
       <p>Jogo de drift na periferia do Distrito Federal. Cidade, carro, trilhas da rádio e efeitos gerados em código com three.js.</p>
+    </section>
+    <section>
+      <h4>CAMPANHA</h4>
+      <p>BSBASS THE GAME: capítulos, carros do bonde, pilotos, viatura, caminhão, ferro-velho e bandeira do jogo original.</p>
     </section>
     <section>
       <h4>TEXTURAS E HDRI</h4>

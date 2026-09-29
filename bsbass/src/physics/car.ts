@@ -82,6 +82,8 @@ export class CarPhysics {
   braking = false;
   reversing = false;
   wheelRot = 0; // rotação visual das rodas (rad)
+  /** ajuste por carro/piloto (carros do bonde): força do motor, arrasto e aderência */
+  mods = { power: 1, drag: 1, grip: 1 };
 
   reset(x: number, z: number, heading: number): void {
     this.x = x;
@@ -142,7 +144,7 @@ export class CarPhysics {
     const loadStatic = CAR.mass * G;
     const loadF = clamp(loadStatic * (CAR.cgToRear / L) - (CAR.mass * this.accelLong * CAR.cgHeight) / L, loadStatic * 0.2, loadStatic * 0.8);
     const loadR = loadStatic - loadF;
-    const mu = CAR.mu * this.surfaceGrip;
+    const mu = CAR.mu * this.surfaceGrip * this.mods.grip;
     const rearMax = loadR * mu;
 
     this.nitroActive = input.nitro && this.nitro > 0.01 && !reversing && throttle > 0.05;
@@ -155,7 +157,7 @@ export class CarPhysics {
     if (reversing) {
       drive = vLong > -CAR.reverseMax ? -throttle * 5_500 : 0;
     } else {
-      drive = throttle * Math.min(CAR.maxDrive, CAR.power / Math.max(fwdSpeed, 1));
+      drive = throttle * this.mods.power * Math.min(CAR.maxDrive, CAR.power / Math.max(fwdSpeed, 1));
     }
 
     // torque demais pra tração disponível = pneu patinando
@@ -203,7 +205,7 @@ export class CarPhysics {
     if (this.nitroActive) fLong += CAR.nitroForce;
 
     // arrasto aerodinâmico e rolagem
-    fLong -= CAR.drag * vLong * Math.abs(vLong) + CAR.rolling * vLong;
+    fLong -= CAR.drag * this.mods.drag * vLong * Math.abs(vLong) + CAR.rolling * vLong;
     fLat -= CAR.rolling * 4 * vLat;
 
     // assist de drift: segurando o acelerador de lado o carro não "morre"

@@ -33,7 +33,10 @@ import type { Assets } from './assets';
 import { AudioSystem } from './audio/audio';
 import { Radio } from './audio/radio';
 import { Input, type Action } from './input';
-import { Hud, fmt } from './ui/hud';
+import { Hud, fmt, type MapMarker } from './ui/hud';
+import { Campaign } from './campaign/campaign';
+import { MODELS as CAMPAIGN_MODELS } from './campaign/models';
+import type { SiteRig } from './campaign/siteRig';
 
 const STEP = 1 / 120;
 const SAVE_KEY = 'bsbass-drift-save-v1';
@@ -154,6 +157,10 @@ export class Game {
   private cones: THREE.Mesh;
   private fpsAvg = 60;
   private lastSaveAt = 0;
+  /** capítulos + ferro-velho (só existe se os modelos do BSBASS THE GAME carregaram) */
+  campaign: Campaign | null = null;
+  private mustangRig!: MustangRig;
+  private camOverride = false;
 
   constructor(container: HTMLElement, hudParent: HTMLElement, assets: Assets = { photos: {}, tex: {}, models: {}, cars: [] }) {
     const touch = matchMedia('(pointer: coarse)').matches;
@@ -328,12 +335,80 @@ export class Game {
     this.applySettings();
     this.refreshObjectives();
     this.input.on((a) => this.onAction(a));
+    this.mustangRig = this.rig;
+    if (CAMPAIGN_MODELS.car1 && CAMPAIGN_MODELS.jCrane) this.buildCampaign(hudParent, assets);
 
     window.addEventListener('resize', () => this.resize());
     this.resize();
     document.addEventListener('visibilitychange', () => {
       if (document.hidden && this.hud.started) this.hud.setPaused(true);
     });
+  }
+
+  private buildCampaign(hudParent: HTMLElement, assets: Assets): void {
+    const digitKeys = new Map<string, number>();
+    window.addEventListener('keydown', (e) => {
+      const m = /^Digit([1-9])$/.exec(e.code);
+      if (m) digitKeys.set('d', Number(m[1]));
+    });
+    this.campaign = new Campaign({
+      scene: this.scene,
+      car: this.car,
+      audio: this.audio,
+      camera: this.camera,
+      grid: this.grid,
+      ui: hudParent,
+      touch: this.touch,
+      mustangRig: this.mustangRig,
+      barrierModel: assets.models.concrete_road_barrier ?? null,
+      getRig: () => this.rig,
+      setRig: (r) => this.setRig(r),
+      setOpenWorld: (on) => {
+        this.traffic.group.visible = on;
+        this.missions.group.visible = on;
+        if (!on && this.missions.active) {
+          this.missions.cancelRace();
+          this.hud.race(null);
+        }
+        this.hud.setMissionPause(!on);
+      },
+      banner: (t, sub, time, cls) => this.hud.banner(t, sub, time, cls),
+      reduceFx: () => !this.settings.shake,
+      particles: () => PRESETS[this.preset].particles,
+      input: () => {
+        const d = digitKeys.get('d') ?? 0;
+        digitKeys.delete('d');
+        return { throttle: this.input.state.throttle, handbrake: this.input.state.handbrake, act: this.input.actHeld, map: this.input.mapHeld, digit: d };
+      },
+      emitFire: (p) =>
+        this.sparks.emit({
+          x: p.x + (Math.random() - 0.5) * 0.4, y: p.y, z: p.z + (Math.random() - 0.5) * 0.4,
+          vx: (Math.random() - 0.5) * 0.6, vy: 1.4 + Math.random(), vz: (Math.random() - 0.5) * 0.6,
+          life: 0.35 + Math.random() * 0.3, size: 0.55, grow: -0.6, r: 3.2, g: 1.2 + Math.random() * 0.6, b: 0.2, a: 1, drag: 1,
+        }),
+      resetCamera: (h) => {
+        this.camYaw = h;
+        this.camPos.set(this.car.x - Math.sin(h) * 6, 2.2, this.car.z - Math.cos(h) * 6);
+      },
+      racha: () => {
+        const i = this.missions.nearRacha(this.car.x, this.car.z);
+        const r = i >= 0 ? this.missions.rachas[i] : null;
+        return r ? { idx: i, name: r.name, limit: r.limit, cps: r.checkpoints.length, best: r.best } : null;
+      },
+      startRacha: (i) => this.missions.startRace(i),
+    });
+    this.hud.onAbandon = () => {
+      this.hud.setPaused(false);
+      this.campaign?.abandon();
+    };
+  }
+
+  /** troca o carro que aparece (Mustang ou um dos carros do bonde) */
+  private setRig(r: MustangRig): void {
+    if (r === this.rig) return;
+    this.scene.remove(this.rig.root);
+    this.rig = r;
+    this.scene.add(r.root);
   }
 
   private makeEnvMap(): THREE.Texture {
@@ -395,7 +470,7 @@ export class Game {
       return;
     }
     if (a === 'cam') this.cycleCam();
-    if (a === 'reset') this.resetCar();
+    if (a === 'reset' && !this.campaign?.missionActive) this.resetCar();
     if (a === 'help') this.hud.popup('ESPAÇO = FREIO DE MÃO');
   }
 
@@ -518,6 +593,14 @@ export class Game {
     this.time += dt;
     const playing = this.hud.started && !this.hud.paused;
     const input = this.input.update(dt);
+    const cm = this.campaign;
+    const inMission = !!cm && cm.missionActive;
+    // câmera lenta das batidas/cinemáticas da missão vale pra física também
+    const simDt = inMission && playing ? dt * cm!.mission.timeScale(dt) : dt;
+    if (inMission && !cm!.mission.controls()) {
+      input.throttle = input.brake = input.steer = 0;
+      input.handbrake = input.nitro = false;
+    }
     if (this.autopilot) Object.assign(input, { throttle: 0, brake: 0, steer: 0, handbrake: false, nitro: false }, this.autopilot(this.time));
     if (!this.hud.started && !this.autopilot) {
       input.throttle = input.brake = input.steer = 0;
@@ -525,16 +608,29 @@ export class Game {
     }
 
     if (playing || this.autopilot) {
-      this.acc += dt;
+      // na intro/cinemática da missão o carro é colocado pelo roteiro (sem física)
+      const scripted = inMission && cm!.mission.state !== 'play' && !(cm!.mission.state === 'result' && cm!.mission.player.dead);
+      this.acc += simDt;
       let steps = 0;
       while (this.acc >= STEP && steps < 8) {
-        this.physicsStep(input);
+        if (!scripted) this.physicsStep(input);
+        else this.car.wheelRot += (this.car.vLong / 0.35) * STEP;
         this.acc -= STEP;
         steps++;
       }
-      this.gameplay(dt);
-      this.traffic.update(dt, this.car, this.camera.position);
-      this.trafficCollisions();
+      if (inMission) {
+        cm!.mission.step(simDt, this.camera);
+        if (cm!.mission.state === 'result' && !cm!.mission.player.dead) {
+          // resultado: o carro para devagar onde estava
+          this.car.vx *= Math.exp(-2 * dt);
+          this.car.vz *= Math.exp(-2 * dt);
+        }
+      } else {
+        this.gameplay(dt);
+        this.traffic.update(dt, this.car, this.camera.position);
+        this.trafficCollisions();
+      }
+      cm?.update(dt);
     }
 
     this.updateVisuals(dt, playing || !!this.autopilot);
@@ -658,6 +754,7 @@ export class Game {
   }
 
   private onImpact(v: number, px: number, pz: number): void {
+    if (this.campaign?.missionActive) this.campaign.mission.contact(v, 'wall');
     if (v < 2.5 || this.crashCd > 0) return;
     this.crashCd = 0.35;
     this.audio.crash(v);
@@ -670,7 +767,7 @@ export class Game {
         life: 0.3 + Math.random() * 0.4, size: 0.12, grow: -0.1, r: 3, g: 1.6, b: 0.4, a: 1, drag: 1, gravity: 12,
       });
     }
-    if (v > 7) {
+    if (v > 7 && !this.campaign?.missionActive) {
       const e = this.scorer.crash();
       if (e && e.type === 'lost') {
         this.hud.lost(e.points);
@@ -740,8 +837,10 @@ export class Game {
     const car = this.car;
     this.crashCd = Math.max(0, this.crashCd - dt);
     const kmh = car.speed * 3.6;
+    // ferro-velho é lugar seguro: não conta ponto
+    const safe = !!this.campaign?.inYard;
     const ev = this.scorer.update(dt, {
-      speedKmh: kmh,
+      speedKmh: safe ? 0 : kmh,
       angleDeg: Math.abs(car.slipAngle) * (180 / Math.PI),
       forward: car.vLong > 0,
       surface: car.surfaceGrip,
@@ -833,6 +932,13 @@ export class Game {
     this.pitch += (tp - this.pitch) * Math.min(1, dt * 6);
     rig.body.rotation.set(this.pitch, 0, this.roll);
     rig.body.position.y = surf.dirt ? Math.sin(this.time * 30) * 0.01 * Math.min(1, car.speed / 20) : 0;
+    (rig as Partial<SiteRig>).update?.(dt, car.vLong);
+    if (this.campaign?.missionActive) {
+      // perdeu o carro: capota no ar como no original
+      const pl = this.campaign.mission.playerLift();
+      rig.root.position.y += pl.lift;
+      rig.body.rotation.z += pl.roll;
+    }
     rig.wheels.forEach((w, i) => {
       if (i < 2) w.steer.rotation.y = car.steerAngle;
       w.spin.rotation.x = car.wheelRot;
@@ -1014,9 +1120,38 @@ export class Game {
     }
   }
 
+  private camTgtPos = new THREE.Vector3();
+  private camTgtLook = new THREE.Vector3();
+
   private updateCamera(dt: number): void {
     const car = this.car;
     const portrait = this.camera.aspect < 1;
+    const cm = this.campaign;
+    if (cm?.missionActive && cm.mission.cameraTarget(this.camTgtPos, this.camTgtLook)) {
+      // cinemática do capítulo: câmera do roteiro original
+      const k = 1 - Math.exp(-2 * dt);
+      if (!this.camOverride) {
+        this.camOverride = true;
+      }
+      this.camPos.lerp(this.camTgtPos, k);
+      this.camLook.lerp(this.camTgtLook, 1 - Math.exp(-2.6 * dt));
+      const sh = this.settings.shake ? cm.mission.shake * 0.35 : 0;
+      cm.mission.shake = Math.max(0, cm.mission.shake - dt * 2.6);
+      this.camera.position.set(this.camPos.x + (Math.random() - 0.5) * sh, this.camPos.y + (Math.random() - 0.5) * sh, this.camPos.z + (Math.random() - 0.5) * sh);
+      this.camera.lookAt(this.camLook);
+      this.camYaw = Math.atan2(this.camLook.x - this.camPos.x, this.camLook.z - this.camPos.z);
+      this.heroLight.position.set(car.x, this.carY + 3.2, car.z);
+      this.updateHudOnly(dt);
+      return;
+    }
+    if (this.camOverride) {
+      this.camOverride = false;
+      this.camYaw = car.heading;
+    }
+    if (cm?.missionActive && cm.mission.shake > 0) {
+      this.shake = Math.max(this.shake, cm.mission.shake);
+      cm.mission.shake = Math.max(0, cm.mission.shake - dt * 2.6);
+    }
     // em drift a câmera acompanha a direção do movimento (mostra o carro de lado)
     let targetYaw = car.heading;
     if (car.speed > 4 && car.vLong > -1) {
@@ -1079,6 +1214,13 @@ export class Game {
       this.camera.updateProjectionMatrix();
     }
 
+    this.updateHudOnly(dt);
+  }
+
+  private updateHudOnly(dt: number): void {
+    const car = this.car;
+    const cm = this.campaign;
+    const target = this.missions.active ? this.missions.target(car.x, car.z) : cm?.target(car.x, car.z, this.input.mapHeld) ?? this.missions.target(car.x, car.z);
     this.hud.update(dt, {
       speedKmh: car.speed * 3.6,
       gear: car.reversing ? 'R' : String(car.gear),
@@ -1099,15 +1241,17 @@ export class Game {
       x: car.x,
       z: car.z,
       carHeading: car.heading,
-      target: this.missions.target(car.x, car.z),
+      target: cm?.missionActive ? null : target,
       fitasGot: this.missions.fitas.length - this.missions.fitasLeft,
       fitasTotal: this.missions.fitas.length,
-    }, this.traffic.cars, this.mapMarkers());
+    }, cm?.missionActive ? [] : this.traffic.cars, this.mapMarkers(), cm?.routeLine() ?? null, this.input.mapHeld && !cm?.missionActive);
   }
 
-  private markers: { x: number; z: number; c: string }[] = [];
-  private mapMarkers(): { x: number; z: number; c: string }[] {
+  private markers: MapMarker[] = [];
+  private mapMarkers(): MapMarker[] {
     this.markers.length = 0;
+    if (this.campaign?.missionActive) return this.markers;
+    if (this.campaign) this.markers.push(...this.campaign.markers());
     for (const f of this.missions.fitas) if (!f.got) this.markers.push({ x: f.x, z: f.z, c: '#ffd21a' });
     const m = this.missions;
     if (m.active) {

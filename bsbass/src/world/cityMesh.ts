@@ -74,8 +74,8 @@ export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = 
   // ================= calçadas =================
   for (const b of city.blocks) {
     const open = b.kind === 'terrao' || b.kind === 'feira' || b.kind === 'posto';
-    if (b.kind === 'terrao') {
-      // anel de calçada + chão de terra
+    if (b.kind === 'terrao' || b.kind === 'ferro') {
+      // anel de calçada + chão de terra (o ferro-velho põe o pátio por cima)
       const h = BLOCK_HALF, s = SIDEWALK;
       slab(sidewalk, b.x, b.z + h - s / 2, h * 2, s);
       slab(sidewalk, b.x, b.z - h + s / 2, h * 2, s);
@@ -85,7 +85,7 @@ export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = 
       const d = h - s;
       dirt.quad([-d, 0, d], [d, 0, d], [d, 0, -d], [-d, 0, -d], [0, 0, d / 6, d / 6]);
       dirt.resetTransform();
-      buildTerrao(flat, b.x, b.z);
+      if (b.kind === 'terrao') buildTerrao(flat, b.x, b.z);
       continue;
     }
     if (open) {

@@ -4,6 +4,7 @@
 
 import { circle, rect, type Shape } from '../physics/collide';
 import { mulberry32, pick, range } from '../utils/rng';
+import { YARD_BLOCK, routeStreetSegments } from '../campaign/layout';
 
 export const PITCH = 100; // distância entre eixos de rua
 export const ROAD = 20; // largura da rua
@@ -17,7 +18,7 @@ export const BORDER = EXTENT + ROAD / 2 + 26; // muro do fim do mapa
 export const BALAO = { x: 0, z: 0, island: 12, ring: 34 };
 export const AVENUE_Z = 0; // a avenida corta o mapa no eixo X
 
-export type BlockKind = 'res' | 'terrao' | 'feira' | 'praca' | 'posto';
+export type BlockKind = 'res' | 'terrao' | 'feira' | 'praca' | 'posto' | 'ferro';
 
 export interface Block {
   i: number;
@@ -105,7 +106,8 @@ export function nodePos(i: number): number {
   return -EXTENT + i * PITCH;
 }
 
-function blockKind(i: number, j: number): BlockKind {
+export function blockKind(i: number, j: number): BlockKind {
+  if (i === YARD_BLOCK.i && j === YARD_BLOCK.j) return 'ferro';
   if (i === 5 && j === 2) return 'terrao';
   if (i === 2 && j === 5) return 'feira';
   if (i === 6 && j === 5) return 'praca';
@@ -150,6 +152,7 @@ export function buildCity(seed = 61): City {
     for (const s of sides) {
       let n = Math.max(1, Math.round(s.len / range(rnd, 8.5, 12)));
       if (b.kind === 'posto' && s.rot === 0) continue; // frente do posto aberta
+      if (b.kind === 'ferro' && s.rot !== Math.PI) continue; // ferro-velho: só a fileira de casas dos fundos
       const w = s.len / n;
       for (let k = 0; k < n; k++) {
         const t = -s.len / 2 + w * (k + 0.5);
@@ -180,7 +183,7 @@ export function buildCity(seed = 61): City {
     }
     // miolo da quadra (inalcançável, mas precisa de colisor se o balão abrir espaço)
     const innerHalf = inner - depth;
-    if (!inBalao(b.x, b.z, innerHalf + 12)) colliders.push(rect(b.x, b.z, innerHalf, innerHalf));
+    if (b.kind !== 'ferro' && !inBalao(b.x, b.z, innerHalf + 12)) colliders.push(rect(b.x, b.z, innerHalf, innerHalf));
   }
 
   // ---------- canteiro central da avenida ----------
@@ -241,7 +244,9 @@ export function buildCity(seed = 61): City {
   }
 
   // ---------- carros estacionados ----------
-  for (let k = 0; k < 46; k++) {
+  // (nunca nas ruas das rotas dos capítulos: viram circuito durante a missão)
+  const routeSegs = routeStreetSegments();
+  for (let k = 0; k < 110; k++) {
     const vertical = rnd() < 0.5;
     const n = Math.floor(rnd() * NODES);
     const c = nodePos(n);
@@ -253,6 +258,10 @@ export function buildCity(seed = 61): City {
     const x = vertical ? c + side * d : t;
     const z = vertical ? t : c + side * d;
     if (inBalao(x, z, 8)) continue;
+    {
+      const a = vertical ? `${n},${seg}` : `${seg},${n}`, b2 = vertical ? `${n},${seg + 1}` : `${seg + 1},${n}`;
+      if (routeSegs.has(a < b2 ? `${a}|${b2}` : `${b2}|${a}`)) continue;
+    }
     // mão certa: estaciona virado pro sentido da faixa do lado
     const rot = vertical ? (side > 0 ? Math.PI : 0) : side > 0 ? Math.PI / 2 : -Math.PI / 2;
     if (lamps.some((l) => Math.hypot(l.x - x, l.z - z) < 4)) continue;
