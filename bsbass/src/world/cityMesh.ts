@@ -163,7 +163,7 @@ export function buildCityMeshes(city: City, tx: Textures): CityMeshes {
     const len = m.x1 - m.x0;
     flat.setTransform((m.x0 + m.x1) / 2, 0, AVENUE_Z, 0);
     flat.box(0, 0.14, 0, len, 0.28, 1.6, hex(0xa8a39a));
-    flat.box(0, 0.285, 0, len - 0.2, 0.01, 1.3, hex(0x5a3a22));
+    flat.box(0, 0.285, 0, len - 0.2, 0.01, 1.3, hex(0x28331f));
     // listras amarelas e pretas nas pontas
     for (const s of [-1, 1]) flat.box(s * (len / 2 - 0.4), 0.3, 0, 0.8, 0.02, 1.62, hex(0xe8b21e));
   }
@@ -201,7 +201,7 @@ export function buildCityMeshes(city: City, tx: Textures): CityMeshes {
       emissive.box(0, H - 0.37, 2.2, 0.3, 0.04, 0.6, hex(0xffb050, 3.2));
       lampLights.push(new THREE.Vector3(ax, H - 0.6, az));
       // mancha de luz no chão
-      poolQuad(pools, ax, az, 10.5, hex(0xff9a3c, 0.55));
+      poolQuad(pools, ax, az, 10.5, hex(0xff9a3c, 0.32));
     }
   }
   flat.resetTransform();

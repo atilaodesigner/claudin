@@ -16,7 +16,9 @@ async function boot(): Promise<void> {
     /* segue com a fonte de fallback */
   }
   const game = new Game(document.getElementById('stage')!, document.getElementById('ui')!);
-  game.start();
+  // ?manual: o loop não roda sozinho (usado pelos testes de screenshot)
+  if (!new URLSearchParams(location.search).has('manual')) game.start();
+  else game.frame(1 / 60);
   (window as unknown as { __game: Game }).__game = game;
   document.getElementById('loading')?.remove();
 }

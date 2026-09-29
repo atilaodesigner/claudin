@@ -20,6 +20,9 @@ import { buildMustang, WHEEL_POS, type MustangRig } from './car/mustang';
 import { Traffic } from './traffic/traffic';
 import { Particles, DustMotes } from './fx/particles';
 import { LightTrail, SkidMarks } from './fx/trails';
+import { WetReflection, NO_REFLECT } from './fx/wet';
+import { Rain, buildLightCones } from './fx/rain';
+import { buildNeon } from './world/neon';
 import { AudioSystem } from './audio/audio';
 import { Radio } from './audio/radio';
 import { Input, type Action } from './input';
@@ -102,6 +105,11 @@ export class Game {
   readonly input = new Input();
   readonly hud: Hud;
   private lampPool: THREE.PointLight[] = [];
+  private neonPool: THREE.PointLight[] = [];
+  private neonLights: { x: number; y: number; z: number; color: THREE.Color }[] = [];
+  private wet: WetReflection;
+  private rain: Rain;
+  private reflScale: number;
   private heroLight: THREE.PointLight;
   private heroFill: THREE.PointLight;
   private lampTimer = 0;
@@ -139,10 +147,10 @@ export class Game {
     this.camMode = this.save.cam;
 
     // ---------- mundo ----------
-    this.scene.fog = new THREE.FogExp2(0x1a0f10, 0.0062);
+    this.scene.fog = new THREE.FogExp2(0x1c1320, 0.0085);
     this.scene.background = new THREE.Color(0x07060a);
     this.scene.add(buildSky());
-    const hemi = new THREE.HemisphereLight(0x4a4a78, 0x3a1a0c, 0.9);
+    const hemi = new THREE.HemisphereLight(0x55508a, 0x3a1a0c, 0.95);
     this.scene.add(hemi);
     const moon = new THREE.DirectionalLight(0x8aa0d8, 0.35);
     moon.position.set(-300, 400, 200);
@@ -153,6 +161,33 @@ export class Game {
     for (const c of this.city.colliders) this.grid.insert(c);
     this.meshes = buildCityMeshes(this.city, tx);
     this.scene.add(this.meshes.group);
+
+    // asfalto molhado com reflexo de verdade
+    this.reflScale = touch ? 0.32 : 0.5;
+    this.wet = new WetReflection(this.reflScale);
+    for (const name of ['asphalt', 'ground', 'sidewalk', 'marks', 'pools', 'dirt']) {
+      const m = this.meshes.group.getObjectByName(name) as THREE.Mesh | undefined;
+      if (!m) continue;
+      m.layers.set(NO_REFLECT);
+      if (name === 'asphalt') this.wet.patch(m.material as THREE.MeshStandardMaterial, 1.0, 1.0);
+      if (name === 'sidewalk') this.wet.patch(m.material as THREE.MeshStandardMaterial, 0.45, 0.25);
+      if (name === 'marks') this.wet.patch(m.material as THREE.MeshStandardMaterial, 0.6, 0.0);
+    }
+    this.camera.layers.enable(NO_REFLECT);
+    const neon = buildNeon(this.city);
+    this.scene.add(neon.group);
+    this.neonLights = neon.lights;
+    const cones = buildLightCones(this.meshes.lampLights);
+    cones.layers.set(NO_REFLECT);
+    this.scene.add(cones);
+    this.rain = new Rain(touch ? 2200 : 3600);
+    this.rain.lines.layers.set(NO_REFLECT);
+    this.scene.add(this.rain.lines);
+    for (let i = 0; i < 3; i++) {
+      const l = new THREE.PointLight(0xffffff, 0, 16, 1.6);
+      this.scene.add(l);
+      this.neonPool.push(l);
+    }
 
     for (let i = 0; i < 7; i++) {
       const l = new THREE.PointLight(0xff9a45, 0, 30, 1.6);
@@ -182,6 +217,7 @@ export class Game {
     this.sparks = new Particles(400, tx.glow, true);
     this.dust = new DustMotes(tx.glow);
     this.scene.add(this.smoke.points, this.sparks.points, this.dust.points, this.skids.mesh);
+    for (const o of [this.smoke.points, this.dust.points, this.skids.mesh]) o.layers.set(NO_REFLECT);
     for (let i = 0; i < 2; i++) {
       const t = new LightTrail();
       this.trails.push(t);
@@ -251,7 +287,7 @@ export class Game {
     };
     for (let i = 0; i < 8; i++) {
       const a = (i / 8) * Math.PI * 2;
-      strip(0xff9a40, Math.cos(a) * 30, 12, Math.sin(a) * 30, 6, 1.5, 6);
+      strip(0xff9a40, Math.cos(a) * 30, 12, Math.sin(a) * 30, 6, 1.5, 3.5);
     }
     strip(0x33e0ff, 25, 4, -20, 10, 1, 3);
     strip(0xff3b8a, -28, 5, 12, 8, 1.2, 3);
@@ -343,6 +379,7 @@ export class Game {
     this.bloom.resolution.set(Math.round(w / 2), Math.round(h / 2));
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+    this.wet?.setSize(w * this.pixelRatio, h * this.pixelRatio);
     this.smoke.setViewportHeight(h * this.pixelRatio, this.camera.fov);
     this.sparks.setViewportHeight(h * this.pixelRatio, this.camera.fov);
   }
@@ -408,6 +445,8 @@ export class Game {
     this.grade.uniforms.uTime!.value = this.time;
     this.grade.uniforms.uAberr!.value = 0.0012 + (this.car.nitroActive ? 0.004 : 0) + Math.min(0.004, this.shake * 0.01);
     if (!render) return;
+    this.rain.update(this.time, this.camera.position, this.car.vx, this.car.vz);
+    this.wet.render(this.renderer, this.scene, this.camera);
     this.composer.render(dt);
     this.adaptQuality(dt);
 
@@ -422,7 +461,11 @@ export class Game {
     if (this.frameTimes.length < 90) return;
     const avg = this.frameTimes.reduce((a, b) => a + b, 0) / this.frameTimes.length;
     this.frameTimes.length = 0;
-    if (avg > 0.024 && this.pixelRatio > 0.7) {
+    if (avg > 0.024 && this.reflScale > 0.26) {
+      // primeiro abaixa a resolução do reflexo, depois a da tela
+      this.reflScale = Math.max(0.25, this.reflScale - 0.12);
+      this.wet.setScale(this.reflScale, window.innerWidth * this.pixelRatio, window.innerHeight * this.pixelRatio);
+    } else if (avg > 0.024 && this.pixelRatio > 0.7) {
       this.pixelRatio = Math.max(0.7, this.pixelRatio - 0.2);
       this.renderer.setPixelRatio(this.pixelRatio);
       this.resize();
@@ -665,7 +708,7 @@ export class Game {
             this.smoke.emit({
               x: this.tmpV.x + (Math.random() - 0.5) * 0.4, y: 0.25, z: this.tmpV.z + (Math.random() - 0.5) * 0.4,
               vx: car.vx * 0.15 + (Math.random() - 0.5) * 2, vy: 0.5 + Math.random() * 0.8, vz: car.vz * 0.15 + (Math.random() - 0.5) * 2,
-              life: 1.1 + Math.random() * 1.2, size: 0.8, grow: 2.2, r: 0.7, g: 0.66, b: 0.64, a: 0.26 * Math.min(1, slip * 1.4), drag: 1.3,
+              life: 0.9 + Math.random() * 1.0, size: 0.8, grow: 2.0, r: 0.7, g: 0.66, b: 0.66, a: 0.2 * Math.min(1, slip * 1.4), drag: 1.3,
             });
           }
         }
@@ -676,10 +719,13 @@ export class Game {
         for (const e of rig.exhausts) {
           toWorld(e.x, e.y, e.z, this.tmpV);
           for (let k = 0; k < 2; k++) {
+            const core = k === 0;
             this.sparks.emit({
               x: this.tmpV.x, y: this.tmpV.y, z: this.tmpV.z,
-              vx: car.vx - s * (4 + Math.random() * 3), vy: Math.random() * 0.4, vz: car.vz - c * (4 + Math.random() * 3),
-              life: 0.12 + Math.random() * 0.08, size: 0.35, grow: -1.2, r: 0.5, g: 1.2, b: 3.2, a: 1, drag: 3,
+              vx: car.vx - s * (4 + Math.random() * 4), vy: Math.random() * 0.5, vz: car.vz - c * (4 + Math.random() * 4),
+              life: core ? 0.1 + Math.random() * 0.06 : 0.16 + Math.random() * 0.12,
+              size: core ? 0.28 : 0.5, grow: core ? -1.2 : -1.6,
+              r: core ? 0.6 : 3.4, g: core ? 1.4 : 1.1, b: core ? 3.4 : 0.25, a: 1, drag: 3,
             });
           }
         }
@@ -771,6 +817,7 @@ export class Game {
       nitroOn: car.nitroActive,
       tcs: car.wheelSpin > 0.3,
       abs: car.braking && car.speed > 5,
+      esc: car.driftTarget > 0 && Math.abs(car.slipAngle) > car.driftTarget - 0.05,
       total: this.scorer.total,
       best: this.scorer.best,
       chain: this.scorer.chainValue,
@@ -826,6 +873,24 @@ export class Game {
     this.lampTargets.forEach((t, i) => {
       const l = this.lampPool[i]!;
       l.intensity += (t.w * 55 - l.intensity) * Math.min(1, dt * 8);
+    });
+    // neon mais perto pinta o carro e o chão molhado de cor
+    const near = this.neonLights
+      .map((n) => ({ n, d: Math.hypot(n.x - car.x, n.z - car.z) }))
+      .sort((a, b) => a.d - b.d)
+      .slice(0, this.neonPool.length + 1);
+    const cutN = near[this.neonPool.length]?.d ?? 40;
+    this.neonPool.forEach((l, i) => {
+      const t = near[i];
+      if (!t) { l.intensity = 0; return; }
+      if (l.userData.id !== t.n) {
+        l.userData.id = t.n;
+        l.position.set(t.n.x, t.n.y, t.n.z);
+        l.color.copy(t.n.color);
+        l.intensity = 0;
+      }
+      const w = THREE.MathUtils.clamp((cutN - t.d) / (cutN * 0.4), 0, 1) * THREE.MathUtils.clamp((28 - t.d) / 10, 0, 1);
+      l.intensity += (w * 22 - l.intensity) * Math.min(1, dt * 6);
     });
   }
 }

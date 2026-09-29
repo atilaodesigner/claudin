@@ -60,6 +60,8 @@ export class Traffic {
 
   constructor(count: number, seed = 7) {
     let s = seed;
+    const shadowTex = softShadow();
+    const shadowMat = new THREE.MeshBasicMaterial({ map: shadowTex, color: 0x000000, transparent: true, opacity: 0.7, depthWrite: false });
     this.rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
     for (let k = 0; k < count; k++) {
       const model = k % 11 === 5 ? 4 : Math.floor(this.rnd() * 4);
@@ -69,6 +71,12 @@ export class Traffic {
       g.add(new THREE.Mesh(v.body, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35, metalness: 0.45 })));
       const lightsMat = new THREE.MeshBasicMaterial({ vertexColors: true });
       g.add(new THREE.Mesh(v.lights, lightsMat));
+      const sh = new THREE.Mesh(new THREE.PlaneGeometry(v.halfW * 2 + 0.6, v.halfL * 2 + 0.8), shadowMat);
+      sh.rotation.x = -Math.PI / 2;
+      sh.position.y = 0.02;
+      sh.renderOrder = 2;
+      sh.layers.set(1);
+      g.add(sh);
       this.group.add(g);
       const car: TrafficCar = {
         group: g, lightsMat, model, halfW: v.halfW, halfL: v.halfL, mass: v.mass,
@@ -298,6 +306,19 @@ export class Traffic {
     const inertia = car.mass * (car.halfL * car.halfL + car.halfW * car.halfW) / 3;
     car.yawRate += (rz * jx - rx * jz) / inertia;
   }
+}
+
+function softShadow(): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d')!;
+  const grd = g.createRadialGradient(32, 32, 4, 32, 32, 32);
+  grd.addColorStop(0, 'rgba(255,255,255,1)');
+  grd.addColorStop(0.6, 'rgba(255,255,255,0.5)');
+  grd.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grd;
+  g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
 }
 
 function PITCH_T(t: number): number {

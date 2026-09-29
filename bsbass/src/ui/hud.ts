@@ -33,6 +33,7 @@ export interface HudState {
   nitroOn: boolean;
   tcs: boolean;
   abs: boolean;
+  esc: boolean;
   total: number;
   best: number;
   chain: number;
@@ -276,11 +277,12 @@ export class Hud {
     this.set('gear', s.gear);
     const arc = this.els.arc as unknown as SVGPathElement;
     const frac = Math.min(1, s.speedKmh / 280);
-    arc.style.strokeDashoffset = String(220 * (1 - frac));
+    arc.style.strokeDashoffset = String(207.3 * (1 - frac));
     const rpm = this.els.rpm as unknown as SVGPathElement;
-    rpm.style.strokeDashoffset = String(150 * (1 - Math.min(1, s.rpm / 7500)));
+    rpm.style.strokeDashoffset = String(169.6 * (1 - Math.min(1, s.rpm / 7000)));
     this.els.tcs!.classList.toggle('lit', s.tcs);
     this.els.abs!.classList.toggle('lit', s.abs);
+    this.els.esc!.classList.toggle('lit', s.esc);
     this.els.nitro!.style.setProperty('--n', String(s.nitro));
     this.els.nitro!.classList.toggle('on', s.nitroOn);
     this.set('mult', `x${s.mult}`);
@@ -293,7 +295,7 @@ export class Hud {
       this.cardMode = 'live';
       this.set('dscore', fmt(s.chain));
       this.set('dmult', `x${s.mult}`);
-      this.set('dlabel', s.drifting ? `${driftLabel(s.angle)} ${Math.round(s.angle)}°` : 'SEGURA O COMBO...');
+      this.set('dlabel', s.drifting ? `${driftLabel(s.angle)} <em>${Math.round(s.angle)}°</em>` : 'SEGURA O COMBO...', 'html');
       this.els.drift!.className = `drift show ${s.drifting ? 'live' : 'grace'}`;
       this.els.drift!.style.setProperty('--g', String(s.grace));
     } else if (this.cardMode !== 'idle' && this.cardTimer <= 0) {
@@ -470,13 +472,15 @@ const TEMPLATE = /* html */ `
   <div class="chip-mult" data-el="mult">x1</div>
   <div class="scorebox"><small>PONTOS</small><b data-el="total">0</b><small class="fitas">K7 <span data-el="fitas">0/30</span></small></div>
   <div class="speedo">
-    <svg viewBox="0 0 120 80">
-      <path class="track" d="M 18 70 A 48 48 0 1 1 102 70" />
-      <path class="arc" data-el="arc" d="M 18 70 A 48 48 0 1 1 102 70" />
-      <path class="rpm" data-el="rpm" d="M 30 64 A 36 36 0 1 1 90 64" />
+<svg viewBox="0 0 120 100">
+      <path class="track" d="M 28.9 85.1 A 44 44 0 1 1 91.1 85.1" />
+      <path class="arc" data-el="arc" d="M 28.9 85.1 A 44 44 0 1 1 91.1 85.1" />
+      <path class="rpm" data-el="rpm" d="M 34.5 79.5 A 36 36 0 1 1 85.5 79.5" />
+      <line x1="30.3" y1="83.7" x2="33.8" y2="80.2" class="tk big" /><text x="38.8" y="78.2" class="tl">0</text><line x1="27.6" y1="82.3" x2="29.9" y2="80.3" class="tk" /><line x1="25.8" y1="80.0" x2="28.2" y2="78.2" class="tk" /><line x1="24.1" y1="77.7" x2="26.6" y2="76.0" class="tk" /><line x1="22.6" y1="75.2" x2="25.2" y2="73.7" class="tk" /><line x1="21.3" y1="72.7" x2="24.0" y2="71.4" class="tk" /><line x1="20.1" y1="70.0" x2="22.9" y2="68.9" class="tk" /><line x1="19.1" y1="67.3" x2="22.0" y2="66.4" class="tk" /><line x1="18.3" y1="64.5" x2="21.2" y2="63.8" class="tk" /><line x1="17.7" y1="61.7" x2="20.6" y2="61.1" class="tk" /><line x1="18.3" y1="58.7" x2="23.2" y2="58.1" class="tk big" /><text x="30.2" y="60.4" class="tl">1</text><line x1="17.0" y1="55.9" x2="20.0" y2="55.8" class="tk" /><line x1="17.0" y1="53.0" x2="20.0" y2="53.1" class="tk" /><line x1="17.2" y1="50.1" x2="20.2" y2="50.4" class="tk" /><line x1="17.5" y1="47.3" x2="20.5" y2="47.7" class="tk" /><line x1="18.1" y1="44.4" x2="21.0" y2="45.1" class="tk" /><line x1="18.8" y1="41.6" x2="21.7" y2="42.5" class="tk" /><line x1="19.7" y1="38.9" x2="22.6" y2="39.9" class="tk" /><line x1="20.8" y1="36.2" x2="23.6" y2="37.5" class="tk" /><line x1="22.1" y1="33.6" x2="24.8" y2="35.0" class="tk" /><line x1="24.4" y1="31.7" x2="28.7" y2="34.3" class="tk big" /><text x="34.6" y="41.0" class="tl">2</text><line x1="25.2" y1="28.7" x2="27.6" y2="30.5" class="tk" /><line x1="27.0" y1="26.4" x2="29.3" y2="28.4" class="tk" /><line x1="28.9" y1="24.3" x2="31.1" y2="26.4" class="tk" /><line x1="31.0" y1="22.3" x2="33.0" y2="24.5" class="tk" /><line x1="33.2" y1="20.4" x2="35.1" y2="22.7" class="tk" /><line x1="35.5" y1="18.7" x2="37.2" y2="21.1" class="tk" /><line x1="37.9" y1="17.1" x2="39.5" y2="19.7" class="tk" /><line x1="40.5" y1="15.7" x2="41.8" y2="18.4" class="tk" /><line x1="43.1" y1="14.5" x2="44.3" y2="17.2" class="tk" /><line x1="46.1" y1="14.4" x2="47.8" y2="19.1" class="tk big" /><text x="50.1" y="28.7" class="tl">3</text><line x1="48.6" y1="12.5" x2="49.4" y2="15.4" class="tk" /><line x1="51.4" y1="11.9" x2="52.0" y2="14.8" class="tk" /><line x1="54.2" y1="11.4" x2="54.6" y2="14.4" class="tk" /><line x1="57.1" y1="11.1" x2="57.3" y2="14.1" class="tk" /><line x1="60.0" y1="11.0" x2="60.0" y2="14.0" class="tk" /><line x1="62.9" y1="11.1" x2="62.7" y2="14.1" class="tk" /><line x1="65.8" y1="11.4" x2="65.4" y2="14.4" class="tk" /><line x1="68.6" y1="11.9" x2="68.0" y2="14.8" class="tk" /><line x1="71.4" y1="12.5" x2="70.6" y2="15.4" class="tk" /><line x1="73.9" y1="14.4" x2="72.2" y2="19.1" class="tk big" /><text x="69.9" y="28.7" class="tl">4</text><line x1="76.9" y1="14.5" x2="75.7" y2="17.2" class="tk" /><line x1="79.5" y1="15.7" x2="78.2" y2="18.4" class="tk" /><line x1="82.1" y1="17.1" x2="80.5" y2="19.7" class="tk" /><line x1="84.5" y1="18.7" x2="82.8" y2="21.1" class="tk" /><line x1="86.8" y1="20.4" x2="84.9" y2="22.7" class="tk" /><line x1="89.0" y1="22.3" x2="87.0" y2="24.5" class="tk" /><line x1="91.1" y1="24.3" x2="88.9" y2="26.4" class="tk" /><line x1="93.0" y1="26.4" x2="90.7" y2="28.4" class="tk" /><line x1="94.8" y1="28.7" x2="92.4" y2="30.5" class="tk" /><line x1="95.6" y1="31.7" x2="91.3" y2="34.3" class="tk big" /><text x="85.4" y="41.0" class="tl">5</text><line x1="97.9" y1="33.6" x2="95.2" y2="35.0" class="tk" /><line x1="99.2" y1="36.2" x2="96.4" y2="37.5" class="tk" /><line x1="100.3" y1="38.9" x2="97.4" y2="39.9" class="tk" /><line x1="101.2" y1="41.6" x2="98.3" y2="42.5" class="tk" /><line x1="101.9" y1="44.4" x2="99.0" y2="45.1" class="tk" /><line x1="102.5" y1="47.3" x2="99.5" y2="47.7" class="tk" /><line x1="102.8" y1="50.1" x2="99.8" y2="50.4" class="tk" /><line x1="103.0" y1="53.0" x2="100.0" y2="53.1" class="tk" /><line x1="103.0" y1="55.9" x2="100.0" y2="55.8" class="tk" /><line x1="101.7" y1="58.7" x2="96.8" y2="58.1" class="tk big" data-red /><text x="89.8" y="60.4" class="tl">6</text><line x1="102.3" y1="61.7" x2="99.4" y2="61.1" class="tk" data-red /><line x1="101.7" y1="64.5" x2="98.8" y2="63.8" class="tk" data-red /><line x1="100.9" y1="67.3" x2="98.0" y2="66.4" class="tk" data-red /><line x1="99.9" y1="70.0" x2="97.1" y2="68.9" class="tk" data-red /><line x1="98.7" y1="72.7" x2="96.0" y2="71.4" class="tk" data-red /><line x1="97.4" y1="75.2" x2="94.8" y2="73.7" class="tk" data-red /><line x1="95.9" y1="77.7" x2="93.4" y2="76.0" class="tk" data-red /><line x1="94.2" y1="80.0" x2="91.8" y2="78.2" class="tk" data-red /><line x1="92.4" y1="82.3" x2="90.1" y2="80.3" class="tk" data-red /><line x1="89.7" y1="83.7" x2="86.2" y2="80.2" class="tk big" data-red /><text x="81.2" y="78.2" class="tl">7</text>
+      <text x="60" y="36" class="ul">RPM x1000</text>
     </svg>
-    <b data-el="speed">0</b><span class="gear" data-el="gear">1</span>
-    <div class="lamps"><i data-el="tcs">TCS</i><i data-el="abs">ABS</i></div>
+    <b data-el="speed">0</b><small class="unit">km/h</small><span class="gear" data-el="gear">1</span><small class="auto">AUTO</small>
+    <div class="lamps"><i data-el="tcs">TCS</i><i data-el="abs">ABS</i><i data-el="esc">ESC</i></div>
     <div class="nitro" data-el="nitro"><span></span></div>
   </div>
   <div class="top-right">

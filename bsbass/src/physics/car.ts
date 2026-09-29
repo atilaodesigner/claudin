@@ -26,7 +26,7 @@ export const CAR = {
   halfLength: 2.42,
   mu: 1.12,
   power: 290_000, // W
-  maxDrive: 10_500, // N
+  maxDrive: 9_200, // N
   nitroForce: 6_500,
   brakeForce: 14_000,
   handbrakeForce: 7_500,
@@ -37,8 +37,9 @@ export const CAR = {
   // curva do pneu (Pacejka "mágica" simplificada)
   tireB: 9.5,
   tireC: 1.45,
-  rearGripHandbrake: 0.3,
+  rearGripHandbrake: 0.4,
   reverseMax: 9,
+  maxDriftAngle: 1.08, // ~62°
 } as const;
 
 const G = 9.81;
@@ -67,6 +68,7 @@ export class CarPhysics {
   vLong = 0; // m/s na direção do carro
   vLat = 0; // m/s pro lado esquerdo
   slipAngle = 0; // rad, ângulo entre a frente e a velocidade (β)
+  driftTarget = 0; // ângulo que o controle de drift está segurando
   rearSlip = 0; // 0..1 intensidade de derrapagem da traseira
   wheelSpin = 0; // 0..1 patinando por excesso de torque
   accelLong = 0;
@@ -179,8 +181,8 @@ export class CarPhysics {
     // traseira: círculo de atrito (torque come a aderência lateral)
     let rearGrip = 1;
     if (input.handbrake) rearGrip *= CAR.rearGripHandbrake;
-    const usedLong = clamp(Math.abs(rearLong) / rearMax, 0, 0.97);
-    rearGrip *= Math.sqrt(1 - usedLong * usedLong) * (1 - this.wheelSpin * 0.45);
+    const usedLong = clamp(Math.abs(rearLong) / rearMax, 0, 0.93);
+    rearGrip *= Math.sqrt(1 - usedLong * usedLong) * (1 - this.wheelSpin * 0.3);
     let fyR = -tire(alphaR, loadR, mu) * rearGrip;
 
     const lowSpeed = clamp(speed / 4, 0, 1);
@@ -204,9 +206,30 @@ export class CarPhysics {
     if (!reversing && vLong > 4) fLong += throttle * driftAmount * 3_800;
 
     let torque = CAR.cgToFront * fyF * cosD - CAR.cgToRear * fyR;
-    // amortecimento de yaw (evita pião infinito, mais forte quando passa de 90°)
-    const spinOut = clamp((Math.abs(beta) - 1.1) / 0.6, 0, 1);
-    torque -= this.yawRate * (600 + spinOut * 5_000 + (1 - lowSpeed) * 4_000);
+    torque -= this.yawRate * (600 + (1 - lowSpeed) * 4_000);
+
+    // ---------- controle de drift ----------
+    // o jogador escolhe o ângulo com o volante (pra dentro = mais ângulo,
+    // contra-esterço = endireita) e o carro não passa do ponto e roda.
+    this.driftTarget = 0;
+    if (speed > 5 && vLong > 0.5) {
+      const ab = Math.abs(beta);
+      const dir = Math.sign(beta);
+      const into = clamp(-dir * input.steer, -1, 1);
+      let want = 0.55 + 0.32 * Math.max(0, into) + 0.1 * throttle - 0.45 * Math.max(0, -into);
+      if (input.handbrake) want += 0.12;
+      want = clamp(want, 0.12, CAR.maxDriftAngle);
+      this.driftTarget = want;
+      // olha um pouco à frente: se o ângulo está abrindo rápido, age antes de passar do ponto
+      const opening = -dir * this.yawRate;
+      const over = ab + 0.32 * Math.max(0, opening) - want;
+      if (over > 0) {
+        // torque que gira a frente de volta pra direção do movimento
+        torque += dir * (18_000 * over + 70_000 * Math.max(0, ab - CAR.maxDriftAngle));
+        // e freia a rotação que ainda está abrindo o ângulo
+        if (opening > 0) torque -= this.yawRate * 4_500 * clamp(over / 0.2, 0, 1);
+      }
+    }
 
     // ---------- integra ----------
     const ax = fLong / CAR.mass;

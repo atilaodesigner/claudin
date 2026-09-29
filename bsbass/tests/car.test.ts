@@ -35,8 +35,12 @@ describe('CarPhysics', () => {
     const c = new CarPhysics();
     c.reset(0, 0, 0);
     sim(c, 4, { throttle: 1 });
-    sim(c, 3.5, { brake: 1 });
-    expect(c.speed).toBeLessThan(2);
+    let minSpeed = Infinity;
+    sim(c, 3.5, (car) => {
+      minSpeed = Math.min(minSpeed, car.speed);
+      return { brake: 1 };
+    });
+    expect(minSpeed).toBeLessThan(0.5);
     sim(c, 3, { brake: 1 });
     expect(c.vLong).toBeLessThan(-3);
     expect(c.reversing).toBe(true);
@@ -68,6 +72,30 @@ describe('CarPhysics', () => {
     }
     expect(sideways).toBeGreaterThan(1.5);
     expect(c.speed * 3.6).toBeGreaterThan(30);
+  });
+
+  it('segurando tudo pra um lado com o pé embaixo não roda (ângulo limitado)', () => {
+    const c = new CarPhysics();
+    c.reset(0, 0, 0);
+    sim(c, 4, (car) => ({ throttle: car.speed < 20 ? 1 : 0.3 }));
+    let maxSlip = 0;
+    sim(c, 6, (car) => {
+      maxSlip = Math.max(maxSlip, Math.abs(car.slipAngle));
+      return { steer: 1, throttle: 1 };
+    });
+    expect(maxSlip * 57.3).toBeLessThan(72);
+  });
+
+  it('freio de mão e volante travado segura o drift sem pião', () => {
+    const c = new CarPhysics();
+    c.reset(0, 0, 0);
+    sim(c, 4, (car) => ({ throttle: car.speed < 22 ? 1 : 0.2 }));
+    let maxSlip = 0;
+    sim(c, 5, (car) => {
+      if (car.speed > 8) maxSlip = Math.max(maxSlip, Math.abs(car.slipAngle));
+      return { steer: 1, handbrake: true, throttle: 0.7 };
+    });
+    expect(maxSlip * 57.3).toBeLessThan(75);
   });
 
   it('volante solto em curva leve não vira pião', () => {

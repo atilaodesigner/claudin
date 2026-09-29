@@ -93,18 +93,25 @@ body.touch .keys { display: none; }
 .scorebox small { display: block; font-size: 9px; letter-spacing: 0.28em; color: rgba(255,255,255,0.6); }
 .scorebox b { font-family: Anton, sans-serif; font-weight: 400; font-size: 20px; letter-spacing: 0.04em; }
 .scorebox .fitas { margin-top: 3px; color: var(--y); }
-.speedo { position: absolute; left: 50%; top: 0; width: 132px; height: 96px; transform: translateX(-50%); text-align: center; }
-.speedo svg { position: absolute; inset: 0; width: 100%; height: 88px; overflow: visible; }
-.speedo path { fill: none; stroke-linecap: round; }
-.speedo .track { stroke: rgba(255,255,255,0.14); stroke-width: 3; }
-.speedo .arc { stroke: #fff; stroke-width: 3; stroke-dasharray: 220; stroke-dashoffset: 220; filter: drop-shadow(0 0 4px rgba(255,255,255,0.6)); transition: stroke-dashoffset 0.08s linear; }
-.speedo .rpm { stroke: var(--red); stroke-width: 2; stroke-dasharray: 150; stroke-dashoffset: 150; opacity: 0.8; }
-.speedo b { position: absolute; left: 0; right: 0; top: 32px; font-family: Anton, sans-serif; font-weight: 400; font-size: 30px; line-height: 1; text-shadow: 0 0 10px rgba(0,0,0,0.8); }
-.speedo .gear { position: absolute; left: 0; right: 0; top: 64px; font-size: 11px; color: rgba(255,255,255,0.75); }
-.speedo .lamps { position: absolute; right: -30px; top: 24px; display: flex; flex-direction: column; gap: 3px; }
-.speedo .lamps i { font-style: normal; font-size: 8px; font-weight: 700; padding: 1px 3px; border: 1px solid rgba(255,255,255,0.18); color: rgba(255,255,255,0.3); }
+.speedo { position: absolute; left: 50%; top: -4px; width: 150px; height: 118px; transform: translateX(-50%); text-align: center; }
+.speedo svg { position: absolute; inset: 0; width: 100%; height: 125px; overflow: visible; }
+.speedo path { fill: none; stroke-linecap: butt; }
+.speedo .track { stroke: rgba(255,255,255,0.1); stroke-width: 2; }
+.speedo .arc { stroke: #fff; stroke-width: 2.4; stroke-dasharray: 207.3; stroke-dashoffset: 207.3; filter: drop-shadow(0 0 3px rgba(255,255,255,0.7)); }
+.speedo .rpm { stroke: var(--red); stroke-width: 3; stroke-dasharray: 169.6; stroke-dashoffset: 169.6; opacity: 0.85; filter: drop-shadow(0 0 3px rgba(255,59,59,0.8)); }
+.speedo .tk { stroke: rgba(255,255,255,0.35); stroke-width: 0.6; }
+.speedo .tk.big { stroke: rgba(255,255,255,0.85); stroke-width: 1.2; }
+.speedo .tk[data-red] { stroke: var(--red); }
+.speedo .tl { fill: rgba(255,255,255,0.8); font: 600 7px 'Chakra Petch', sans-serif; text-anchor: middle; }
+.speedo .ul { fill: rgba(255,255,255,0.4); font: 600 4.5px 'Chakra Petch', sans-serif; text-anchor: middle; letter-spacing: 0.15em; }
+.speedo b { position: absolute; left: 0; right: 0; top: 48px; font-family: Anton, sans-serif; font-weight: 400; font-size: 30px; line-height: 1; text-shadow: 0 0 10px rgba(0,0,0,0.8); font-variant-numeric: tabular-nums; }
+.speedo .unit { position: absolute; left: 0; right: 0; top: 80px; font-size: 8px; letter-spacing: 0.2em; color: rgba(255,255,255,0.55); }
+.speedo .gear { position: absolute; left: 0; right: 0; top: 90px; font-family: Anton, sans-serif; font-size: 16px; color: #fff; }
+.speedo .auto { position: absolute; left: 0; right: 0; top: 109px; font-size: 7px; letter-spacing: 0.25em; color: rgba(255,255,255,0.45); }
+.speedo .lamps { position: absolute; right: -34px; top: 26px; display: flex; flex-direction: column; gap: 4px; }
+.speedo .lamps i { font-style: normal; font-size: 8px; font-weight: 700; padding: 2px 4px; border: 1px solid rgba(255,255,255,0.18); color: rgba(255,255,255,0.3); background: rgba(0,0,0,0.3); letter-spacing: 0.1em; }
 .speedo .lamps i.lit { background: var(--y); color: #111; border-color: var(--y); }
-.speedo .nitro { position: absolute; left: 22px; right: 22px; top: 84px; height: 4px; background: rgba(255,255,255,0.12); border-radius: 2px; overflow: hidden; }
+.speedo .nitro { position: absolute; left: 30px; right: 30px; top: 122px; height: 4px; background: rgba(255,255,255,0.12); border-radius: 2px; overflow: hidden; }
 .speedo .nitro span { position: absolute; inset: 0; transform-origin: left; transform: scaleX(var(--n, 0)); background: linear-gradient(90deg, var(--blue), var(--cyan)); }
 .speedo .nitro.on span { box-shadow: 0 0 10px var(--cyan); background: #bff4ff; }
 .top-right { position: absolute; right: 0; top: 0; display: flex; gap: 6px; }
@@ -114,16 +121,17 @@ body.touch .keys { display: none; }
 .eq i:nth-child(2) { animation-delay: -0.3s; } .eq i:nth-child(3) { animation-delay: -0.6s; } .eq i:nth-child(4) { animation-delay: -0.15s; }
 @keyframes eq { 0%, 100% { height: 4px; } 50% { height: 16px; } }
 
-.compass { position: absolute; top: calc(112px + var(--safe-t)); left: 50%; transform: translateX(-50%); display: none; align-items: center; gap: 10px;
+.compass { position: absolute; top: calc(140px + var(--safe-t)); left: 50%; transform: translateX(-50%); display: none; align-items: center; gap: 10px;
   padding: 5px 14px; background: rgba(8,9,12,0.7); border: 1px solid rgba(255,210,26,0.5); font-size: 10px; letter-spacing: 0.22em; font-weight: 700; white-space: nowrap; }
 .compass.show { display: flex; }
 .compass .arrow { display: inline-block; color: var(--y); font-size: 12px; }
 
-.drift { position: absolute; top: calc(150px + var(--safe-t)); left: 50%; transform: translateX(-50%) scale(0.9); opacity: 0; transition: opacity 0.15s, transform 0.15s; text-align: center; }
+.drift { position: absolute; top: calc(174px + var(--safe-t)); left: 50%; transform: translateX(-50%) scale(0.9); opacity: 0; transition: opacity 0.15s, transform 0.15s; text-align: center; }
 .drift.show { opacity: 1; transform: translateX(-50%) scale(1); }
 .drift .row { display: flex; align-items: center; gap: 8px; justify-content: center; }
 .drift b { font-family: Anton, sans-serif; font-weight: 400; font-size: 46px; line-height: 1; color: var(--y); text-shadow: 0 0 18px rgba(255,210,26,0.45), 2px 2px 0 #000; }
 .drift .m { background: var(--y); color: #111; font-weight: 800; font-size: 17px; padding: 1px 8px; transform: skewX(-10deg); }
+.drift small em { font-style: normal; color: var(--y); margin-left: 6px; }
 .drift small { display: block; margin-top: 4px; font-size: 11px; letter-spacing: 0.26em; font-weight: 700; color: #fff; text-shadow: 0 1px 3px #000; }
 .drift.grace b { color: var(--red); text-shadow: 0 0 18px rgba(255,59,59,0.5), 2px 2px 0 #000; }
 .drift.grace .m { background: var(--red); color: #fff; }
@@ -137,7 +145,7 @@ body.touch .keys { display: none; }
 .drift.lost .m { display: none; }
 .drift.lost small { color: var(--red); }
 
-.race { position: absolute; top: calc(228px + var(--safe-t)); left: 50%; transform: translateX(-50%); display: none; padding: 6px 12px;
+.race { position: absolute; top: calc(250px + var(--safe-t)); left: 50%; transform: translateX(-50%); display: none; padding: 6px 12px;
   background: rgba(8, 20, 26, 0.75); border: 1px solid var(--cyan); font-size: 11px; letter-spacing: 0.14em; white-space: nowrap; text-align: center; }
 .race.show { display: block; }
 .race b { color: var(--cyan); }
@@ -221,10 +229,10 @@ body.touch .nowplaying { left: 12px; bottom: calc(132px + var(--safe-b)); right:
 @media (min-width: 900px) {
   .hud-top { left: 18px; right: 18px; top: 14px; }
   .speedo { transform: translateX(-50%) scale(1.15); transform-origin: top center; }
-  .compass { top: 130px; }
-  .drift { top: 168px; }
+  .compass { top: 160px; }
+  .drift { top: 196px; }
   .drift b { font-size: 58px; }
-  .race { top: 250px; }
+  .race { top: 280px; }
   #minimap { width: 190px; height: 190px; left: 18px; bottom: 22px; }
   .nowplaying { left: 222px; bottom: 26px; font-size: 11px; }
 }

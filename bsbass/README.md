@@ -4,7 +4,9 @@
 
 Jogo de drift que roda direto no navegador (celular em pé ou PC), feito com **Three.js + TypeScript + Vite**, sem engine. Inspirado na mecânica do *Threejs-Punk Drive*, mas com a estética da periferia do Distrito Federal: quadras de cidade-satélite, casa de laje com tijolo baiano aparente, ferro de espera pro próximo andar, caixa d'água azul, muro pixado, bar com mesa de plástico na calçada, luz de sódio laranja, poeira vermelha do cerrado subindo no pé do muro, balão com a Caixa d'Água no meio e a silhueta do Plano Piloto no horizonte.
 
-Tudo é procedural: cidade, texturas (pixo, grafite, placas, asfalto), carros, áudio e as três rádios. **Nenhum asset externo**, só as fontes.
+É madrugada depois do temporal: asfalto molhado com reflexo de verdade (câmera espelhada + poças), chuva fina, cone de luz nos postes, neon de bar, açaí, sinuca, igreja e barbearia, fita de LED no comércio e outdoor aceso em cima da laje.
+
+Tudo é procedural: cidade, texturas (pixo, grafite, placas, asfalto), carros, neon, áudio e as três rádios. **Nenhum asset externo**, só as fontes.
 
 ## Rodando
 
@@ -42,7 +44,8 @@ O build é estático (`base: './'`): dá pra hospedar `dist/` em qualquer lugar.
 
 ## Mecânica
 
-- **Física**: modelo de bicicleta com pneu tipo Pacejka, transferência de carga, tração traseira com círculo de atrito (acelerador demais faz a traseira sair), freio de mão travando a traseira, câmbio automático de 6 marchas, assist de contra-esterço e amortecimento de pião. Roda a 120 Hz em passo fixo.
+- **Física**: modelo de bicicleta com pneu tipo Pacejka, transferência de carga, tração traseira com círculo de atrito (acelerador demais faz a traseira sair), freio de mão travando a traseira, câmbio automático de 6 marchas e assist de contra-esterço. Roda a 120 Hz em passo fixo.
+- **Controle de drift**: o volante escolhe o ângulo (pra dentro da curva abre até ~60°, solto segura ~30°, contra-esterço endireita) e o carro não passa do ponto e roda. A luz **ESC** acende quando o controle está segurando.
 - **Drift**: acima de 28 km/h e 12° de ângulo os pontos sobem por ângulo × velocidade. O multiplicador sobe a cada 2,4 s de lado (até x10). Você tem 1,8 s pra emendar o próximo drift; depois disso o combo vai **pro bolso**. Bateu forte: **perdeu o combo**. O texto muda com o ângulo (DRIFT, BOM DRIFT, DRIFT BRABO, DRIFT INSANO, DRIFT LENDÁRIO).
 - **Raspando**: passar colado num carro durante o combo dá bônus, sobe o multiplicador e enche nitro.
 - **Nitro**: enche drifando, raspando e pegando fitas.
@@ -64,7 +67,10 @@ src/
   world/cityMesh.ts     malhas da cidade (um draw call por material)
   world/textures.ts     texturas procedurais em canvas
   world/missions.ts     fitas K7 e rachas
-  car/mustang.ts        o Mustang
+  car/mustang.ts        o Mustang (carroceria em seções, cabine, interior, rodas)
+  fx/wet.ts             reflexo do asfalto molhado
+  fx/rain.ts            chuva e cones de luz dos postes
+  world/neon.ts         neon, LED e outdoors
   traffic/              modelos e IA do tráfego
   fx/                   fumaça, poeira, faíscas, marcas de pneu, rastro das lanternas
   audio/                motor V8, pneu, efeitos e as rádios
