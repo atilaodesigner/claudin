@@ -64,7 +64,10 @@ O build é estático (`base: './'`): dá pra hospedar `dist/` em qualquer lugar.
 - **Tráfego**: Gol quadrado, Uno, Kombi saia-e-blusa, picape e busão. Andam na mão, contornam o balão no sentido certo, buzinam se você parar na frente e saem rodando quando levam pancada.
 - **Superfícies**: asfalto, calçada e o **terrão** de terra vermelha (menos aderência, levanta poeira).
 - **Rádio**: GRAVE 61 FM (funk de quebrada), BSBASS PHONK (drift phonk) e EIXÃO TRAP, tudo sintetizado na hora. O paredão da feira pisca no grave. Volume de música e de carro separados.
-- Progresso (pontos, maior drift, fitas, rachas, câmera, rádio) fica salvo no navegador.
+- **Rabiscos estilo NFS Unbound**: traço de caneta que "ferve" em volta do carro: laçadas de fumaça no drift, asa quando o ângulo passa de 32°, zigue-zague de chama e linhas de velocidade no nitro, espiral na patinada e estalos na batida, no raspando e quando o combo vai pro bolso. Lanternas e faróis deixam rastro de luz.
+- **Menu**: JOGAR, CONFIGURAÇÕES, COMO JOGAR e CRÉDITOS (a pausa também abre as configurações e volta pro menu).
+- **Qualidade gráfica**: AUTO, BAIXA, MÉDIA, ALTA e ULTRA mudam resolução, reflexo do asfalto, bloom, chuva, luzes dinâmicas, cones de luz e partículas na hora, sem recarregar. No AUTO começa em MÉDIA (celular) ou ALTA (PC) e desce sozinho se o FPS cair. Dá pra desligar rabiscos, rastro de luz, chuva, tremida de câmera e efeito de lente, e mostrar o FPS.
+- Progresso (pontos, maior drift, fitas, rachas, câmera, rádio) e as configurações ficam salvos no navegador.
 
 ## Estrutura
 
@@ -84,9 +87,11 @@ src/
   world/props.ts        objetos de rua (Poly Haven) instanciados
   assets.ts             carrega texturas e modelos
   traffic/              modelos e IA do tráfego
+  fx/doodles.ts         rabiscos estilo Unbound (atlas em canvas + pontos na GPU)
   fx/                   fumaça, poeira, faíscas, marcas de pneu, rastro das lanternas
+  settings.ts           presets de qualidade e opções salvas
   audio/                motor V8, pneu, efeitos e as rádios
-  ui/hud.ts             HUD, intro, pausa, player do rádio, minimapa
+  ui/hud.ts             HUD, menu, configurações, intro, pausa, player do rádio, minimapa
   game.ts               loop principal, câmera, pós-processamento
 tests/                  testes de lógica
 ```

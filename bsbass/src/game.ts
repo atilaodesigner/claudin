@@ -20,8 +20,10 @@ import { buildMustang, WHEEL_POS, type MustangRig } from './car/mustang';
 import { Traffic } from './traffic/traffic';
 import { Particles, DustMotes } from './fx/particles';
 import { LightTrail, SkidMarks } from './fx/trails';
+import { Doodle, Doodles } from './fx/doodles';
 import { WetReflection, NO_REFLECT } from './fx/wet';
 import { Rain, buildLightCones } from './fx/rain';
+import { PRESETS, autoPreset, loadSettings, lowerPreset, saveSettings, type Preset, type Settings } from './settings';
 import { buildNeon } from './world/neon';
 import { buildProps } from './world/props';
 import { buildTrees } from './world/trees';
@@ -33,6 +35,9 @@ import { Hud, fmt } from './ui/hud';
 
 const STEP = 1 / 120;
 const SAVE_KEY = 'bsbass-drift-save-v1';
+/** gotas de chuva: base (preset alto) e máximo alocado (ultra) */
+const RAIN_BASE = 3600;
+const RAIN_MAX = 4800;
 type CamMode = 'chase' | 'far' | 'hood';
 const CAM_NAMES: Record<CamMode, string> = { chase: 'CÂMERA PERTO', far: 'CÂMERA LONGE', hood: 'CÂMERA CAPÔ' };
 
@@ -58,10 +63,10 @@ function loadSave(): Save {
 }
 
 const GRADE_SHADER = {
-  uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uAberr: { value: 0.0015 }, uVignette: { value: 0.55 } },
+  uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uAberr: { value: 0.0015 }, uVignette: { value: 0.55 }, uGrain: { value: 0.045 } },
   vertexShader: /* glsl */ `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
   fragmentShader: /* glsl */ `
-    uniform sampler2D tDiffuse; uniform float uTime; uniform float uAberr; uniform float uVignette;
+    uniform sampler2D tDiffuse; uniform float uTime; uniform float uAberr; uniform float uVignette; uniform float uGrain;
     varying vec2 vUv;
     float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
     void main(){
@@ -76,7 +81,7 @@ const GRADE_SHADER = {
       col += vec3(-0.012, 0.004, 0.028) * (1.0 - smoothstep(0.0, 0.35, l));
       col *= mix(vec3(1.0), vec3(1.05, 0.99, 0.9), smoothstep(0.35, 1.0, l));
       col *= 1.0 - uVignette * r * 1.5;
-      col += (hash(vUv * 1024.0 + fract(uTime) * 91.0) - 0.5) * 0.045;
+      col += (hash(vUv * 1024.0 + fract(uTime) * 91.0) - 0.5) * uGrain;
       gl_FragColor = vec4(col, 1.0);
     }
   `,
@@ -103,6 +108,9 @@ export class Game {
   private dust: DustMotes;
   private skids = new SkidMarks();
   private trails: LightTrail[] = [];
+  private headTrails: LightTrail[] = [];
+  readonly doodles = new Doodles();
+  private dT = { nitro: 0, speed: 0, drift: 0, wing: 0, burn: 0, color: 0 };
   readonly audio = new AudioSystem();
   readonly radio: Radio;
   readonly input = new Input();
@@ -137,12 +145,21 @@ export class Game {
   private autopilot: ((t: number) => Partial<import('./physics/car').CarInput>) | null = null;
   private frameTimes: number[] = [];
   private pixelRatio: number;
+  private touch: boolean;
+  settings: Settings;
+  /** preset em uso (no modo auto, o que o ajuste automático escolheu) */
+  preset: Preset;
+  private cones: THREE.Mesh;
+  private fpsAvg = 60;
   private lastSaveAt = 0;
 
   constructor(container: HTMLElement, hudParent: HTMLElement, assets: Assets = { photos: {}, tex: {}, models: {} }) {
     const touch = matchMedia('(pointer: coarse)').matches;
+    this.touch = touch;
+    this.settings = loadSettings();
+    this.preset = this.settings.preset === 'auto' ? autoPreset(touch) : this.settings.preset;
     this.renderer = new THREE.WebGLRenderer({ antialias: !touch, powerPreference: 'high-performance' });
-    this.pixelRatio = Math.min(window.devicePixelRatio || 1, touch ? 1.6 : 1.75);
+    this.pixelRatio = Math.min(window.devicePixelRatio || 1, PRESETS[this.preset].pixelRatio);
     this.renderer.setPixelRatio(this.pixelRatio);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
@@ -177,7 +194,7 @@ export class Game {
     }
 
     // asfalto molhado com reflexo de verdade
-    this.reflScale = touch ? 0.32 : 0.5;
+    this.reflScale = PRESETS[this.preset].reflection || 0.3;
     this.wet = new WetReflection(this.reflScale);
     for (const name of ['asphalt', 'ground', 'sidewalk', 'marks', 'pools', 'dirt']) {
       const m = this.meshes.group.getObjectByName(name) as THREE.Mesh | undefined;
@@ -191,23 +208,12 @@ export class Game {
     const neon = buildNeon(this.city);
     this.scene.add(neon.group);
     this.neonLights = neon.lights;
-    const cones = buildLightCones(this.meshes.lampLights);
-    cones.layers.set(NO_REFLECT);
-    this.scene.add(cones);
-    this.rain = new Rain(touch ? 2200 : 3600);
+    this.cones = buildLightCones(this.meshes.lampLights);
+    this.cones.layers.set(NO_REFLECT);
+    this.scene.add(this.cones);
+    this.rain = new Rain(RAIN_MAX);
     this.rain.lines.layers.set(NO_REFLECT);
     this.scene.add(this.rain.lines);
-    for (let i = 0; i < 3; i++) {
-      const l = new THREE.PointLight(0xffffff, 0, 16, 1.6);
-      this.scene.add(l);
-      this.neonPool.push(l);
-    }
-
-    for (let i = 0; i < 7; i++) {
-      const l = new THREE.PointLight(0xff9a45, 0, 30, 1.6);
-      this.scene.add(l);
-      this.lampPool.push(l);
-    }
 
     // ---------- carro ----------
     let env: THREE.Texture;
@@ -250,10 +256,16 @@ export class Game {
     this.scene.add(this.smoke.points, this.sparks.points, this.dust.points, this.skids.mesh);
     for (const o of [this.smoke.points, this.dust.points, this.skids.mesh]) o.layers.set(NO_REFLECT);
     for (let i = 0; i < 2; i++) {
-      const t = new LightTrail();
+      // rastro longo das lanternas (estilo Unbound) e dos faróis
+      const t = new LightTrail(44, new THREE.Color(2.2, 0.06, 0.04), 0.055);
       this.trails.push(t);
       this.scene.add(t.mesh);
+      const h = new LightTrail(30, new THREE.Color(1.4, 1.45, 1.8), 0.045);
+      this.headTrails.push(h);
+      this.scene.add(h.mesh);
     }
+    this.scene.add(this.doodles.points);
+    this.doodles.points.layers.set(NO_REFLECT);
     this.scorer.total = this.save.total;
     this.scorer.best = this.save.best;
 
@@ -291,6 +303,20 @@ export class Game {
       try { localStorage.removeItem(SAVE_KEY); } catch { /* sem storage */ }
       location.reload();
     };
+    this.hud.settings = this.settings;
+    this.hud.camMode = this.camMode;
+    this.hud.onCamera = (m) => this.setCam(m as CamMode);
+    this.hud.setVolumeBar('car', this.save.vol.car);
+    this.hud.setVolumeBar('music', this.save.vol.music);
+    this.hud.activePreset = this.preset;
+    this.hud.onSettings = (st) => {
+      this.settings = st;
+      saveSettings(st);
+      if (st.preset !== 'auto') this.preset = st.preset;
+      else this.preset = autoPreset(this.touch);
+      this.applySettings();
+    };
+    this.applySettings();
     this.refreshObjectives();
     this.input.on((a) => this.onAction(a));
 
@@ -331,6 +357,7 @@ export class Game {
 
   private onAction(a: Action): void {
     if (a === 'pause') {
+      if (this.hud.closeSub()) return;
       if (!this.hud.started) return;
       this.hud.setPaused(!this.hud.paused);
       return;
@@ -364,9 +391,15 @@ export class Game {
 
   private cycleCam(): void {
     const order: CamMode[] = ['chase', 'far', 'hood'];
-    this.camMode = order[(order.indexOf(this.camMode) + 1) % order.length]!;
+    this.setCam(order[(order.indexOf(this.camMode) + 1) % order.length]!);
     this.hud.popup(CAM_NAMES[this.camMode]);
-    this.save.cam = this.camMode;
+  }
+
+  private setCam(m: CamMode): void {
+    if (!(m in CAM_NAMES)) return;
+    this.camMode = m;
+    this.hud.camMode = m;
+    this.save.cam = m;
     this.persist();
   }
 
@@ -404,15 +437,17 @@ export class Game {
 
   resize(): void {
     const w = window.innerWidth, h = window.innerHeight;
+    this.renderer.setPixelRatio(this.pixelRatio);
     this.renderer.setSize(w, h, false);
     this.composer.setSize(w, h);
     this.composer.setPixelRatio(this.pixelRatio);
     this.bloom.resolution.set(Math.round(w / 2), Math.round(h / 2));
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
-    this.wet?.setSize(w * this.pixelRatio, h * this.pixelRatio);
+    this.wet?.setScale(this.reflScale, w * this.pixelRatio, h * this.pixelRatio);
     this.smoke.setViewportHeight(h * this.pixelRatio, this.camera.fov);
     this.sparks.setViewportHeight(h * this.pixelRatio, this.camera.fov);
+    this.doodles.setViewportHeight(h * this.pixelRatio, this.camera.fov);
   }
 
   start(): void {
@@ -474,7 +509,7 @@ export class Game {
     this.meshes.beacon.color.setRGB(blink, 0.1, 0.05);
 
     this.grade.uniforms.uTime!.value = this.time;
-    this.grade.uniforms.uAberr!.value = 0.0012 + (this.car.nitroActive ? 0.004 : 0) + Math.min(0.004, this.shake * 0.01);
+    this.grade.uniforms.uAberr!.value = this.settings.lens ? 0.0012 + (this.car.nitroActive ? 0.004 : 0) + Math.min(0.004, this.shake * 0.01) : 0;
     if (!render) return;
     this.rain.update(this.time, this.camera.position, this.car.vx, this.car.vz);
     this.wet.render(this.renderer, this.scene, this.camera);
@@ -492,14 +527,63 @@ export class Game {
     if (this.frameTimes.length < 90) return;
     const avg = this.frameTimes.reduce((a, b) => a + b, 0) / this.frameTimes.length;
     this.frameTimes.length = 0;
-    if (avg > 0.024 && this.reflScale > 0.26) {
-      // primeiro abaixa a resolução do reflexo, depois a da tela
-      this.reflScale = Math.max(0.25, this.reflScale - 0.12);
-      this.wet.setScale(this.reflScale, window.innerWidth * this.pixelRatio, window.innerHeight * this.pixelRatio);
-    } else if (avg > 0.024 && this.pixelRatio > 0.7) {
-      this.pixelRatio = Math.max(0.7, this.pixelRatio - 0.2);
-      this.renderer.setPixelRatio(this.pixelRatio);
+    this.fpsAvg = 1 / Math.max(avg, 1e-3);
+    if (this.settings.fps) this.hud.setFps(this.fpsAvg, this.preset);
+    // só o modo AUTO mexe sozinho; o jogador que escolheu preset manda
+    if (this.settings.preset !== 'auto' || avg < 0.024) return;
+    const lower = lowerPreset(this.preset);
+    if (lower) {
+      this.preset = lower;
+      this.applySettings();
+    } else if (this.pixelRatio > 0.6) {
+      this.pixelRatio = Math.max(0.6, this.pixelRatio - 0.15);
       this.resize();
+    }
+  }
+
+  /** aplica preset + opções sem recarregar a página */
+  applySettings(): void {
+    const q = PRESETS[this.preset];
+    const st = this.settings;
+    this.pixelRatio = Math.min(window.devicePixelRatio || 1, q.pixelRatio);
+    this.wet.enabled = q.reflection > 0;
+    if (q.reflection > 0) this.reflScale = q.reflection;
+    else {
+      // sem reflexo: limpa a imagem velha pro asfalto ficar só escuro/molhado
+      this.renderer.setRenderTarget(this.wet.target);
+      this.renderer.setClearColor(0x0a0810, 1);
+      this.renderer.clear();
+      this.renderer.setRenderTarget(null);
+      this.renderer.setClearColor(0x000000, 1);
+    }
+    this.bloom.enabled = q.bloom;
+    this.rain.lines.visible = st.rain;
+    this.rain.setDensity((q.rain * RAIN_BASE) / RAIN_MAX);
+    this.cones.visible = q.cones;
+    this.smoke.density = this.sparks.density = q.particles;
+    this.doodles.enabled = st.doodles;
+    this.doodles.points.visible = st.doodles;
+    for (const t of [...this.trails, ...this.headTrails]) t.mesh.visible = st.trails;
+    this.grade.uniforms.uGrain!.value = st.lens ? 0.045 : 0;
+    this.setLightPool(this.lampPool, q.lamps, () => new THREE.PointLight(0xff9a45, 0, 30, 1.6));
+    this.setLightPool(this.neonPool, q.neon, () => new THREE.PointLight(0xffffff, 0, 16, 1.6));
+    this.lampTimer = 0;
+    this.lampTargets = [];
+    this.hud.activePreset = this.preset;
+    this.hud.showFps(st.fps);
+    this.resize();
+  }
+
+  private setLightPool(pool: THREE.PointLight[], n: number, make: () => THREE.PointLight): void {
+    while (pool.length > n) {
+      const l = pool.pop()!;
+      this.scene.remove(l);
+      l.dispose();
+    }
+    while (pool.length < n) {
+      const l = make();
+      this.scene.add(l);
+      pool.push(l);
     }
   }
 
@@ -532,6 +616,7 @@ export class Game {
     this.crashCd = 0.35;
     this.audio.crash(v);
     this.shake = Math.min(1, this.shake + v * 0.05);
+    if (v > 5) this.burst('crash', px, 0.3, pz);
     for (let i = 0; i < Math.min(40, v * 3); i++) {
       this.sparks.emit({
         x: px, y: 0.5 + Math.random() * 0.4, z: pz,
@@ -582,6 +667,7 @@ export class Game {
           const e = this.scorer.nearMiss();
           if (e && e.type === 'nearMiss') {
             this.hud.popup(`RASPANDO! +${fmt(e.points)}`, 'gold');
+            this.burst('near', this.car.x, 0, this.car.z);
             this.audio.nearMiss();
             this.car.addNitro(0.08);
           }
@@ -619,6 +705,7 @@ export class Game {
       if (e.type === 'bank') {
         this.hud.bank(e.points, e.label);
         this.audio.bank(e.points > 5000);
+        if (e.points > 1500) this.burst('bank', car.x, 0, car.z);
         this.refreshObjectives();
         this.persist();
       } else if (e.type === 'mult') {
@@ -790,12 +877,95 @@ export class Game {
     this.sparks.update(dt);
     this.dust.update(dt, this.camera.position.x, this.camera.position.z);
 
-    // rastros das lanternas
-    const trailStrength = THREE.MathUtils.clamp((car.speed - 16) / 30, 0, 0.7) * (1 - Math.min(1, Math.abs(car.slipAngle) * 1.5)) * (this.camMode === 'hood' ? 0 : 1);
+    // rastros de luz: lanternas (vermelho) e faróis (branco)
+    const trailBase = THREE.MathUtils.clamp((car.speed - 8) / 18, 0, 1) * (this.camMode === 'hood' ? 0 : 1);
     rig.tailLocal.forEach((p, i) => {
       toWorld(p.x, p.y, p.z, this.tmpV2);
-      this.trails[i]!.update(this.tmpV2, this.camera, trailStrength);
+      this.trails[i]!.update(this.tmpV2, this.camera, trailBase * 0.95);
     });
+    const headBase = THREE.MathUtils.clamp((car.speed - 14) / 20, 0, 1) * (car.nitroActive || this.scorer.drifting ? 1 : 0.55) * (this.camMode === 'hood' ? 0 : 1);
+    this.headTrails.forEach((t, i) => {
+      toWorld(i === 0 ? 0.6 : -0.6, 0.72, 2.45, this.tmpV2);
+      t.update(this.tmpV2, this.camera, headBase * 0.8);
+    });
+
+    if (active) this.emitDoodles(dt, toWorld, c, s);
+    this.doodles.update(dt, this.time);
+  }
+
+  // cores chapadas (≤ 1): traço de desenho, sem brilho de bloom
+  private dColors = [new THREE.Color(0.15, 0.8, 0.85), new THREE.Color(0.85, 0.2, 0.6), new THREE.Color(0.9, 0.75, 0.1)];
+  private dWhite = new THREE.Color(0.85, 0.85, 0.85);
+  private dTeal = new THREE.Color(0.2, 0.85, 0.75);
+  private dYellow = new THREE.Color(0.9, 0.78, 0.1);
+
+  /** rabiscos estilo Unbound: nitro, drift, patinada */
+  private emitDoodles(dt: number, toWorld: (x: number, y: number, z: number, out: THREE.Vector3) => THREE.Vector3, c: number, s: number): void {
+    const car = this.car;
+    const T = this.dT;
+    for (const k of Object.keys(T) as (keyof typeof T)[]) if (k !== 'color') T[k] -= dt;
+    const fwdX = s, fwdZ = c;
+    const v = this.tmpV;
+    // nitro: chama rabiscada ciano nas ponteiras + linhas de velocidade
+    if (car.nitroActive) {
+      if (T.nitro <= 0) {
+        T.nitro = 0.06;
+        for (const e of [this.rig.exhausts[0]!, this.rig.exhausts[2]!]) {
+          toWorld(e.x, e.y + 0.05, e.z - 0.35, v);
+          this.doodles.emit(Doodle.Flame, v.x, v.y, v.z, car.vx * 0.6 - fwdX * 5, 0.2, car.vz * 0.6 - fwdZ * 5, 0.5, 0.26, this.dTeal, { rot: Math.PI + (Math.random() - 0.5) * 0.4, grow: 0.3 });
+        }
+      }
+      if (T.speed <= 0) {
+        T.speed = 0.11;
+        const side = Math.random() < 0.5 ? -1 : 1;
+        toWorld(side * (1.4 + Math.random() * 0.8), 0.6 + Math.random() * 0.9, -1 - Math.random() * 2, v);
+        this.doodles.emit(Doodle.Speed, v.x, v.y, v.z, car.vx * 0.5 - fwdX * 8, 0, car.vz * 0.5 - fwdZ * 8, 0.85, 0.24, this.dWhite, { rot: (Math.random() - 0.5) * 0.3, alpha: 0.85 });
+        if (Math.random() < 0.25) {
+          toWorld(side * 1.2, 1.1, -2.6, v);
+          this.doodles.emit(Doodle.Bolt, v.x, v.y, v.z, car.vx * 0.4, 0.3, car.vz * 0.4, 0.6, 0.3, this.dTeal, { rot: (Math.random() - 0.5) * 0.8 });
+        }
+      }
+    }
+    // drift: nuvens rabiscadas saindo da traseira + asa quando o ângulo é grande
+    if (this.scorer.drifting && car.rearSlip > 0.35) {
+      if (T.drift <= 0) {
+        T.drift = 0.1;
+        T.color = (T.color + 1) % 3;
+        const wx = Math.random() < 0.5 ? 0.9 : -0.9;
+        toWorld(wx, 0.5, -1.6, v);
+        this.doodles.emit(Doodle.Cloud, v.x, v.y, v.z, car.vx * 0.25, 0.7, car.vz * 0.25, 0.6 + Math.random() * 0.25, 0.55, this.dColors[T.color]!, { grow: 0.9, spin: (Math.random() - 0.5) * 2 });
+      }
+      if (this.scorer.angle > 32 && T.wing <= 0) {
+        T.wing = 0.45;
+        const out = car.slipAngle > 0 ? -1 : 1; // lado de fora da curva
+        toWorld(out * 1.6, 1.2, -0.4, v);
+        this.doodles.emit(Doodle.Wing, v.x, v.y, v.z, car.vx * 0.85, 0.4, car.vz * 0.85, 1.05, 0.42, this.dWhite, { rot: out > 0 ? 0 : Math.PI, grow: 0.2 });
+      }
+    }
+    // patinada / arrancada: espiral e estrelinhas nas rodas
+    if (car.wheelSpin > 0.35 && car.speed < 14 && T.burn <= 0) {
+      T.burn = 0.12;
+      const wx = Math.random() < 0.5 ? 0.9 : -0.9;
+      toWorld(wx, 0.4, -1.5, v);
+      this.doodles.emit(Math.random() < 0.6 ? Doodle.Swirl : Doodle.Star, v.x, v.y, v.z, (Math.random() - 0.5) * 2, 1, (Math.random() - 0.5) * 2, 0.5, 0.45, this.dWhite, { spin: 4 });
+    }
+  }
+
+  /** estouro de rabiscos num ponto (batida, raspada, combo) */
+  burst(kind: 'crash' | 'near' | 'bank', x: number, y: number, z: number): void {
+    const d = this.doodles;
+    if (kind === 'crash') {
+      d.emit(Doodle.Star, x, y + 0.6, z, 0, 1.2, 0, 0.8, 0.45, this.dYellow, { spin: 3 });
+      d.emit(Doodle.Bolt, x + 0.4, y + 0.9, z, 0, 1, 0, 0.6, 0.4, this.dWhite);
+    } else if (kind === 'near') {
+      d.emit(Doodle.Ring, x, y + 1.8, z, 0, 0.6, 0, 0.7, 0.5, this.dYellow, { grow: 0.6 });
+    } else {
+      d.emit(Doodle.Ring, x, y + 2.4, z, 0, 1, 0, 1.3, 0.7, this.dYellow, { grow: 0.7 });
+      for (let k = 0; k < 5; k++) {
+        const a = (k / 5) * Math.PI * 2;
+        d.emit(Doodle.Star, x + Math.cos(a) * 1.5, y + 1.8, z + Math.sin(a) * 1.5, Math.cos(a) * 3, 2, Math.sin(a) * 3, 0.45, 0.6, this.dColors[k % 3]!, { spin: 5 });
+      }
+    }
   }
 
   private updateCamera(dt: number): void {
@@ -851,7 +1021,7 @@ export class Game {
     this.heroFill.position.set(car.x + fz * 2.5, this.carY + 1.6, car.z - fx * 2.5);
 
     this.shake = Math.max(0, this.shake - dt * 1.8);
-    const sh = this.shake * this.shake * 0.35;
+    const sh = this.settings.shake ? this.shake * this.shake * 0.35 : 0;
     this.camera.position.set(this.camPos.x + (Math.random() - 0.5) * sh, this.camPos.y + (Math.random() - 0.5) * sh, this.camPos.z + (Math.random() - 0.5) * sh);
     this.camera.lookAt(this.camLook);
     if (this.camMode === 'hood') this.camera.rotateZ(-this.roll * 0.6);

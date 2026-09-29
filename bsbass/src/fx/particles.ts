@@ -86,7 +86,11 @@ export class Particles {
     this.material.uniforms.uScale!.value = h / (2 * Math.tan(THREE.MathUtils.degToRad(fovDeg) / 2));
   }
 
+  /** fração das partículas emitidas (preset de qualidade) */
+  density = 1;
+
   emit(o: EmitOptions): void {
+    if (this.density < 1 && Math.random() > this.density) return;
     const i = this.next;
     this.next = (this.next + 1) % this.max;
     this.pos[i * 3] = o.x; this.pos[i * 3 + 1] = o.y; this.pos[i * 3 + 2] = o.z;

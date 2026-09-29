@@ -4,6 +4,7 @@
 import { STATIONS, type Radio } from '../audio/radio';
 import type { Input } from '../input';
 import { BALAO, EXTENT, NODES, ROAD, nodePos, type City } from '../world/city';
+import { PRESETS, PRESET_NAMES, type Preset, type PresetChoice, type Settings } from '../settings';
 
 const $ = <T extends HTMLElement = HTMLElement>(root: ParentNode, sel: string) => root.querySelector(sel) as T;
 
@@ -66,8 +67,13 @@ export class Hud {
   onPauseChange: ((p: boolean) => void) | null = null;
   onVolumes: ((car: number, music: number) => void) | null = null;
   onMute: ((m: boolean) => void) | null = null;
+  onSettings: ((s: Settings) => void) | null = null;
+  onCamera: ((mode: string) => void) | null = null;
   paused = false;
   started = false;
+  settings: Settings | null = null;
+  activePreset: Preset = 'alta';
+  camMode = 'chase';
 
   constructor(parent: HTMLElement, private input: Input, private radio: Radio, city: City) {
     const root = document.createElement('div');
@@ -129,10 +135,25 @@ export class Hud {
   private bindMenus(): void {
     $(this.root, '#enter').addEventListener('click', () => {
       $(this.root, '#title').classList.add('hidden');
+      if (this.started) {
+        // voltou pro menu no meio do jogo: JOGAR = continuar
+        this.setPaused(false);
+        return;
+      }
       $(this.root, '#brief').classList.remove('hidden');
       this.typeMessage();
       this.onStart?.();
     });
+    for (const [btn, screen] of [['#open-settings', '#settings'], ['#open-howto', '#howto'], ['#open-credits', '#credits'], ['#p-settings', '#settings']] as const) {
+      $(this.root, btn).addEventListener('click', () => this.openSub(screen));
+    }
+    this.root.querySelectorAll<HTMLElement>('[data-back]').forEach((b) => b.addEventListener('click', () => this.closeSub()));
+    $(this.root, '#p-menu').addEventListener('click', () => {
+      $(this.root, '#pause').classList.add('hidden');
+      $(this.root, '#enter span').textContent = 'CONTINUAR';
+      $(this.root, '#title').classList.remove('hidden');
+    });
+    this.bindSettings();
     const go = () => {
       $(this.root, '#brief').classList.add('hidden');
       this.root.classList.add('playing');
@@ -177,9 +198,83 @@ export class Hud {
 
   vol = { car: 0.8, music: 0.7 };
 
-  private setVolumeBar(which: 'music' | 'car', v: number): void {
+  setVolumeBar(which: 'music' | 'car', v: number): void {
     this.vol[which] = v;
     $(this.root, `#vol-${which}`).querySelectorAll('i').forEach((el, i) => el.classList.toggle('on', (i + 1) / 12 <= v + 1e-6));
+    const slider = this.root.querySelector<HTMLInputElement>(`[data-vol="${which}"]`);
+    if (slider) slider.value = String(Math.round(v * 100));
+  }
+
+  // ---------------- submenus (configurações, como jogar, créditos) ----------------
+
+  private subStack: string[] = [];
+
+  private openSub(sel: string): void {
+    this.subStack.push(sel);
+    if (sel === '#settings') this.renderSettings();
+    $(this.root, sel).classList.remove('hidden');
+  }
+
+  /** fecha o submenu do topo; devolve false se não tinha nenhum aberto */
+  closeSub(): boolean {
+    const sel = this.subStack.pop();
+    if (!sel) return false;
+    $(this.root, sel).classList.add('hidden');
+    return true;
+  }
+
+  private bindSettings(): void {
+    const box = $(this.root, '#settings');
+    box.addEventListener('click', (e) => {
+      const t = (e.target as HTMLElement).closest<HTMLElement>('[data-preset],[data-opt],[data-cam]');
+      if (!t || !this.settings) return;
+      if (t.dataset.preset) this.settings.preset = t.dataset.preset as PresetChoice;
+      else if (t.dataset.opt) {
+        const k = t.dataset.opt as keyof Settings;
+        (this.settings as unknown as Record<string, boolean>)[k] = !this.settings[k];
+      } else if (t.dataset.cam) {
+        this.camMode = t.dataset.cam;
+        this.onCamera?.(this.camMode);
+        this.renderSettings();
+        return;
+      }
+      this.onSettings?.(this.settings);
+      this.renderSettings();
+    });
+    box.querySelectorAll<HTMLInputElement>('[data-vol]').forEach((inp) =>
+      inp.addEventListener('input', () => {
+        this.setVolumeBar(inp.dataset.vol as 'music' | 'car', Number(inp.value) / 100);
+        this.onVolumes?.(this.vol.car, this.vol.music);
+      }),
+    );
+  }
+
+  renderSettings(): void {
+    const st = this.settings;
+    if (!st) return;
+    const box = $(this.root, '#settings');
+    box.querySelectorAll<HTMLElement>('[data-preset]').forEach((b) => b.classList.toggle('on', b.dataset.preset === st.preset));
+    box.querySelectorAll<HTMLElement>('[data-opt]').forEach((b) => {
+      const on = !!st[b.dataset.opt as keyof Settings];
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-checked', String(on));
+    });
+    box.querySelectorAll<HTMLElement>('[data-cam]').forEach((b) => b.classList.toggle('on', b.dataset.cam === this.camMode));
+    const q = PRESETS[this.activePreset];
+    const res = Math.round(Math.min(window.devicePixelRatio || 1, q.pixelRatio) * 100);
+    $(this.root, '#q-info').innerHTML =
+      (st.preset === 'auto' ? `<b>AUTO → ${PRESET_NAMES[this.activePreset]}</b> · baixa sozinho se o FPS cair<br/>` : '') +
+      `resolução ${res}% · reflexo ${q.reflection ? `${Math.round(q.reflection * 100)}%` : 'desligado'} · bloom ${q.bloom ? 'sim' : 'não'}<br/>` +
+      `luzes dinâmicas ${q.lamps + q.neon} · chuva ${Math.round(q.rain * 100)}% · partículas ${Math.round(q.particles * 100)}%`;
+  }
+
+  showFps(on: boolean): void {
+    this.els.fps!.classList.toggle('hidden', !on);
+    if (on && !this.last.fps) this.set('fps', `-- FPS · ${PRESET_NAMES[this.activePreset]}`);
+  }
+
+  setFps(fps: number, preset: Preset): void {
+    this.set('fps', `${Math.round(fps)} FPS · ${PRESET_NAMES[preset]}`);
   }
 
   toggleRadio(open?: boolean): void {
@@ -211,6 +306,7 @@ export class Hud {
     if (!this.started) return;
     this.paused = p;
     $(this.root, '#pause').classList.toggle('hidden', !p);
+    if (!p) $(this.root, '#title').classList.add('hidden');
     this.onPauseChange?.(p);
   }
 
@@ -437,8 +533,13 @@ const TEMPLATE = /* html */ `
     <small class="kicker">CEILÂNDIA · SAMAMBAIA · SOL NASCENTE · DF 61</small>
     <h1><span>BSBASS</span><em>DRIFT GAME</em></h1>
     <p>Poeira vermelha, grave no talo e um Mustang azul na madrugada.</p>
-    <button id="enter" class="btn-ghost">ENTRAR</button>
-    <small class="credits">feito na quebrada · three.js</small>
+    <nav class="main-menu">
+      <button id="enter" class="mm primary"><span>JOGAR</span><small>a madrugada tá esperando</small></button>
+      <button id="open-settings" class="mm"><span>CONFIGURAÇÕES</span><small>gráfico · efeitos · som</small></button>
+      <button id="open-howto" class="mm"><span>COMO JOGAR</span><small>controles e pontuação</small></button>
+      <button id="open-credits" class="mm"><span>CRÉDITOS</span><small>quem fez e de onde veio</small></button>
+    </nav>
+    <small class="credits">feito na quebrada · three.js · DF 61</small>
   </div>
 </div>
 
@@ -488,6 +589,7 @@ const TEMPLATE = /* html */ `
     <button class="icon-btn" data-act="pause" aria-label="Pausa">☰</button>
   </div>
 </div>
+<div class="fps hidden" data-el="fps"></div>
 <div class="compass" data-el="compass"><span class="arrow" data-el="carrow">▲</span><span data-el="ctext"></span></div>
 <div class="drift" data-el="drift"><div class="row"><b data-el="dscore">0</b><span class="m" data-el="dmult">x1</span></div><small data-el="dlabel">DRIFT</small><div class="grace"></div></div>
 <div class="race" data-el="race"></div>
@@ -516,8 +618,100 @@ const TEMPLATE = /* html */ `
     <button id="resume" class="btn-yellow">CONTINUAR</button>
     <button data-act="cam" class="btn-ghost">TROCAR CÂMERA</button>
     <button data-act="radioPanel" class="btn-ghost">RÁDIO</button>
+    <button id="p-settings" class="btn-ghost">CONFIGURAÇÕES</button>
+    <button id="p-menu" class="btn-ghost">MENU INICIAL</button>
     <button id="restart" class="btn-ghost">ZERAR PROGRESSO</button>
     <div class="keys">W/↑ acelera · S/↓ freia/ré · A D vira · ESPAÇO freio de mão · SHIFT nitro · C câmera · R reset · Q/E rádio</div>
+  </div>
+</div>
+
+<div id="settings" class="screen sub hidden" role="dialog" aria-label="Configurações">
+  <div class="sheet">
+    <div class="sheet-top"><h2>CONFIGURAÇÕES</h2><button data-back class="x" aria-label="Voltar">VOLTAR</button></div>
+    <section>
+      <h4>QUALIDADE GRÁFICA</h4>
+      <div class="seg" role="radiogroup">
+        <button data-preset="auto">AUTO</button><button data-preset="baixa">BAIXA</button><button data-preset="media">MÉDIA</button><button data-preset="alta">ALTA</button><button data-preset="ultra">ULTRA</button>
+      </div>
+      <p id="q-info" class="q-info"></p>
+    </section>
+    <section>
+      <h4>EFEITOS</h4>
+      <button class="tg" role="switch" data-opt="doodles"><span>Rabiscos no drift e no nitro</span><i></i></button>
+      <button class="tg" role="switch" data-opt="trails"><span>Rastro das lanternas e faróis</span><i></i></button>
+      <button class="tg" role="switch" data-opt="rain"><span>Chuva</span><i></i></button>
+      <button class="tg" role="switch" data-opt="shake"><span>Tremida de câmera</span><i></i></button>
+      <button class="tg" role="switch" data-opt="lens"><span>Efeito de lente (aberração e granulado)</span><i></i></button>
+      <button class="tg" role="switch" data-opt="fps"><span>Mostrar FPS</span><i></i></button>
+    </section>
+    <section>
+      <h4>CÂMERA</h4>
+      <div class="seg"><button data-cam="chase">PERTO</button><button data-cam="far">LONGE</button><button data-cam="hood">CAPÔ</button></div>
+    </section>
+    <section>
+      <h4>SOM</h4>
+      <label class="sl"><span>Música</span><input type="range" min="0" max="100" data-vol="music" /></label>
+      <label class="sl"><span>Carro</span><input type="range" min="0" max="100" data-vol="car" /></label>
+    </section>
+  </div>
+</div>
+
+<div id="howto" class="screen sub hidden" role="dialog" aria-label="Como jogar">
+  <div class="sheet">
+    <div class="sheet-top"><h2>COMO JOGAR</h2><button data-back class="x" aria-label="Voltar">VOLTAR</button></div>
+    <section>
+      <h4>O ROLÊ</h4>
+      <p>Derrapa de lado pra encher o combo. Quanto mais ângulo e velocidade, mais ponto por segundo. Emenda um drift no outro antes da barra vermelha zerar pra subir o multiplicador (até x10). Bater no muro ou num carro perde o combo; passar raspando dá bônus.</p>
+      <p>Cata as 30 fitas K7 espalhadas pela quebrada e ganha os 5 rachas (os pontos azuis no minimapa).</p>
+    </section>
+    <section>
+      <h4>TECLADO</h4>
+      <ul class="kb">
+        <li><kbd>W</kbd><kbd>↑</kbd> acelera</li><li><kbd>S</kbd><kbd>↓</kbd> freia / ré</li>
+        <li><kbd>A</kbd><kbd>D</kbd> vira</li><li><kbd>ESPAÇO</kbd> freio de mão</li>
+        <li><kbd>SHIFT</kbd> nitro</li><li><kbd>C</kbd> câmera</li>
+        <li><kbd>R</kbd> volta pra pista</li><li><kbd>Q</kbd><kbd>E</kbd> troca a rádio</li>
+        <li><kbd>TAB</kbd> player</li><li><kbd>ESC</kbd> pausa</li>
+      </ul>
+    </section>
+    <section>
+      <h4>TOQUE</h4>
+      <p>◀ ▶ vira · GÁS e FREIO (segura o freio parado pra dar ré) · DRIFT é o freio de mão · NITRO · CAM, RESET e RÁDIO em cima</p>
+    </section>
+    <section>
+      <h4>CONTROLE</h4>
+      <p>RT/LT acelera e freia · analógico vira · A freio de mão · B nitro · Y câmera · LB/RB rádio · START pausa</p>
+    </section>
+    <section>
+      <h4>DICA DO ZÉ</h4>
+      <p>Pra rodar: puxa o freio de mão com o volante virado e segura o gás. Pra endireitar, solta o gás e contra-esterça. Nitro no meio do drift abre o ângulo.</p>
+    </section>
+  </div>
+</div>
+
+<div id="credits" class="screen sub hidden" role="dialog" aria-label="Créditos">
+  <div class="sheet">
+    <div class="sheet-top"><h2>CRÉDITOS</h2><button data-back class="x" aria-label="Voltar">VOLTAR</button></div>
+    <section>
+      <h4>BSBASS DRIFT GAME</h4>
+      <p>Jogo de drift na periferia do Distrito Federal. Cidade, carro, trilhas da rádio e efeitos gerados em código com three.js.</p>
+    </section>
+    <section>
+      <h4>TEXTURAS E HDRI</h4>
+      <p>ambientCG (CC0): asfalto, tijolo, reboco, concreto, ferragem, ferro, chapa, telha, calçada, terra, casca e folhas. Poly Haven (CC0): HDRI de rua à noite.</p>
+    </section>
+    <section>
+      <h4>MODELOS 3D</h4>
+      <p>Poly Haven (CC0): tambores, pneu, carro com capa, ar-condicionado, hidrante, lixeira, caixa de energia, barreira, saco de cimento, caixa, rádio.</p>
+    </section>
+    <section>
+      <h4>SONS</h4>
+      <p>Freesound: FreeCarSoundsGaming, audible-edge, magnuswaker, LPA134, qubodup, innov8_Music, Pól, craigsmith, mihnelis, FiretailHorizons.</p>
+    </section>
+    <section>
+      <h4>FONTES</h4>
+      <p>Anton, Permanent Marker e Chakra Petch (Google Fonts, OFL).</p>
+    </section>
   </div>
 </div>
 

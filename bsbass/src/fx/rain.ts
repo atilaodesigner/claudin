@@ -6,8 +6,10 @@ import * as THREE from 'three';
 export class Rain {
   readonly lines: THREE.LineSegments;
   private mat: THREE.ShaderMaterial;
+  private count: number;
 
   constructor(count = 3200) {
+    this.count = count;
     const pos = new Float32Array(count * 2 * 3);
     const seed = new Float32Array(count * 2 * 3);
     const end = new Float32Array(count * 2);
@@ -66,6 +68,11 @@ export class Rain {
     this.lines = new THREE.LineSegments(g, this.mat);
     this.lines.frustumCulled = false;
     this.lines.renderOrder = 8;
+  }
+
+  /** fração das gotas desenhadas (preset de qualidade) */
+  setDensity(f: number): void {
+    this.lines.geometry.setDrawRange(0, Math.round(Math.min(1, f) * this.count) * 2);
   }
 
   update(time: number, cam: THREE.Vector3, vx: number, vz: number): void {
