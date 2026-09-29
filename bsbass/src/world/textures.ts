@@ -59,9 +59,31 @@ function redDust(ctx: CanvasRenderingContext2D, x: number, y: number, w: number,
   ctx.fillRect(x, y + h * 0.55, w, h * 0.45);
 }
 
+/** fotos reais (ambientCG, CC0) usadas como base das paredes, se carregaram */
+let PHOTOS: Partial<Record<'plaster' | 'brick' | 'concrete', HTMLImageElement>> = {};
+
+/** preenche o retângulo com a foto repetida (tile = tamanho de cada repetição em px) */
+function photoFill(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: number, y: number, w: number, h: number, tile: number, rnd: Rng): void {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.clip();
+  const ox = -rnd() * tile, oy = -rnd() * tile;
+  for (let ty = y + oy; ty < y + h; ty += tile) {
+    for (let tx = x + ox; tx < x + w; tx += tile) ctx.drawImage(img, tx, ty, tile + 0.5, tile + 0.5);
+  }
+  ctx.restore();
+}
+
 function plaster(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, rnd: Rng, dirty: boolean): void {
   ctx.fillStyle = '#e8e4dc';
   ctx.fillRect(x, y, w, h);
+  if (PHOTOS.plaster) {
+    photoFill(ctx, PHOTOS.plaster, x, y, w, h, 200, rnd);
+    // clareia um pouco pra pintura (cor de vértice) aparecer
+    ctx.fillStyle = 'rgba(240,236,228,0.25)';
+    ctx.fillRect(x, y, w, h);
+  }
   noise(ctx, x, y, w, h, rnd, 0.08, 9000, 3);
   // manchas de reboco remendado
   for (let i = 0; i < (dirty ? 14 : 5); i++) {
@@ -92,7 +114,8 @@ function brick(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h
   ctx.fillStyle = '#8f8a80'; // argamassa
   ctx.fillRect(x, y, w, h);
   const bw = 30, bh = 15;
-  for (let row = 0; row * bh < h; row++) {
+  if (PHOTOS.brick) photoFill(ctx, PHOTOS.brick, x, y, w, h, 170, rnd);
+  else for (let row = 0; row * bh < h; row++) {
     const off = row % 2 ? bw / 2 : 0;
     for (let cx = -bw; cx < w + bw; cx += bw) {
       const r = 170 + rnd() * 40, g = 80 + rnd() * 25, b = 45 + rnd() * 20;
@@ -114,6 +137,27 @@ function brick(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h
 function concreteBlock(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, rnd: Rng): void {
   ctx.fillStyle = '#6f6e6a';
   ctx.fillRect(x, y, w, h);
+  if (PHOTOS.concrete) {
+    photoFill(ctx, PHOTOS.concrete, x, y, w, h, 220, rnd);
+    // juntas dos blocos por cima da foto
+    ctx.strokeStyle = 'rgba(40,38,34,0.55)';
+    ctx.lineWidth = 2;
+    for (let row = 0; row * 24 < h; row++) {
+      ctx.beginPath();
+      ctx.moveTo(x, y + row * 24);
+      ctx.lineTo(x + w, y + row * 24);
+      ctx.stroke();
+      for (let cx = (row % 2) * 24; cx < w; cx += 48) {
+        ctx.beginPath();
+        ctx.moveTo(x + cx, y + row * 24);
+        ctx.lineTo(x + cx, y + row * 24 + 24);
+        ctx.stroke();
+      }
+    }
+    stains(ctx, x, y, w, h, rnd, 10);
+    redDust(ctx, x, y, w, h, 0.45);
+    return;
+  }
   const bw = 48, bh = 24;
   for (let row = 0; row * bh < h; row++) {
     const off = row % 2 ? bw / 2 : 0;
@@ -336,6 +380,7 @@ function windowTile(ctx: CanvasRenderingContext2D, x: number, y: number, w: numb
 function laje(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, rnd: Rng): void {
   ctx.fillStyle = '#8a8680';
   ctx.fillRect(x, y, w, h);
+  if (PHOTOS.concrete) photoFill(ctx, PHOTOS.concrete, x, y, w, h, 256, rnd);
   noise(ctx, x, y, w, h, rnd, 0.18, 12000, 3);
   for (let i = 0; i < 20; i++) {
     ctx.fillStyle = `rgba(40,40,40,${range(rnd, 0.1, 0.3)})`;
@@ -381,7 +426,8 @@ function tex(c: HTMLCanvasElement, repeat = false, srgb = true): THREE.CanvasTex
   return t;
 }
 
-export function makeTextures(): Textures {
+export function makeTextures(photos: typeof PHOTOS = {}): Textures {
+  PHOTOS = photos;
   const rnd = mulberry32(6161);
 
   // ---------- atlas das paredes ----------

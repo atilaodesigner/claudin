@@ -6,7 +6,14 @@ Jogo de drift que roda direto no navegador (celular em pé ou PC), feito com **T
 
 É madrugada depois do temporal: asfalto molhado com reflexo de verdade (câmera espelhada + poças), chuva fina, cone de luz nos postes, neon de bar, açaí, sinuca, igreja e barbearia, fita de LED no comércio e outdoor aceso em cima da laje.
 
-Tudo é procedural: cidade, texturas (pixo, grafite, placas, asfalto), carros, neon, áudio e as três rádios. **Nenhum asset externo**, só as fontes.
+A cidade, o Mustang, o neon, o áudio e as três rádios são procedurais. Por cima disso entram assets gratuitos de licença **CC0** (domínio público):
+
+| O quê | Fonte | Onde |
+|---|---|---|
+| Asfalto rachado, tijolo, reboco, concreto, calçada, terra (fotos PBR) | [ambientCG](https://ambientcg.com) (Road012B, Bricks092, Plaster007, Concrete036, PavingStones136, Ground103) | `public/tex/` |
+| Tambor, bombona, pneu velho, carro com capa, ar-condicionado, hidrante, lixeira, caixa de energia, barreira de concreto, saco de cimento, caixa de papelão, rádio | [Poly Haven](https://polyhaven.com) (coleção *Hidden Alley* e outros) | `public/models/` |
+
+Os modelos foram otimizados com `gltf-transform` (texturas 512 px WebP, malha simplificada). Se algum asset não carregar, o jogo cai de volta na versão procedural.
 
 ## Rodando
 
@@ -71,6 +78,8 @@ src/
   fx/wet.ts             reflexo do asfalto molhado
   fx/rain.ts            chuva e cones de luz dos postes
   world/neon.ts         neon, LED e outdoors
+  world/props.ts        objetos de rua (Poly Haven) instanciados
+  assets.ts             carrega texturas e modelos
   traffic/              modelos e IA do tráfego
   fx/                   fumaça, poeira, faíscas, marcas de pneu, rastro das lanternas
   audio/                motor V8, pneu, efeitos e as rádios

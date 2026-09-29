@@ -23,6 +23,8 @@ import { LightTrail, SkidMarks } from './fx/trails';
 import { WetReflection, NO_REFLECT } from './fx/wet';
 import { Rain, buildLightCones } from './fx/rain';
 import { buildNeon } from './world/neon';
+import { buildProps } from './world/props';
+import type { Assets } from './assets';
 import { AudioSystem } from './audio/audio';
 import { Radio } from './audio/radio';
 import { Input, type Action } from './input';
@@ -133,7 +135,7 @@ export class Game {
   private pixelRatio: number;
   private lastSaveAt = 0;
 
-  constructor(container: HTMLElement, hudParent: HTMLElement) {
+  constructor(container: HTMLElement, hudParent: HTMLElement, assets: Assets = { photos: {}, tex: {}, models: {} }) {
     const touch = matchMedia('(pointer: coarse)').matches;
     this.renderer = new THREE.WebGLRenderer({ antialias: !touch, powerPreference: 'high-performance' });
     this.pixelRatio = Math.min(window.devicePixelRatio || 1, touch ? 1.6 : 1.75);
@@ -156,11 +158,17 @@ export class Game {
     moon.position.set(-300, 400, 200);
     this.scene.add(moon);
 
-    const tx = makeTextures();
+    const tx = makeTextures(assets.photos);
     this.city = buildCity();
     for (const c of this.city.colliders) this.grid.insert(c);
-    this.meshes = buildCityMeshes(this.city, tx);
+    const hasProps = Object.keys(assets.models).length > 0;
+    this.meshes = buildCityMeshes(this.city, tx, assets.tex, hasProps);
     this.scene.add(this.meshes.group);
+    if (hasProps) {
+      const props = buildProps(this.city, assets.models);
+      this.scene.add(props.group);
+      for (const c of props.colliders) this.grid.insert(c);
+    }
 
     // asfalto molhado com reflexo de verdade
     this.reflScale = touch ? 0.32 : 0.5;

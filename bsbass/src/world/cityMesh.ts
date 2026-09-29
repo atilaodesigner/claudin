@@ -11,6 +11,8 @@ import {
 } from './city';
 import { ATLAS_ROWS, ROW, SIGN_ROW, type Textures } from './textures';
 import { buildVehicle, PAINTS } from '../traffic/vehicles';
+import type { Assets } from '../assets';
+import { isCovered } from './props';
 
 const TILE_W = 12; // metros por largura de linha do atlas
 const FLOOR_H = 3;
@@ -48,7 +50,7 @@ export interface CityMeshes {
   beacon: THREE.MeshBasicMaterial; // luz de obstáculo da caixa d'água
 }
 
-export function buildCityMeshes(city: City, tx: Textures): CityMeshes {
+export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = {}, hasProps = false): CityMeshes {
   const rnd = mulberry32(1961);
   const group = new THREE.Group();
 
@@ -248,6 +250,7 @@ export function buildCityMeshes(city: City, tx: Textures): CityMeshes {
   const parkedB = new GeoBuilder();
   const parkedGroup: THREE.BufferGeometry[] = [];
   for (const p of city.parked) {
+    if (hasProps && isCovered(p)) continue; // esses viram "carro com capa" (props.ts)
     const v = buildVehicle(p.model, PAINTS[p.color % PAINTS.length]!, false);
     const m = new THREE.Matrix4().makeRotationY(p.rot).setPosition(p.x, 0, p.z);
     v.body.applyMatrix4(m);
@@ -281,12 +284,25 @@ export function buildCityMeshes(city: City, tx: Textures): CityMeshes {
   const glowMat = new THREE.MeshBasicMaterial({ map: tx.litWindow, vertexColors: true });
   const signMat = new THREE.MeshBasicMaterial({ map: tx.shops, vertexColors: true });
   const emisMat = new THREE.MeshBasicMaterial({ vertexColors: true });
-  const walkMat = new THREE.MeshStandardMaterial({ map: tx.sidewalk, vertexColors: true, roughness: 0.95 });
-  tx.sidewalk.repeat.set(0.5, 0.5);
+  const walkMat = new THREE.MeshStandardMaterial({ map: real.sidewalk ?? tx.sidewalk, vertexColors: true, roughness: 0.9 });
+  (real.sidewalk ?? tx.sidewalk).repeat.set(0.5, 0.5);
+  if (real.sidewalk_n) {
+    real.sidewalk_n.repeat.set(0.5, 0.5);
+    walkMat.normalMap = real.sidewalk_n;
+    walkMat.color.setHex(0xc8c0b4);
+  }
   const greenMat = new THREE.MeshStandardMaterial({ map: tx.signs, roughness: 0.6, emissive: 0x0a2a18, emissiveIntensity: 0.4 });
   const marksMat = new THREE.MeshStandardMaterial({ map: tx.marks, vertexColors: true, roughness: 0.7, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
   const poolMat = new THREE.MeshBasicMaterial({ map: tx.pool, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -4 });
-  const dirtMat = new THREE.MeshStandardMaterial({ map: tx.dirt, roughness: 1 });
+  const dirtMat = new THREE.MeshStandardMaterial({ map: real.dirt ?? tx.dirt, roughness: 1 });
+  if (real.dirt) {
+    // terra do cerrado: puxa a foto pro vermelho
+    dirtMat.color.setHex(0xe07a52);
+    if (real.dirt_n) {
+      dirtMat.normalMap = real.dirt_n;
+      dirtMat.normalScale.set(1.2, 1.2);
+    }
+  }
 
   const add = (b: GeoBuilder, m: THREE.Material, name: string, order = 0) => {
     if (b.vertexCount === 0) return;
@@ -323,10 +339,23 @@ export function buildCityMeshes(city: City, tx: Textures): CityMeshes {
   group.add(wires);
 
   // chão: asfalto + terra do cerrado em volta
-  tx.asphalt.repeat.set((EXTENT * 2 + ROAD) / 9, (EXTENT * 2 + ROAD) / 9);
+  const aSize = EXTENT * 2 + ROAD;
+  tx.asphalt.repeat.set(aSize / 9, aSize / 9);
+  const asphaltMat = new THREE.MeshStandardMaterial({ map: tx.asphalt, roughness: 0.82, metalness: 0.0, color: 0xb0aaa4 });
+  if (real.asphalt) {
+    // asfalto de verdade (foto + relevo + rugosidade), repetindo a cada 7 m
+    for (const t of [real.asphalt, real.asphalt_n, real.asphalt_r]) t?.repeat.set(aSize / 7, aSize / 7);
+    asphaltMat.map = real.asphalt;
+    asphaltMat.color.setHex(0xc4bcb4);
+    if (real.asphalt_n) asphaltMat.normalMap = real.asphalt_n;
+    if (real.asphalt_r) {
+      asphaltMat.roughnessMap = real.asphalt_r;
+      asphaltMat.roughness = 1;
+    }
+  }
   const asphalt = new THREE.Mesh(
     new THREE.PlaneGeometry(EXTENT * 2 + ROAD, EXTENT * 2 + ROAD),
-    new THREE.MeshStandardMaterial({ map: tx.asphalt, roughness: 0.82, metalness: 0.0, color: 0xb0aaa4 }),
+    asphaltMat,
   );
   asphalt.rotation.x = -Math.PI / 2;
   asphalt.position.y = 0.005;
@@ -335,7 +364,7 @@ export function buildCityMeshes(city: City, tx: Textures): CityMeshes {
 
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(4000, 4000),
-    new THREE.MeshStandardMaterial({ map: tx.dirt.clone(), roughness: 1, color: 0x8a6a5a }),
+    new THREE.MeshStandardMaterial({ map: (real.dirt ?? tx.dirt).clone(), roughness: 1, color: real.dirt ? 0xb06040 : 0x8a6a5a }),
   );
   const gmap = (ground.material as THREE.MeshStandardMaterial).map!;
   gmap.wrapS = gmap.wrapT = THREE.RepeatWrapping;
@@ -499,7 +528,7 @@ function buildLot(lot: Lot, walls: GeoBuilder, glow: GeoBuilder, signs: GeoBuild
           const cx = doors === 1 ? 0 : (k === 0 ? -1 : 1) * (hw / 2);
           const open = k === 0 && rnd() < 0.8;
           if (open) {
-            glow.wallZ(cx - dw / 2, cx + dw / 2, 0, 2.6, zf, [0.02, 0.1, 0.48, 0.5], lot.shop % 2 ? hex(0xe8fff4, 1.3) : hex(0xffe0b0, 1.3));
+            glow.wallZ(cx - dw / 2, cx + dw / 2, 0, 2.6, zf, [0.02, 0.1, 0.48, 0.5], lot.shop % 2 ? hex(0xe8fff4, 0.75) : hex(0xffe0b0, 0.75));
             walls.wallZ(cx - dw / 2, cx + dw / 2, 2.2, 2.6, zf + 0.01, tileUV(ROW.doors, 0), [1, 1, 1]);
             // mesa de plástico e cadeiras na calçada (bar)
             if (lot.shop === 0 || lot.shop === 1 || lot.shop === 10) plasticTables(flat, cx, hz + 1.8, rnd);
