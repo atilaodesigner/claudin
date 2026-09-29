@@ -19,6 +19,23 @@ export class Input {
   touchAct = false;
   touchMap = false;
   enabled = true;
+  /** direção pelo giroscópio (celular deitado, igual volante) */
+  tilt = false;
+  /** já chegou leitura do sensor */
+  tiltAlive = false;
+  private tiltRaw = 0;
+  private tiltSteer = 0;
+  private onOrient = (e: DeviceOrientationEvent): void => {
+    if (e.beta == null || e.gamma == null) return;
+    this.tiltAlive = true;
+    // beta = inclinação no eixo comprido do aparelho: com a tela deitada é o
+    // "volante" (o mesmo se segurar em pé na frente do rosto ou mais deitado)
+    const ang = screenAngle();
+    const deg = ang === 90 ? -e.beta : ang === 270 ? e.beta : -e.gamma;
+    const max = 24, dz = 1.5;
+    const a = Math.max(0, Math.abs(deg) - dz) * Math.sign(deg);
+    this.tiltRaw = Math.max(-1, Math.min(1, a / (max - dz)));
+  };
   readonly state: CarInput = { throttle: 0, brake: 0, steer: 0, handbrake: false, nitro: false };
 
   constructor() {
@@ -41,6 +58,28 @@ export class Input {
       this.keys.clear();
       for (const k of Object.keys(this.touch) as (keyof typeof this.touch)[]) this.touch[k] = false;
     });
+  }
+
+  /** liga a direção por inclinação (no iPhone precisa vir de um toque) */
+  async enableTilt(): Promise<boolean> {
+    if (typeof DeviceOrientationEvent === 'undefined') return false;
+    const D = DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> };
+    if (typeof D.requestPermission === 'function') {
+      try {
+        if ((await D.requestPermission()) !== 'granted') return false;
+      } catch {
+        return false;
+      }
+    }
+    if (!this.tilt) window.addEventListener('deviceorientation', this.onOrient);
+    this.tilt = true;
+    return true;
+  }
+
+  disableTilt(): void {
+    window.removeEventListener('deviceorientation', this.onOrient);
+    this.tilt = false;
+    this.tiltRaw = this.tiltSteer = 0;
   }
 
   on(fn: (a: Action) => void): void {
@@ -94,6 +133,14 @@ export class Input {
       break;
     }
 
+    if (this.tilt) {
+      this.tiltSteer += (this.tiltRaw - this.tiltSteer) * Math.min(1, dt * 14);
+      if (!analog && target === 0) {
+        target = this.tiltSteer;
+        analog = true;
+      }
+    }
+
     if (!this.enabled) {
       throttle = brake = target = 0;
       handbrake = nitro = false;
@@ -116,4 +163,11 @@ export class Input {
     this.mapHeld = map;
     return s;
   }
+}
+
+/** rotação da tela (0 em pé, 90 / 270 deitado) */
+function screenAngle(): number {
+  const o = (screen as Screen & { orientation?: { angle: number } }).orientation;
+  const a = o ? o.angle : Number((window as unknown as { orientation?: number }).orientation ?? 0);
+  return ((Math.round(a) % 360) + 360) % 360;
 }

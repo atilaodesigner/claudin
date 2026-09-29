@@ -42,11 +42,15 @@ export interface Settings {
   /** aberração cromática / granulado */
   lens: boolean;
   fps: boolean;
+  /** celular: botões na tela ou girar o celular (igual volante) */
+  control: 'buttons' | 'tilt';
+  /** girar a câmera com o mouse / arrastando o dedo */
+  orbit: boolean;
 }
 
 const KEY = 'bsbass-drift-settings-v1';
 
-export const DEFAULT_SETTINGS: Settings = { preset: 'auto', doodles: true, trails: true, rain: true, shake: true, lens: true, fps: false };
+export const DEFAULT_SETTINGS: Settings = { preset: 'auto', doodles: true, trails: true, rain: true, shake: true, lens: true, fps: false, control: 'buttons', orbit: true };
 
 export function loadSettings(): Settings {
   try {
@@ -54,6 +58,7 @@ export function loadSettings(): Settings {
     if (!raw) return { ...DEFAULT_SETTINGS };
     const s = { ...DEFAULT_SETTINGS, ...JSON.parse(raw) } as Settings;
     if (!(s.preset in PRESET_NAMES)) s.preset = 'auto';
+    if (s.control !== 'tilt') s.control = 'buttons';
     return s;
   } catch {
     return { ...DEFAULT_SETTINGS };

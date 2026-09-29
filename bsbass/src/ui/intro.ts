@@ -68,7 +68,6 @@ export class Intro {
       <div class="i-lines"></div>
       <div class="i-foot"><span class="i-label">CARREGANDO A QUEBRADA</span><div class="i-bar"><i></i></div></div>
       <small class="i-hint">TOQUE PRA PULAR</small>
-      <button class="i-gate" hidden><span>TOQUE PRA ENTRAR</span><small>🔊 com som</small></button>
       <div class="i-rotate" hidden role="dialog" aria-label="Deite o celular">
         <div class="i-phone"><i></i></div>
         <b>DEITA O CELULAR</b>
@@ -143,23 +142,6 @@ export class Intro {
         }
         if (!portrait.matches) finish(true, 300);
       });
-    });
-  }
-
-  /** espera um toque/tecla (libera o som no navegador) */
-  gate(): Promise<void> {
-    const b = this.el.querySelector<HTMLButtonElement>('.i-gate')!;
-    b.hidden = false;
-    this.el.classList.add('loading');
-    return new Promise((resolve) => {
-      const go = (e: Event) => {
-        e.stopPropagation();
-        b.hidden = true;
-        window.removeEventListener('keydown', go, true);
-        resolve();
-      };
-      b.addEventListener('pointerdown', go, { once: true });
-      window.addEventListener('keydown', go, true);
     });
   }
 

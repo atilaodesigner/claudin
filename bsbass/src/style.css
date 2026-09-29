@@ -55,7 +55,6 @@ h1 em { display: inline-block; font-style: normal; font-family: 'Permanent Marke
 .game-logo { margin: 6px auto 2px; }
 .game-logo img { display: block; width: min(560px, 88vw); height: auto; margin: 0 auto; filter: drop-shadow(0 6px 18px rgba(0,0,0,0.6)); }
 .title-inner p { color: rgba(255,255,255,0.78); margin: 18px 0 26px; }
-.credits { display: block; margin-top: 26px; letter-spacing: 0.25em; font-size: 9px; color: rgba(255,255,255,0.35); }
 .btn-ghost { background: rgba(0,0,0,0.3); border: 1.5px solid rgba(255,255,255,0.8); padding: 12px 38px; letter-spacing: 0.3em; border-radius: 40px; font-weight: 600; }
 .btn-ghost:hover { background: rgba(255,255,255,0.12); }
 .btn-yellow { background: var(--btn); color: #fff; border: 0; padding: 12px 26px; font-weight: 700; letter-spacing: 0.2em;
@@ -114,6 +113,10 @@ body.touch .keys { display: none; }
 .sheet h4 { margin: 0 0 10px; font-size: 10px; letter-spacing: 0.3em; color: var(--y); font-weight: 700; }
 .sheet p { margin: 0 0 8px; font-size: 13px; line-height: 1.55; color: rgba(255,255,255,0.78); }
 .sheet p:last-child { margin-bottom: 0; }
+.sheet .cred-main p b { color: #fff; }
+.sheet .cred { padding-top: 8px; padding-bottom: 8px; }
+.sheet .cred h4 { font-size: 9px; margin-bottom: 4px; color: rgba(255,255,255,0.45); }
+.sheet .cred p { font-size: 11px; color: rgba(255,255,255,0.55); }
 .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid rgba(255,255,255,0.18); }
 .seg button { padding: 10px 2px; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; background: transparent; border: 0;
   border-left: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.7); }
@@ -295,13 +298,10 @@ body.touch .speedo .lamps { display: none; }
 
 @media (min-width: 900px) {
   .hud-top { left: 18px; right: 18px; top: 14px; }
-  .speedo { transform: translateX(-50%) scale(1.15); transform-origin: top center; }
-  .compass { top: 160px; }
-  .drift { top: 196px; }
-  .drift b { font-size: 58px; }
-  .race { top: 280px; }
-  #minimap { width: 190px; height: 190px; left: 18px; bottom: 22px; }
-  .nowplaying { left: 222px; bottom: 26px; font-size: 11px; }
+  .speedo { right: 22px; bottom: 16px; transform: scale(0.9); }
+  .drift b { font-size: 36px; }
+  #minimap { width: 170px; height: 170px; left: 18px; bottom: 22px; }
+  .nowplaying { left: 202px; bottom: 26px; font-size: 10px; }
 }
 
 /* ---------------- abertura (Gueto Game Studio + BSBASS) ---------------- */
@@ -328,10 +328,6 @@ body.touch .speedo .lamps { display: none; }
 #intro .i-hint { position: absolute; right: 16px; bottom: calc(14px + var(--safe-b)); font-size: 9px; letter-spacing: 0.3em; color: rgba(255,255,255,0.4); opacity: 0; transition: opacity 0.4s; }
 #intro .i-hint.on { opacity: 1; animation: blink 1.4s infinite; }
 @keyframes blink { 50% { opacity: 0.35; } }
-#intro .i-gate { position: absolute; inset: 0; display: grid; place-content: center; gap: 10px; background: none; border: 0; color: #fff; z-index: 2; }
-#intro .i-gate[hidden] { display: none; }
-#intro .i-gate span { font-family: Anton, sans-serif; font-size: clamp(26px, 6vw, 40px); letter-spacing: 0.12em; color: #ff1411;
-  text-shadow: 0 0 22px rgba(255,20,17,0.55); animation: blink 1.4s infinite; }
 /* aviso pra deitar o celular (antes da abertura) */
 #intro .i-rotate { position: absolute; inset: 0; z-index: 3; display: grid; place-content: center; justify-items: center; gap: 14px; padding: 24px calc(24px + var(--safe-b)); background: #050507; text-align: center; cursor: default; }
 #intro .i-rotate[hidden] { display: none; }
@@ -347,7 +343,6 @@ body.touch .speedo .lamps { display: none; }
 #intro .i-rotate .i-skip { background: none; border: 1.5px solid rgba(243,240,232,0.5); color: rgba(243,240,232,0.8); }
 #intro .i-rotate.ok b { color: #6dff9a; }
 #intro .i-rotate.ok .i-phone { animation: none; transform: rotate(-90deg); }
-#intro .i-gate small { font-size: 10px; letter-spacing: 0.35em; color: rgba(255,255,255,0.55); }
 @media (max-width: 420px) { .kicker { letter-spacing: 0.16em; font-size: 9px; } }
 
 /* ================= campanha (capítulos + ferro-velho no mundo aberto) ================= */
@@ -485,3 +480,23 @@ body.touch .m-act.show { display: block; }
 #bigmap { position: fixed; inset: 0; z-index: 4; display: none; place-items: center; background: rgba(5, 6, 9, 0.72); pointer-events: none; }
 #bigmap.on { display: grid; }
 #bigmap canvas { width: min(92vw, 92vh); height: min(92vw, 92vh); }
+
+/* ---------------- controle do celular: botões ou girar ---------------- */
+.touch-only, .tilt-only, .ctl-pick { display: none; }
+body.touch .touch-only { display: block; }
+body.touch .ctl-pick { display: block; margin: 12px 0 14px; }
+body.touch #brief .keys { display: none; }
+.ctl-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.ctl-opts button { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px 8px; background: rgba(255,255,255,0.04); border: 1.5px solid rgba(255,255,255,0.18); color: #fff; }
+.ctl-opts button b { font-size: 18px; height: 26px; display: grid; place-items: center; letter-spacing: 0.1em; }
+.ctl-opts button span { font-weight: 700; font-size: 11px; letter-spacing: 0.14em; }
+.ctl-opts button small { font-size: 9px; color: rgba(255,255,255,0.55); letter-spacing: 0.04em; }
+.ctl-opts button.on { border-color: var(--btn); background: rgba(242,13,36,0.16); box-shadow: inset 0 0 0 1px var(--btn); }
+.ico-tilt i { display: block; width: 30px; height: 16px; border: 2px solid #fff; border-radius: 4px; animation: tiltrock 1.6s ease-in-out infinite; }
+@keyframes tiltrock { 0%, 100% { transform: rotate(-16deg); } 50% { transform: rotate(16deg); } }
+/* girando o celular: sem setas; freio e drift na esquerda, gás na direita */
+body.tilt .controls .round, body.tilt .controls .tilt-hide { display: none; }
+body.tilt .controls .tilt-only { display: block; }
+body.tilt .controls .brake-b { order: -2; }
+.ctl-note { display: block; margin-top: 6px; font-size: 10px; line-height: 1.4; color: #ff6b6b; }
+.ctl-note:empty { display: none; }

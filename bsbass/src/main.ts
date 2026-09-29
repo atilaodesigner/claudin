@@ -22,7 +22,8 @@ async function boot(): Promise<void> {
     loadAssets((done, total) => intro?.setProgress((done / total) * 0.75, `CARREGANDO A QUEBRADA ${Math.round((done / total) * 75)}%`)),
   );
 
-  // música de abertura (já cortada 2 s pra entrar no ponto); toca nas logos e no menu
+  // música de abertura (já cortada 2 s pra entrar no ponto): toca nas logos, no menu
+// e segue na partida até acabar; depois (ou se o jogador trocar a rádio) entra a rádio
   const theme = intro ? makeTheme() : null;
   if (intro && theme) {
     await fonts;
@@ -30,9 +31,15 @@ async function boot(): Promise<void> {
     await intro.rotate();
     const ok = await theme.play().then(() => true, () => false);
     if (!ok) {
-      // navegador bloqueou som sem interação: um toque libera
-      await intro.gate();
-      await theme.play().catch(() => undefined);
+      // navegador bloqueou som sem interação: começa no primeiro toque/tecla (sem tela pedindo)
+      const unlock = () => {
+        if (!theme.paused || theme.ended || theme.dataset.skipped) return;
+        theme.play().then(
+          () => ['pointerdown', 'keydown', 'touchend'].forEach((ev) => window.removeEventListener(ev, unlock, true)),
+          () => undefined,
+        );
+      };
+      ['pointerdown', 'keydown', 'touchend'].forEach((ev) => window.addEventListener(ev, unlock, true));
     }
     await intro.gueto();
     intro.startVideo();
@@ -60,7 +67,7 @@ async function boot(): Promise<void> {
 function makeTheme(): HTMLAudioElement {
   const a = new Audio('./intro/tema.mp3');
   a.preload = 'auto';
-  a.loop = true;
+  a.loop = false; // toca uma vez, até o fim (ou até o jogador pular pra rádio)
   let vol = 0.7;
   try {
     vol = JSON.parse(localStorage.getItem('bsbass-drift-save-v1') || '{}')?.vol?.music ?? 0.7;

@@ -78,6 +78,8 @@ export class Hud {
   onSettings: ((s: Settings) => void) | null = null;
   onAbandon: (() => void) | null = null;
   onCamera: ((mode: string) => void) | null = null;
+  /** liga/desliga a direção por inclinação; devolve se deu certo */
+  onControl: ((c: 'buttons' | 'tilt') => Promise<boolean>) | null = null;
   paused = false;
   started = false;
   settings: Settings | null = null;
@@ -110,8 +112,7 @@ export class Hud {
   }
 
   private bindTouch(): void {
-    const bind = (name: keyof Input['touch']) => {
-      const el = $(this.root, `[data-touch="${name}"]`);
+    const bind = (name: keyof Input['touch']) => this.root.querySelectorAll<HTMLElement>(`[data-touch="${name}"]`).forEach((el) => {
       const on = (e: Event) => {
         e.preventDefault();
         this.input.touch[name] = true;
@@ -127,7 +128,7 @@ export class Hud {
       el.addEventListener('pointerup', off);
       el.addEventListener('pointercancel', off);
       el.addEventListener('pointerleave', off);
-    };
+    });
     (['left', 'right', 'gas', 'brake', 'drift', 'nitro'] as const).forEach(bind);
     {
       const el = $(this.root, '[data-hold="map"]');
@@ -161,11 +162,12 @@ export class Hud {
         this.setPaused(false);
         return;
       }
+      this.renderSettings(); // marca o controle escolhido
       $(this.root, '#brief').classList.remove('hidden');
       this.typeMessage();
       this.onStart?.();
     });
-    for (const [btn, screen] of [['#open-settings', '#settings'], ['#open-howto', '#howto'], ['#open-credits', '#credits'], ['#p-settings', '#settings']] as const) {
+    for (const [btn, screen] of [['#open-settings', '#settings'], ['#open-howto', '#howto'], ['#p-settings', '#settings']] as const) {
       $(this.root, btn).addEventListener('click', () => this.openSub(screen));
     }
     this.root.querySelectorAll<HTMLElement>('[data-back]').forEach((b) => b.addEventListener('click', () => this.closeSub()));
@@ -177,10 +179,15 @@ export class Hud {
     });
     this.bindSettings();
     const go = () => {
+      // girar o celular: no iPhone a permissão do sensor só sai de um toque
+      if (this.settings?.control === 'tilt' && !this.input.tilt) void this.pickControl('tilt');
       $(this.root, '#brief').classList.add('hidden');
       this.root.classList.add('playing');
       this.started = true;
     };
+    $(this.root, '#brief').querySelectorAll<HTMLElement>('[data-ctl]').forEach((b) =>
+      b.addEventListener('click', () => void this.pickControl(b.dataset.ctl as Settings['control'])),
+    );
     $(this.root, '#ride').addEventListener('click', go);
     $(this.root, '#skip').addEventListener('click', go);
     $(this.root, '#resume').addEventListener('click', () => this.setPaused(false));
@@ -248,8 +255,12 @@ export class Hud {
   private bindSettings(): void {
     const box = $(this.root, '#settings');
     box.addEventListener('click', (e) => {
-      const t = (e.target as HTMLElement).closest<HTMLElement>('[data-preset],[data-opt],[data-cam]');
+      const t = (e.target as HTMLElement).closest<HTMLElement>('[data-preset],[data-opt],[data-cam],[data-ctl]');
       if (!t || !this.settings) return;
+      if (t.dataset.ctl) {
+        this.pickControl(t.dataset.ctl as Settings['control']);
+        return;
+      }
       if (t.dataset.preset) this.settings.preset = t.dataset.preset as PresetChoice;
       else if (t.dataset.opt) {
         const k = t.dataset.opt as keyof Settings;
@@ -282,12 +293,31 @@ export class Hud {
       b.setAttribute('aria-checked', String(on));
     });
     box.querySelectorAll<HTMLElement>('[data-cam]').forEach((b) => b.classList.toggle('on', b.dataset.cam === this.camMode));
+    this.root.querySelectorAll<HTMLElement>('[data-ctl]').forEach((b) => b.classList.toggle('on', b.dataset.ctl === st.control));
+    document.body.classList.toggle('tilt', st.control === 'tilt');
     const q = PRESETS[this.activePreset];
     const res = Math.round(Math.min(window.devicePixelRatio || 1, q.pixelRatio) * 100);
     $(this.root, '#q-info').innerHTML =
       (st.preset === 'auto' ? `<b>AUTO → ${PRESET_NAMES[this.activePreset]}</b> · baixa sozinho se o FPS cair<br/>` : '') +
       `resolução ${res}% · reflexo ${q.reflection ? `${Math.round(q.reflection * 100)}%` : 'desligado'} · bloom ${q.bloom ? 'sim' : 'não'}<br/>` +
       `luzes dinâmicas ${q.lamps + q.neon} · chuva ${Math.round(q.rain * 100)}% · partículas ${Math.round(q.particles * 100)}%`;
+  }
+
+  /**
+   * escolhe o controle do celular. Girar precisa de permissão do sensor
+   * (pedida aqui, dentro do toque); sem sensor volta pros botões.
+   */
+  private async pickControl(c: Settings['control']): Promise<void> {
+    if (!this.settings) return;
+    let ok = true;
+    if (c === 'tilt') ok = (await this.onControl?.(c)) ?? false;
+    else await this.onControl?.(c);
+    this.settings.control = ok ? c : 'buttons';
+    this.onSettings?.(this.settings);
+    this.renderSettings();
+    const note = $(this.root, '.ctl-note');
+    note.textContent = ok ? '' : 'Esse aparelho não liberou o sensor de giro: fica nos botões (dá pra trocar nas configurações).';
+    if (!ok && $(this.root, '#brief').classList.contains('hidden')) this.popup('SEM SENSOR · FICA NOS BOTÕES', 'warn');
   }
 
   /** créditos dos carros baixados (CC-BY pede atribuição) */
@@ -329,7 +359,7 @@ export class Hud {
     $(this.root, '#r-tracks').innerHTML = st.tracks
       .map((t, i) => `<li class="${i === r.track % st.tracks.length && r.on ? 'on' : ''}"><span>${t.title}<small>${t.artist}</small></span><em>${fmtTime(t.length).slice(0, 5)}</em></li>`)
       .join('');
-    const np = r.on ? `<b>${st.name}</b> ${tr.title} — ${tr.artist.toLowerCase()}` : '<b>RÁDIO</b> desligado';
+    const np = r.on ? `<b>${st.name}</b> ${tr.title} — ${tr.artist.toLowerCase()}` : this.themeLabel ?? '<b>RÁDIO</b> desligado';
     if (this.last.np !== np) {
       // nome da música aparece quando troca e some depois (tela limpa)
       this.set('np', np, 'html');
@@ -342,6 +372,8 @@ export class Hud {
     }
   }
   private npTimer = 0;
+  /** música de abertura tocando na partida (no lugar da rádio) */
+  themeLabel: string | null = null;
 
   setPaused(p: boolean): void {
     if (!this.started) return;
@@ -663,11 +695,9 @@ const TEMPLATE = /* html */ `
     <p>Poeira vermelha, grave no talo e um Mustang azul na madrugada.</p>
     <nav class="main-menu">
       <button id="enter" class="mm primary"><span>JOGAR</span><small>a madrugada tá esperando</small></button>
-      <button id="open-settings" class="mm"><span>CONFIGURAÇÕES</span><small>gráfico · efeitos · som</small></button>
+      <button id="open-settings" class="mm"><span>CONFIGURAÇÕES</span><small>gráfico · controle · som · créditos</small></button>
       <button id="open-howto" class="mm"><span>COMO JOGAR</span><small>controles e pontuação</small></button>
-      <button id="open-credits" class="mm"><span>CRÉDITOS</span><small>quem fez e de onde veio</small></button>
     </nav>
-    <small class="credits">feito na quebrada · three.js · DF 61</small>
   </div>
 </div>
 
@@ -688,6 +718,14 @@ const TEMPLATE = /* html */ `
         <li><i>★</i>PONTOS <span id="obj-total">0</span></li>
         <li><i>♛</i>A MADRUGADA <span>TÁ EM ABERTO</span></li>
       </ul>
+      <div class="ctl-pick">
+        <small class="dot">COMO VOCÊ QUER PILOTAR?</small>
+        <div class="ctl-opts">
+          <button data-ctl="buttons"><b>◀ ▶</b><span>BOTÕES</span><small>vira nas setas da tela</small></button>
+          <button data-ctl="tilt"><b class="ico-tilt"><i></i></b><span>GIRAR O CELULAR</span><small>inclina pros lados, igual volante</small></button>
+        </div>
+        <small class="ctl-note"></small>
+      </div>
       <button id="ride" class="btn-yellow">BORA!</button>
       <div class="keys">
         <b>TECLADO</b> W/↑ acelera · S/↓ freia/ré · A D/← → vira · ESPAÇO freio de mão · SHIFT nitro · C câmera · R reset · E ação (segura) · M mapa · Q/Z rádio · TAB player · ESC pausa<br/>
@@ -731,10 +769,11 @@ const TEMPLATE = /* html */ `
   <div class="row small">
     <button data-act="cam">CAM</button><button data-act="reset">RESET</button><button data-act="radioNext">RÁDIO</button><button data-hold="map">MAPA</button>
     <span class="grow"></span>
-    <button class="big drift-b" data-touch="drift">DRIFT</button><button class="big nitro-b" data-touch="nitro">NITRO</button>
+    <button class="big drift-b tilt-hide" data-touch="drift">DRIFT</button><button class="big nitro-b" data-touch="nitro">NITRO</button>
   </div>
   <div class="row">
     <button class="round" data-touch="left">◀</button><button class="round" data-touch="right">▶</button>
+    <button class="big drift-b tilt-only" data-touch="drift">DRIFT</button>
     <span class="grow"></span>
     <button class="big brake-b" data-touch="brake">FREIO</button><button class="big gas-b" data-touch="gas">GÁS</button>
   </div>
@@ -776,11 +815,45 @@ const TEMPLATE = /* html */ `
     <section>
       <h4>CÂMERA</h4>
       <div class="seg"><button data-cam="chase">PERTO</button><button data-cam="far">LONGE</button><button data-cam="hood">CAPÔ</button></div>
+      <button class="tg" role="switch" data-opt="orbit"><span>Girar a câmera mexendo o mouse / arrastando o dedo</span><i></i></button>
+    </section>
+    <section class="touch-only">
+      <h4>CONTROLE</h4>
+      <div class="seg"><button data-ctl="buttons">BOTÕES</button><button data-ctl="tilt">GIRAR O CELULAR</button></div>
     </section>
     <section>
       <h4>SOM</h4>
       <label class="sl"><span>Música</span><input type="range" min="0" max="100" data-vol="music" /></label>
       <label class="sl"><span>Carro</span><input type="range" min="0" max="100" data-vol="car" /></label>
+    </section>
+    <section class="cred-main">
+      <h4>CRÉDITOS</h4>
+      <p><b>Desenvolvido pela Gueto Game Studio.</b></p>
+      <p>Direção artística e construção: <b>Átila</b> (@atiladesigner), para o álbum <b>BSBASS</b> da <b>Tribo da Periferia</b>.</p>
+    </section>
+    <section class="cred">
+      <h4>CAMPANHA</h4>
+      <p>BSBASS THE GAME: capítulos, carros do bonde, pilotos, viatura, caminhão, ferro-velho e bandeira do jogo original.</p>
+    </section>
+    <section class="cred">
+      <h4>TEXTURAS E HDRI</h4>
+      <p>ambientCG (CC0): asfalto, tijolo, reboco, concreto, ferragem, ferro, chapa, telha, calçada, terra, casca e folhas. Poly Haven (CC0): HDRI de rua à noite.</p>
+    </section>
+    <section class="cred">
+      <h4>MODELOS 3D</h4>
+      <p>Poly Haven (CC0): tambores, pneu, carro com capa, ar-condicionado, hidrante, lixeira, caixa de energia, barreira, saco de cimento, caixa, rádio.</p>
+    </section>
+    <section class="cred">
+      <h4>SONS</h4>
+      <p>Freesound: FreeCarSoundsGaming, audible-edge, magnuswaker, LPA134, qubodup, innov8_Music, Pól, craigsmith, mihnelis, FiretailHorizons.</p>
+    </section>
+    <section id="car-credits" class="cred hidden">
+      <h4>CARROS 3D</h4>
+      <p></p>
+    </section>
+    <section class="cred">
+      <h4>FONTES</h4>
+      <p>Anton, Permanent Marker e Chakra Petch (Google Fonts, OFL).</p>
     </section>
   </div>
 </div>
@@ -803,11 +876,14 @@ const TEMPLATE = /* html */ `
         <li><kbd>R</kbd> volta pra pista</li><li><kbd>E</kbd> segura pra ativar</li>
         <li><kbd>M</kbd> mapa (segura)</li><li><kbd>Q</kbd><kbd>Z</kbd> troca a rádio</li>
         <li><kbd>TAB</kbd> player</li><li><kbd>ESC</kbd> pausa</li>
+        <li>mexe o <b>mouse</b> pra girar a câmera</li>
       </ul>
     </section>
     <section>
       <h4>TOQUE</h4>
       <p>◀ ▶ vira · GÁS e FREIO (segura o freio parado pra dar ré) · DRIFT é o freio de mão · NITRO · CAM, RESET e RÁDIO em cima</p>
+      <p>Girando o celular: incline o celular deitado pros lados, igual volante; FREIO e DRIFT ficam na esquerda, GÁS e NITRO na direita. Escolhe antes do BORA! ou em CONFIGURAÇÕES.</p>
+      <p>Arrasta o dedo na tela (fora dos botões) pra girar a câmera; solta e ela volta pra trás do carro.</p>
     </section>
     <section>
       <h4>CONTROLE</h4>
@@ -816,40 +892,6 @@ const TEMPLATE = /* html */ `
     <section>
       <h4>DICA DO ZÉ</h4>
       <p>Pra rodar: puxa o freio de mão com o volante virado e segura o gás. Pra endireitar, solta o gás e contra-esterça. Nitro no meio do drift abre o ângulo.</p>
-    </section>
-  </div>
-</div>
-
-<div id="credits" class="screen sub hidden" role="dialog" aria-label="Créditos">
-  <div class="sheet">
-    <div class="sheet-top"><h2>CRÉDITOS</h2><button data-back class="x" aria-label="Voltar">VOLTAR</button></div>
-    <section>
-      <h4>BSBASS DRIFT GAME</h4>
-      <p>Jogo de drift na periferia do Distrito Federal. Cidade, carro, trilhas da rádio e efeitos gerados em código com three.js.</p>
-    </section>
-    <section>
-      <h4>CAMPANHA</h4>
-      <p>BSBASS THE GAME: capítulos, carros do bonde, pilotos, viatura, caminhão, ferro-velho e bandeira do jogo original.</p>
-    </section>
-    <section>
-      <h4>TEXTURAS E HDRI</h4>
-      <p>ambientCG (CC0): asfalto, tijolo, reboco, concreto, ferragem, ferro, chapa, telha, calçada, terra, casca e folhas. Poly Haven (CC0): HDRI de rua à noite.</p>
-    </section>
-    <section>
-      <h4>MODELOS 3D</h4>
-      <p>Poly Haven (CC0): tambores, pneu, carro com capa, ar-condicionado, hidrante, lixeira, caixa de energia, barreira, saco de cimento, caixa, rádio.</p>
-    </section>
-    <section>
-      <h4>SONS</h4>
-      <p>Freesound: FreeCarSoundsGaming, audible-edge, magnuswaker, LPA134, qubodup, innov8_Music, Pól, craigsmith, mihnelis, FiretailHorizons.</p>
-    </section>
-    <section id="car-credits" class="hidden">
-      <h4>CARROS 3D</h4>
-      <p></p>
-    </section>
-    <section>
-      <h4>FONTES</h4>
-      <p>Anton, Permanent Marker e Chakra Petch (Google Fonts, OFL).</p>
     </section>
   </div>
 </div>

@@ -39,6 +39,7 @@ import { Campaign } from './campaign/campaign';
 import { MODELS as CAMPAIGN_MODELS } from './campaign/models';
 import type { SiteRig } from './campaign/siteRig';
 
+const THEME_LABEL = '<b>ABERTURA</b> Um Grave Romance — tribo da periferia';
 const STEP = 1 / 120;
 const SAVE_KEY = 'bsbass-drift-save-v1';
 /** gotas de chuva: base (preset alto) e máximo alocado (ultra) */
@@ -136,6 +137,13 @@ export class Game {
   time = 0;
   private camMode: CamMode = 'chase';
   private camYaw = 0;
+  // câmera livre: mouse mexendo (PC) ou dedo arrastando na tela (celular)
+  private orbitYaw = 0;
+  private orbitPitch = 0;
+  private orbitIdle = 99;
+  private dragId: number | null = null;
+  private dragX = 0;
+  private dragY = 0;
   private camPos = new THREE.Vector3();
   private camLook = new THREE.Vector3();
   private shake = 0;
@@ -177,6 +185,7 @@ export class Game {
     this.renderer.toneMappingExposure = 1.05;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     container.appendChild(this.renderer.domElement);
+    this.bindOrbit(this.renderer.domElement);
 
     this.save = loadSave();
     this.camMode = this.save.cam;
@@ -323,8 +332,12 @@ export class Game {
     this.hud = new Hud(hudParent, this.input, this.radio, this.city);
     this.hud.vol = { ...this.save.vol };
     this.hud.onStart = () => {
-      this.fadeTheme();
       this.audio.start();
+      // a música de abertura continua na partida; a rádio espera ela acabar
+      if (this.themePlaying()) {
+        this.radio.on = false;
+        this.hud.themeLabel = THEME_LABEL;
+      }
       this.radio.start();
       this.hud.renderRadio();
     };
@@ -347,6 +360,19 @@ export class Game {
     };
     this.hud.setCarCredits(assets.cars.map((c) => c.entry));
     this.hud.settings = this.settings;
+    this.hud.onControl = async (c) => {
+      if (c === 'buttons') {
+        this.input.disableTilt();
+        return true;
+      }
+      if (!(await this.input.enableTilt())) return false;
+      // sem leitura do sensor em 1,2 s (PC, aparelho sem giroscópio): desiste
+      for (let t = 0; t < 12 && !this.input.tiltAlive; t++) await new Promise((r) => setTimeout(r, 100));
+      if (!this.input.tiltAlive) this.input.disableTilt();
+      return this.input.tiltAlive;
+    };
+    // escolheu girar antes: no Android liga direto (no iPhone espera o toque do BORA!)
+    if (this.settings.control === 'tilt' && matchMedia('(pointer: coarse)').matches) void this.input.enableTilt();
     this.hud.camMode = this.camMode;
     this.hud.onCamera = (m) => this.setCam(m as CamMode);
     this.hud.setVolumeBar('car', this.save.vol.car);
@@ -484,6 +510,13 @@ export class Game {
       return;
     }
     if (a === 'radioNext' || a === 'radioPrev') {
+      if (this.hud.started && this.themePlaying()) {
+        // pular a abertura: entra a rádio na estação de sempre
+        this.endTheme(true);
+        const st = this.radio.current;
+        this.hud.popup(`${st.freq} ${st.name}`);
+        return;
+      }
       if (a === 'radioNext') this.radio.nextStation(1);
       else this.radio.nextStation(-1);
       const st = this.radio.current;
@@ -564,16 +597,33 @@ export class Game {
 
   private theme: HTMLAudioElement | null = null;
 
-  /** música da abertura: segue no menu e some quando o jogador entra na rua */
+  /** música da abertura: toca nas logos, no menu e na partida até acabar */
   setTheme(a: HTMLAudioElement): void {
     this.theme = a;
     a.muted = this.audio.muted;
+    a.addEventListener('ended', () => this.endTheme(false));
+  }
+
+  private themePlaying(): boolean {
+    const a = this.theme;
+    return !!a && !a.ended && !a.dataset.skipped;
+  }
+
+  /** acabou (ou o jogador pulou): some a abertura e liga a rádio */
+  private endTheme(skip: boolean): void {
+    if (!this.theme) return;
+    if (skip) this.fadeTheme();
+    else this.theme = null;
+    this.hud.themeLabel = null;
+    if (this.hud.started && !this.radio.on) this.radio.toggle();
+    else this.hud.renderRadio();
   }
 
   private fadeTheme(): void {
     const a = this.theme;
     if (!a) return;
     this.theme = null;
+    a.dataset.skipped = '1';
     const v0 = a.volume;
     const t0 = performance.now();
     const step = () => {
@@ -664,6 +714,8 @@ export class Game {
     this.updateVisuals(dt, playing || !!this.autopilot);
     this.updateCamera(dt);
     this.updateLamps(dt);
+    // ligou a rádio pelo player com a abertura tocando: a abertura dá lugar
+    if (this.theme && this.hud.started && this.radio.on) this.endTheme(true);
 
     this.audio.updateCar(this.car.rpm, this.car.throttle, this.car.rearSlip, this.car.speed, this.car.nitroActive, this.car.surfaceGrip < 0.9, !playing);
     this.radio.update(dt);
@@ -1176,6 +1228,43 @@ export class Game {
   private camTgtPos = new THREE.Vector3();
   private camTgtLook = new THREE.Vector3();
 
+  /** girar a câmera em volta do carro: mexendo o mouse ou arrastando o dedo na tela */
+  private bindOrbit(cv: HTMLCanvasElement): void {
+    cv.style.touchAction = 'none';
+    const can = () => this.settings.orbit && this.hud.started && !this.hud.paused && !this.camOverride;
+    // mouse: só por cima da cena (em cima de botão do HUD não gira)
+    window.addEventListener('mousemove', (e) => {
+      if (e.target === cv && can()) this.orbitBy(e.movementX, e.movementY, 0.0042);
+    });
+    cv.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' || this.dragId !== null) return;
+      this.dragId = e.pointerId;
+      this.dragX = e.clientX;
+      this.dragY = e.clientY;
+    });
+    window.addEventListener('pointermove', (e) => {
+      if (e.pointerId !== this.dragId) return;
+      const dx = e.clientX - this.dragX, dy = e.clientY - this.dragY;
+      this.dragX = e.clientX;
+      this.dragY = e.clientY;
+      if (can()) this.orbitBy(dx, dy, 0.009);
+    });
+    const up = (e: PointerEvent) => {
+      if (e.pointerId === this.dragId) this.dragId = null;
+    };
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  }
+
+  private orbitBy(dx: number, dy: number, k: number): void {
+    if (!dx && !dy) return;
+    this.orbitYaw -= dx * k;
+    if (this.orbitYaw > Math.PI) this.orbitYaw -= Math.PI * 2;
+    if (this.orbitYaw < -Math.PI) this.orbitYaw += Math.PI * 2;
+    this.orbitPitch = THREE.MathUtils.clamp(this.orbitPitch + dy * k * 0.6, -0.12, 0.75);
+    this.orbitIdle = 0;
+  }
+
   private updateCamera(dt: number): void {
     const car = this.car;
     const portrait = this.camera.aspect < 1;
@@ -1221,7 +1310,16 @@ export class Game {
     const yawRate = this.camMode === 'hood' ? 14 : 4.2;
     this.camYaw += dy * (1 - Math.exp(-yawRate * dt));
 
-    const fx = Math.sin(this.camYaw), fz = Math.cos(this.camYaw);
+    // câmera livre volta sozinha pra trás do carro quando solta o mouse/dedo
+    this.orbitIdle += dt;
+    if (!this.hud.started || !this.settings.orbit) this.orbitYaw = this.orbitPitch = 0;
+    else if (this.dragId === null && this.orbitIdle > (car.speed < 2 ? 3.5 : 1.1)) {
+      const back = Math.exp(-(1.3 + Math.min(car.speed, 30) * 0.08) * dt);
+      this.orbitYaw *= back;
+      this.orbitPitch *= back;
+    }
+    const yaw = this.camYaw + this.orbitYaw;
+    const fx = Math.sin(yaw), fz = Math.cos(yaw);
     const speedK = Math.min(1, car.speed / 60);
     let dist: number, height: number, lookAhead: number, lookH: number;
     if (this.camMode === 'far') {
@@ -1235,7 +1333,8 @@ export class Game {
       dist = 7.5; height = 1.6;
     }
     dist += speedK * (this.camMode === 'hood' ? 0 : 1.2);
-    const want = this.tmpV.set(car.x - fx * dist, this.carY + height, car.z - fz * dist);
+    const cp = Math.cos(this.orbitPitch), sp = Math.sin(this.orbitPitch);
+    const want = this.tmpV.set(car.x - fx * dist * cp, this.carY + height + dist * sp, car.z - fz * dist * cp);
     if (this.camMode === 'hood') {
       const hc = Math.cos(car.heading), hs = Math.sin(car.heading);
       want.set(car.x + hs * 0.35, this.carY + 1.22, car.z + hc * 0.35);
@@ -1247,7 +1346,7 @@ export class Game {
       if (this.camPos.distanceTo(want) > 30) this.camPos.copy(want);
     }
     const look = this.tmpV2.set(car.x + fx * lookAhead, this.carY + lookH, car.z + fz * lookAhead);
-    if (this.camMode === 'hood') look.set(car.x + Math.sin(car.heading) * lookAhead, this.carY + lookH, car.z + Math.cos(car.heading) * lookAhead);
+    if (this.camMode === 'hood') look.set(car.x + Math.sin(car.heading + this.orbitYaw) * lookAhead, this.carY + lookH - this.orbitPitch * 6, car.z + Math.cos(car.heading + this.orbitYaw) * lookAhead);
     this.camLook.lerp(look, this.camMode === 'hood' ? 1 : 1 - Math.exp(-14 * dt));
 
     // luz de destaque: atrás/acima da câmera, e uma quente do lado

@@ -86,7 +86,10 @@ O build é estático (`base: './'`): dá pra hospedar `dist/` em qualquer lugar.
 - **Abertura**: logo da Gueto Game Studio animada em código (moldura desenhada por um rastro de lanterna, letras entrando de lado, separação de cor, GAME STUDIO acendendo como neon) e depois o vídeo da logo BSBASS, enquanto o jogo carrega, monta a cidade e compila os shaders por trás. Toque ou tecla pula.
 - **Celular em pé**: antes da abertura aparece o aviso DEITA O CELULAR (com botão de tela cheia deitada no Android); vira o celular e ele some sozinho, ou dá pra jogar em pé mesmo.
 - **HUD enxuto**: velocímetro no canto de baixo (no celular deitado, pequeno entre os controles), textos menores e o nome da música só aparece quando troca.
-- **Menu**: JOGAR, CONFIGURAÇÕES, COMO JOGAR e CRÉDITOS (a pausa também abre as configurações e volta pro menu).
+- **Câmera livre**: mexendo o mouse (PC) ou arrastando o dedo na tela (celular) a câmera gira em volta do carro; soltou, ela volta sozinha pra trás. Dá pra desligar nas configurações.
+- **Controle no celular**: antes do BORA! o jogador escolhe BOTÕES (◀ ▶ na tela) ou GIRAR O CELULAR (inclina o celular deitado igual volante, estilo Asphalt; freio e drift na esquerda, gás e nitro na direita). No iPhone a permissão do sensor é pedida no toque; sem sensor fica nos botões.
+- **Música de abertura**: toca nas logos, no menu e segue na partida até acabar; trocar a rádio (Q / RÁDIO) pula pra rádio.
+- **Menu**: JOGAR, CONFIGURAÇÕES e COMO JOGAR. Os créditos ficam no fim das configurações: desenvolvido pela Gueto Game Studio, direção artística e construção por Átila (@atiladesigner) para o álbum BSBASS da Tribo da Periferia.
 - **Qualidade gráfica**: AUTO, BAIXA, MÉDIA, ALTA e ULTRA mudam resolução, reflexo do asfalto, bloom, chuva, luzes dinâmicas, cones de luz e partículas na hora, sem recarregar. No AUTO começa em MÉDIA (celular) ou ALTA (PC) e desce sozinho se o FPS cair. Dá pra desligar rabiscos, rastro de luz, chuva, tremida de câmera e efeito de lente, e mostrar o FPS.
 - Progresso (pontos, maior drift, fitas, rachas, câmera, rádio, capítulos, moedas, carro, piloto e pintura) e as configurações ficam salvos no navegador.
 
