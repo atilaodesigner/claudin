@@ -4,6 +4,8 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
+import type { CarEntry } from './car/gltfCar';
 
 export const MODEL_NAMES = [
   'barrel_03', 'Barrel_02', 'old_tyre', 'covered_car', 'exterior_aircon_unit', 'fire_hydrant',
@@ -23,6 +25,8 @@ export interface Assets {
   models: Partial<Record<ModelName, THREE.Group>>;
   /** HDRI de rua à noite (Poly Haven) pros reflexos */
   env?: THREE.DataTexture;
+  /** carros de verdade (models/cars/manifest.json) */
+  cars: { entry: CarEntry; scene: THREE.Group }[];
 }
 
 function loadImage(url: string): Promise<HTMLImageElement | null> {
@@ -35,9 +39,10 @@ function loadImage(url: string): Promise<HTMLImageElement | null> {
 }
 
 export async function loadAssets(onProgress?: (done: number, total: number) => void): Promise<Assets> {
-  const assets: Assets = { photos: {}, tex: {}, models: {} };
+  const assets: Assets = { photos: {}, tex: {}, models: {}, cars: [] };
   const texLoader = new THREE.TextureLoader();
   const gltf = new GLTFLoader();
+  gltf.setMeshoptDecoder(MeshoptDecoder);
   const texNames = ['asphalt', 'asphalt_n', 'asphalt_r', 'sidewalk', 'sidewalk_n', 'dirt', 'dirt_n', 'conc', 'rebar', 'metal', 'bark', 'leaves'] as const;
   const total = PHOTO_NAMES.length + texNames.length + MODEL_NAMES.length + 1;
   let done = 0;
@@ -85,6 +90,27 @@ export async function loadAssets(onProgress?: (done: number, total: number) => v
       .catch(() => undefined)
       .finally(tick),
   );
+  // carros: o manifesto lista o que foi baixado (scripts/fetch-cars.mjs); sem ele, carros procedurais
+  jobs.push(
+    fetch('./models/cars/manifest.json')
+      .then((r) => (r.ok ? (r.json() as Promise<CarEntry[]>) : []))
+      .catch(() => [] as CarEntry[])
+      .then((list) =>
+        Promise.all(
+          list.map((entry) =>
+            gltf
+              .loadAsync(`./models/cars/${entry.file}${BIN_SUFFIX}`)
+              .then((g) => {
+                assets.cars.push({ entry, scene: g.scene });
+              })
+              .catch(() => undefined),
+          ),
+        ),
+      )
+      .then(() => undefined),
+  );
   await Promise.all(jobs);
+  // ordem estável (o carregamento termina em ordem aleatória)
+  assets.cars.sort((a, b) => a.entry.id.localeCompare(b.entry.id));
   return assets;
 }

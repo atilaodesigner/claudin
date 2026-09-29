@@ -458,7 +458,7 @@ export function buildMustang(envMap: THREE.Texture | null): MustangRig {
   return { root, body, wheels, tailMat, brakeMat, reverseMat, headMat, underglow, heads, exhausts, tailLocal, paint };
 }
 
-function makeSoftTexture(): THREE.CanvasTexture {
+export function makeSoftTexture(): THREE.CanvasTexture {
   const c = document.createElement('canvas');
   c.width = 128;
   c.height = 256;

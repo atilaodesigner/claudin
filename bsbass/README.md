@@ -16,6 +16,15 @@ A cidade, o Mustang, o neon, o áudio e as três rádios são procedurais. Por c
 
 | Motor (5 loops de rotação), pneu cantando, batidas, buzina, pipoco de escapamento, chuva, cachorro ao longe | [Freesound](https://freesound.org) (FreeCarSoundsGaming, audible-edge, magnuswaker, LPA134, qubodup, innov8_Music, Pól, craigsmith, mihnelis, FiretailHorizons) | `public/sfx/` |
 
+**Carros de verdade (Sketchfab, CC-BY)**: `scripts/cars.json` lista o Mustang GT (S550, mesma carroceria do 2020) e os carros da rua (Gol, Gol G4, Uno, Uno com escada, Kombi, Fusca, Opala, Chevette, Palio, Corsa, Saveiro e um ônibus Comil). O Sketchfab só libera download com login, então precisa de um token (conta grátis → Settings → Password & API → API token) na variável `SKETCHFAB_TOKEN`:
+
+```bash
+SKETCHFAB_TOKEN=... node scripts/fetch-cars.mjs          # baixa, simplifica, comprime e gera public/models/cars/manifest.json
+node scripts/fetch-cars.mjs --local mustang=/caminho/carro.glb   # usa um GLB seu no lugar
+```
+
+O jogo normaliza qualquer modelo sozinho (escala pelo comprimento real, frente/trás, chão, rodas girando e esterçando, pintura azul-escura no Mustang, faróis e lanternas acesos). Sem o manifesto, usa os carros procedurais. Os créditos aparecem em CRÉDITOS.
+
 Os modelos foram otimizados com `gltf-transform` (texturas 512 px WebP, malha simplificada). Se algum asset não carregar, o jogo cai de volta na versão procedural. Pra hospedar onde `.glb`/`.hdr` não são servidos, dá pra buildar com `VITE_BIN_SUFFIX=.wasm` e acrescentar `.wasm` no nome desses arquivos (os carregadores reconhecem o formato pelo conteúdo).
 
 ## Rodando
@@ -65,6 +74,7 @@ O build é estático (`base: './'`): dá pra hospedar `dist/` em qualquer lugar.
 - **Superfícies**: asfalto, calçada e o **terrão** de terra vermelha (menos aderência, levanta poeira).
 - **Rádio**: GRAVE 61 FM (funk de quebrada), BSBASS PHONK (drift phonk) e EIXÃO TRAP, tudo sintetizado na hora. O paredão da feira pisca no grave. Volume de música e de carro separados.
 - **Rabiscos estilo NFS Unbound**: traço de caneta que "ferve" em volta do carro: laçadas de fumaça no drift, asa quando o ângulo passa de 32°, zigue-zague de chama e linhas de velocidade no nitro, espiral na patinada e estalos na batida, no raspando e quando o combo vai pro bolso. Lanternas e faróis deixam rastro de luz.
+- **Abertura**: logo da Gueto Game Studio animada em código (moldura desenhada por um rastro de lanterna, letras entrando de lado, separação de cor, GAME STUDIO acendendo como neon) e depois o vídeo da logo BSBASS, enquanto o jogo carrega, monta a cidade e compila os shaders por trás. Toque ou tecla pula.
 - **Menu**: JOGAR, CONFIGURAÇÕES, COMO JOGAR e CRÉDITOS (a pausa também abre as configurações e volta pro menu).
 - **Qualidade gráfica**: AUTO, BAIXA, MÉDIA, ALTA e ULTRA mudam resolução, reflexo do asfalto, bloom, chuva, luzes dinâmicas, cones de luz e partículas na hora, sem recarregar. No AUTO começa em MÉDIA (celular) ou ALTA (PC) e desce sozinho se o FPS cair. Dá pra desligar rabiscos, rastro de luz, chuva, tremida de câmera e efeito de lente, e mostrar o FPS.
 - Progresso (pontos, maior drift, fitas, rachas, câmera, rádio) e as configurações ficam salvos no navegador.
@@ -91,6 +101,8 @@ src/
   fx/                   fumaça, poeira, faíscas, marcas de pneu, rastro das lanternas
   settings.ts           presets de qualidade e opções salvas
   audio/                motor V8, pneu, efeitos e as rádios
+  ui/intro.ts           abertura (Gueto Game Studio + vídeo BSBASS) e barra de carregamento
+  car/gltfCar.ts        normaliza carros GLB (escala, frente, rodas, pintura)
   ui/hud.ts             HUD, menu, configurações, intro, pausa, player do rádio, minimapa
   game.ts               loop principal, câmera, pós-processamento
 tests/                  testes de lógica

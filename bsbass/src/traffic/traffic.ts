@@ -6,6 +6,8 @@ import * as THREE from 'three';
 import { BALAO, EXTENT, LANE, NODES, ROAD, nodePos } from '../world/city';
 import { rect, type Rect } from '../physics/collide';
 import { buildVehicle, PAINTS } from './vehicles';
+import { prepareCar, repaint, type CarEntry } from '../car/gltfCar';
+import { trafficLights } from '../car/gltfRig';
 
 const DIRS: [number, number][] = [[1, 0], [0, 1], [-1, 0], [0, -1]]; // +X +Z -X -Z
 const BALAO_NODE = (NODES - 1) / 2;
@@ -58,19 +60,33 @@ export class Traffic {
   honks: TrafficCar[] = [];
   private rnd: () => number;
 
-  constructor(count: number, seed = 7) {
+  constructor(count: number, seed = 7, models: { entry: CarEntry; scene: THREE.Group }[] = []) {
     let s = seed;
     const shadowTex = softShadow();
     const shadowMat = new THREE.MeshBasicMaterial({ map: shadowTex, color: 0x000000, transparent: true, opacity: 0.7, depthWrite: false });
     this.rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
     for (let k = 0; k < count; k++) {
-      const model = k % 11 === 5 ? 4 : Math.floor(this.rnd() * 4);
+      let model = k % 11 === 5 ? 4 : Math.floor(this.rnd() * 4);
       const paint = model === 4 ? [0x1d6fb8, 0x2a8a3a, 0xd8d8d0][k % 3]! : PAINTS[Math.floor(this.rnd() * PAINTS.length)]!;
-      const v = buildVehicle(model, paint, true);
       const g = new THREE.Group();
-      g.add(new THREE.Mesh(v.body, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35, metalness: 0.45 })));
       const lightsMat = new THREE.MeshBasicMaterial({ vertexColors: true });
-      g.add(new THREE.Mesh(v.lights, lightsMat));
+      let v: { halfW: number; halfL: number; mass: number };
+      const pick = models.length ? this.pickModel(models, model === 4) : null;
+      if (pick) {
+        // carro brasileiro de verdade (GLB)
+        const p = prepareCar(pick.scene, pick.entry);
+        if (pick.entry.recolor !== false && !pick.entry.bus) repaint(p, paint, null, 0.35);
+        g.add(p.root, trafficLights(p));
+        const bus = !!pick.entry.bus;
+        model = bus ? 4 : model === 4 ? 0 : model;
+        const vol = p.halfW * p.halfL * p.height;
+        v = { halfW: p.halfW, halfL: p.halfL, mass: bus ? 9000 : Math.round(THREE.MathUtils.clamp(vol * 220, 800, 2200)) };
+      } else {
+        const geo = buildVehicle(model, paint, true);
+        g.add(new THREE.Mesh(geo.body, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35, metalness: 0.45 })));
+        g.add(new THREE.Mesh(geo.lights, lightsMat));
+        v = geo;
+      }
       const sh = new THREE.Mesh(new THREE.PlaneGeometry(v.halfW * 2 + 0.6, v.halfL * 2 + 0.8), shadowMat);
       sh.rotation.x = -Math.PI / 2;
       sh.position.y = 0.02;
@@ -88,6 +104,19 @@ export class Traffic {
       this.spawn(car, null);
       this.cars.push(car);
     }
+  }
+
+  /** sorteia um modelo GLB pelo peso; ônibus só na vaga de ônibus */
+  private pickModel(models: { entry: CarEntry; scene: THREE.Group }[], bus: boolean): { entry: CarEntry; scene: THREE.Group } | null {
+    const pool = models.filter((m) => !!m.entry.bus === bus);
+    if (!pool.length) return null;
+    const total = pool.reduce((a, m) => a + (m.entry.weight ?? 1), 0);
+    let r = this.rnd() * total;
+    for (const m of pool) {
+      r -= m.entry.weight ?? 1;
+      if (r <= 0) return m;
+    }
+    return pool[pool.length - 1]!;
   }
 
   /** coloca o carro no meio de uma rua aleatória (longe do ponto dado) */

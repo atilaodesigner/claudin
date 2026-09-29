@@ -22,6 +22,8 @@ import { Particles, DustMotes } from './fx/particles';
 import { LightTrail, SkidMarks } from './fx/trails';
 import { Doodle, Doodles } from './fx/doodles';
 import { WetReflection, NO_REFLECT } from './fx/wet';
+import { prepareCar } from './car/gltfCar';
+import { buildGltfRig } from './car/gltfRig';
 import { Rain, buildLightCones } from './fx/rain';
 import { PRESETS, autoPreset, loadSettings, lowerPreset, saveSettings, type Preset, type Settings } from './settings';
 import { buildNeon } from './world/neon';
@@ -153,7 +155,7 @@ export class Game {
   private fpsAvg = 60;
   private lastSaveAt = 0;
 
-  constructor(container: HTMLElement, hudParent: HTMLElement, assets: Assets = { photos: {}, tex: {}, models: {} }) {
+  constructor(container: HTMLElement, hudParent: HTMLElement, assets: Assets = { photos: {}, tex: {}, models: {}, cars: [] }) {
     const touch = matchMedia('(pointer: coarse)').matches;
     this.touch = touch;
     this.settings = loadSettings();
@@ -227,7 +229,8 @@ export class Game {
     } else {
       env = this.makeEnvMap();
     }
-    this.rig = buildMustang(env);
+    const playerCar = assets.cars.find((c) => c.entry.role === 'player');
+    this.rig = playerCar ? buildGltfRig(prepareCar(playerCar.scene, playerCar.entry), env, 0x16338a) : buildMustang(env);
     if (assets.env) {
       // o HDRI real é bem mais forte que o ambiente sintético
       this.rig.root.traverse((o) => {
@@ -248,7 +251,7 @@ export class Game {
     // ---------- missões / tráfego / efeitos ----------
     this.missions = new Missions(this.city, { fitas: this.save.fitas, rachas: this.save.rachas });
     this.scene.add(this.missions.group);
-    this.traffic = new Traffic(touch ? 22 : 30);
+    this.traffic = new Traffic(touch ? 22 : 30, 7, assets.cars.filter((c) => c.entry.role === 'traffic'));
     this.scene.add(this.traffic.group);
     this.smoke = new Particles(900, tx.puff, false);
     this.sparks = new Particles(400, tx.glow, true);
@@ -303,6 +306,7 @@ export class Game {
       try { localStorage.removeItem(SAVE_KEY); } catch { /* sem storage */ }
       location.reload();
     };
+    this.hud.setCarCredits(assets.cars.map((c) => c.entry));
     this.hud.settings = this.settings;
     this.hud.camMode = this.camMode;
     this.hud.onCamera = (m) => this.setCam(m as CamMode);
@@ -448,6 +452,19 @@ export class Game {
     this.smoke.setViewportHeight(h * this.pixelRatio, this.camera.fov);
     this.sparks.setViewportHeight(h * this.pixelRatio, this.camera.fov);
     this.doodles.setViewportHeight(h * this.pixelRatio, this.camera.fov);
+  }
+
+  /**
+   * Compila todos os shaders (cena, reflexo, pós) antes de mostrar o jogo,
+   * pra não travar no primeiro frame nem quando um carro entra na tela.
+   */
+  async warmup(): Promise<void> {
+    try {
+      await this.renderer.compileAsync(this.scene, this.camera);
+    } catch {
+      /* navegador sem compilação paralela: o primeiro frame compila */
+    }
+    this.frame(1 / 60);
   }
 
   start(): void {

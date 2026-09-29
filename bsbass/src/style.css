@@ -287,3 +287,28 @@ body.touch .nowplaying { left: 12px; bottom: calc(132px + var(--safe-b)); right:
   #minimap { width: 190px; height: 190px; left: 18px; bottom: 22px; }
   .nowplaying { left: 222px; bottom: 26px; font-size: 11px; }
 }
+
+/* ---------------- abertura (Gueto Game Studio + BSBASS) ---------------- */
+#intro { position: fixed; inset: 0; z-index: 60; background: #000; overflow: hidden; user-select: none; -webkit-user-select: none; cursor: pointer; }
+#intro .i-glow { position: absolute; inset: 0; opacity: 0; pointer-events: none;
+  background: radial-gradient(ellipse 60% 45% at 50% 50%, rgba(255, 20, 17, 0.22), transparent 70%); }
+#intro .i-lines { position: absolute; inset: 0; pointer-events: none; opacity: 0.5;
+  background: repeating-linear-gradient(0deg, rgba(255,255,255,0.03) 0 1px, transparent 1px 3px); }
+#intro .i-stage { position: absolute; inset: 0; display: grid; place-items: center; align-content: center; gap: 2vh; opacity: 0; visibility: hidden; }
+#intro .i-stage.on { opacity: 1; visibility: visible; }
+#intro .gueto { width: min(78vw, 760px); height: auto; overflow: visible; }
+#intro .gs { font: 500 74px 'Chakra Petch', system-ui, sans-serif; text-anchor: middle; opacity: 0; }
+#intro .gl, #intro .gs, #intro .gsplit, #intro .gshake { transform-box: view-box; }
+#intro .gshake { transform-origin: 930px 430px; }
+#intro .gsplit { opacity: 0; mix-blend-mode: screen; }
+#intro .i-apr { opacity: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.7em; color: #fff; text-align: center; padding-left: 0.7em; }
+#intro .i-bsbass video { width: min(92vw, 1100px); height: auto; display: block; mix-blend-mode: screen; }
+#intro .i-foot { position: absolute; left: 50%; bottom: calc(34px + var(--safe-b)); transform: translateX(-50%); width: min(280px, 70vw);
+  text-align: center; opacity: 0; transition: opacity 0.5s; }
+#intro.loading .i-foot { opacity: 1; }
+#intro .i-label { display: block; font-size: 9px; letter-spacing: 0.4em; color: rgba(255,255,255,0.55); margin-bottom: 8px; padding-left: 0.4em; }
+#intro .i-bar { height: 2px; background: rgba(255,255,255,0.12); overflow: hidden; }
+#intro .i-bar i { display: block; height: 100%; background: linear-gradient(90deg, #ff1411, #ffd21a); transform-origin: left; transform: scaleX(0); transition: transform 0.35s ease-out; }
+#intro .i-hint { position: absolute; right: 16px; bottom: calc(14px + var(--safe-b)); font-size: 9px; letter-spacing: 0.3em; color: rgba(255,255,255,0.4); opacity: 0; transition: opacity 0.4s; }
+#intro .i-hint.on { opacity: 1; animation: blink 1.4s infinite; }
+@keyframes blink { 50% { opacity: 0.35; } }

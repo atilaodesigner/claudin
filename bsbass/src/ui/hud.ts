@@ -268,6 +268,14 @@ export class Hud {
       `luzes dinâmicas ${q.lamps + q.neon} · chuva ${Math.round(q.rain * 100)}% · partículas ${Math.round(q.particles * 100)}%`;
   }
 
+  /** créditos dos carros baixados (CC-BY pede atribuição) */
+  setCarCredits(list: { name: string; credit: string; license: string }[]): void {
+    if (!list.length) return;
+    const sec = $(this.root, '#car-credits');
+    sec.classList.remove('hidden');
+    sec.querySelector('p')!.textContent = `Sketchfab: ${list.map((c) => `${c.name} por ${c.credit} (${c.license})`).join(' · ')}.`;
+  }
+
   showFps(on: boolean): void {
     this.els.fps!.classList.toggle('hidden', !on);
     if (on && !this.last.fps) this.set('fps', `-- FPS · ${PRESET_NAMES[this.activePreset]}`);
@@ -707,6 +715,10 @@ const TEMPLATE = /* html */ `
     <section>
       <h4>SONS</h4>
       <p>Freesound: FreeCarSoundsGaming, audible-edge, magnuswaker, LPA134, qubodup, innov8_Music, Pól, craigsmith, mihnelis, FiretailHorizons.</p>
+    </section>
+    <section id="car-credits" class="hidden">
+      <h4>CARROS 3D</h4>
+      <p></p>
     </section>
     <section>
       <h4>FONTES</h4>

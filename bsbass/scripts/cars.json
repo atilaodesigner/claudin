@@ -1,0 +1,15 @@
+[
+  { "id": "mustang", "uid": "971a079b329f4607bb68873977a2ea37", "role": "player", "name": "Ford Mustang GT (S550)", "length": 4.79, "faces": 205625, "tris": 140000, "tex": 1024, "credit": "adrianaflak09", "license": "CC-BY 4.0" },
+  { "id": "gol", "uid": "12be647b29c1436bbb04903720ba5faa", "role": "traffic", "name": "Volkswagen Gol", "length": 3.81, "weight": 3, "faces": 34042, "credit": "niev", "license": "CC-BY 4.0" },
+  { "id": "gol-g4", "uid": "cc47a6a1c2da485bba7c061ab0d5a5c7", "role": "traffic", "name": "Volkswagen Gol G4", "length": 3.9, "weight": 2, "faces": 293409, "credit": "Tr.Nicolas", "license": "CC-BY 4.0" },
+  { "id": "uno", "uid": "f5e38b26c0af4ef2ab2f4c4b2e5aad5c", "role": "traffic", "name": "Fiat Uno", "length": 3.69, "weight": 2.5, "faces": 61981, "credit": "subishi", "license": "CC-BY 4.0" },
+  { "id": "uno-escada", "uid": "36a3b33ef596443c9a780f3844f62fa1", "role": "traffic", "name": "Fiat Uno com escada", "length": 3.69, "weight": 1, "faces": 62068, "recolor": false, "credit": "ClrModels", "license": "CC-BY 4.0" },
+  { "id": "kombi", "uid": "f6a7b54ec6d24d8e95992f68be6c930c", "role": "traffic", "name": "VW Kombi", "length": 4.28, "weight": 1.5, "faces": 11502, "credit": "scudmorello", "license": "CC-BY 4.0" },
+  { "id": "fusca", "uid": "dbd85663114a424689bc215d6bc8ad29", "role": "traffic", "name": "Fusca 71", "length": 4.07, "weight": 1, "faces": 24638, "credit": "walteraraujo", "license": "CC-BY 4.0" },
+  { "id": "opala", "uid": "9a54b1a9aa9a4b7b92a2b35dda15297c", "role": "traffic", "name": "Chevrolet Opala", "length": 4.75, "weight": 1, "faces": 19582, "credit": "coptrum", "license": "CC-BY 4.0" },
+  { "id": "chevette", "uid": "a04bc1fe774c424a994f22dea2f27205", "role": "traffic", "name": "Chevette Tubarão", "length": 4.2, "weight": 1, "faces": 61845, "credit": "JuDesigner", "license": "CC-BY 4.0" },
+  { "id": "palio", "uid": "8a3e71d4b4234110b59b09ef663e9448", "role": "traffic", "name": "Fiat Palio 1997", "length": 3.83, "weight": 1.5, "faces": 47957, "credit": "Fall0X", "license": "CC-BY 4.0" },
+  { "id": "corsa", "uid": "f1b5b562ca874643b98dc81645091ceb", "role": "traffic", "name": "Chevrolet Corsa Sedan", "length": 4.18, "weight": 1.5, "faces": 117785, "credit": "fidwixgamer", "license": "CC-BY 4.0" },
+  { "id": "saveiro", "uid": "4e71630d18e34ef09ef1abf4371859f2", "role": "traffic", "name": "VW Saveiro", "length": 4.49, "weight": 1, "faces": 116150, "credit": "bimboit34", "license": "CC-BY 4.0" },
+  { "id": "onibus", "uid": "a3338cc1406549708e805b20253320d9", "role": "traffic", "name": "Comil Svelto (ônibus)", "length": 12, "weight": 1, "bus": true, "recolor": false, "faces": 24852, "credit": "guilhermescosta", "license": "CC-BY 4.0" }
+]
