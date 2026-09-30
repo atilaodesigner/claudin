@@ -218,6 +218,8 @@
       frames: 138,
       prepare() {
         const cm = g.campaign;
+        // save novo: libera o capítulo 4 (só na memória desta página)
+        for (const id of ['c1', 'c2', 'c3']) cm.save.data.chapters[id] = { done: true, best: 0, stars: [true, true, true] };
         cm.startChapter(3);
         const r = routes()[3];
         g.setAutopilot(follower(r, { speed: 27, corner: 17, gain: 2.5 }));
@@ -228,12 +230,12 @@
         camFn = (cam) => {
           const c = g.car;
           const vy = Math.atan2(c.vx, c.vz);
-          // atrás e acima do carro, mostrando as viaturas na cola
-          const px = c.x - Math.sin(vy) * 3 + Math.cos(vy) * 2.2, pz = c.z - Math.cos(vy) * 3 - Math.sin(vy) * 2.2;
+          // na frente do carro, olhando pra trás: o Mustang vindo e as viaturas na cola
+          const px = c.x + Math.sin(vy) * 8 + Math.cos(vy) * 1.8, pz = c.z + Math.cos(vy) * 8 - Math.sin(vy) * 1.8;
           if (!sm.init) { sm.x = px; sm.z = pz; sm.init = true; }
-          sm.x = lerp(sm.x, px, 0.25);
-          sm.z = lerp(sm.z, pz, 0.25);
-          look(cam, sm.x, 1.6, sm.z, c.x - Math.sin(vy) * 14, 1.0, c.z - Math.cos(vy) * 14);
+          sm.x = lerp(sm.x, px, 0.3);
+          sm.z = lerp(sm.z, pz, 0.3);
+          look(cam, sm.x, 1.5, sm.z, c.x - Math.sin(vy) * 5, 1.1, c.z - Math.cos(vy) * 5);
         };
       },
       step(t) { flash(t); caption(t, 0.4, 4.4, '5 CAPÍTULOS', 'A POLÍCIA NA COLA'); },
