@@ -194,7 +194,7 @@
         this.p = p;
         const { it, ax, az, li } = p;
         // vem pela beira da rua, mira meio de lado no poste
-        const sx = it.p0.x - ax * 38 + li.dirX * 1.3, sz = it.p0.z - az * 38 + li.dirZ * 1.3;
+        const sx = it.p0.x - ax * 22 + li.dirX * 1.3, sz = it.p0.z - az * 22 + li.dirZ * 1.3;
         const h = Math.atan2(ax, az);
         g.car.reset(sx, sz, h);
         g.car.vx = ax * 24;
@@ -205,7 +205,7 @@
           return { throttle: 1, steer: clamp(err * 1.6, -0.5, 0.5) };
         });
         // câmera parada do outro lado da rua, baixa, olhando o poste
-        const cx = it.p0.x + li.dirX * 7 + ax * 5, cz = it.p0.z + li.dirZ * 7 + az * 5;
+        const cx = it.p0.x + li.dirX * 10 + ax * 1.5, cz = it.p0.z + li.dirZ * 10 + az * 1.5;
         camFn = (cam) => {
           const c = g.car;
           const k = clamp(T.t / 3, 0, 1);
@@ -218,7 +218,7 @@
         // câmera lenta a partir do impacto
         const it = this.p.it;
         if (it.state !== 'idle' && this.hitAt === null) this.hitAt = T.t;
-        return this.hitAt === null ? 1 / FPS : (1 / FPS) * 0.3;
+        return this.hitAt === null ? 1 / FPS : (1 / FPS) * 0.45;
       },
       step(t) { flash(t); caption(t, 0.3, 2.3, 'DERRUBA O QUE VIER'); },
     },
@@ -239,12 +239,12 @@
         camFn = (cam) => {
           const c = g.car;
           const vy = Math.atan2(c.vx, c.vz);
-          // na frente do carro, olhando pra trás: o Mustang vindo e as viaturas na cola
-          const px = c.x + Math.sin(vy) * 8 + Math.cos(vy) * 1.8, pz = c.z + Math.cos(vy) * 8 - Math.sin(vy) * 1.8;
+          // de lado e do alto: o Mustang, o bonde e as viaturas com a sirene na cola
+          const px = c.x + Math.cos(vy) * 11 - Math.sin(vy) * 4, pz = c.z - Math.sin(vy) * 11 - Math.cos(vy) * 4;
           if (!sm.init) { sm.x = px; sm.z = pz; sm.init = true; }
-          sm.x = lerp(sm.x, px, 0.3);
-          sm.z = lerp(sm.z, pz, 0.3);
-          look(cam, sm.x, 1.5, sm.z, c.x - Math.sin(vy) * 5, 1.1, c.z - Math.cos(vy) * 5);
+          sm.x = lerp(sm.x, px, 0.08);
+          sm.z = lerp(sm.z, pz, 0.08);
+          look(cam, sm.x, 7.5, sm.z, c.x - Math.sin(vy) * 6, 0.5, c.z - Math.cos(vy) * 6);
         };
       },
       step(t) { flash(t); caption(t, 0.4, 4.4, '5 CAPÍTULOS', 'A POLÍCIA NA COLA'); },
@@ -278,8 +278,9 @@
         g.setAutopilot(() => ({ brake: 1 }));
         sim(1);
         camFn = (cam) => {
-          const a = 2.4 + T.t * 0.22;
-          look(cam, cx + Math.sin(a) * 6.5, 1.25 + T.t * 0.12, cz + Math.cos(a) * 6.5, cx, 0.9, cz);
+          const c = g.car;
+          const a = c.heading + 2.3 + T.t * 0.22;
+          look(cam, c.x + Math.sin(a) * 7, 1.3 + T.t * 0.12, c.z + Math.cos(a) * 7, c.x, 0.8, c.z);
         };
       },
       step(t) {
@@ -311,6 +312,7 @@
       g.settings.orbit = false;
       // sem os feixes dos capítulos atravessando a cena
       for (const p of g.campaign.points) p.group.visible = false;
+      g.missions.group.visible = false; // fitas K7 e portais dos rachas
       cur.prepare();
     },
     /** avança um quadro da cena e desenha */
