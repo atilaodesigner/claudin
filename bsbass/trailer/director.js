@@ -240,11 +240,11 @@
           const c = g.car;
           const vy = Math.atan2(c.vx, c.vz);
           // de lado e do alto: o Mustang, o bonde e as viaturas com a sirene na cola
-          const px = c.x + Math.cos(vy) * 11 - Math.sin(vy) * 4, pz = c.z - Math.sin(vy) * 11 - Math.cos(vy) * 4;
+          const px = c.x + Math.cos(vy) * 17 - Math.sin(vy) * 7, pz = c.z - Math.sin(vy) * 17 - Math.cos(vy) * 7;
           if (!sm.init) { sm.x = px; sm.z = pz; sm.init = true; }
           sm.x = lerp(sm.x, px, 0.08);
           sm.z = lerp(sm.z, pz, 0.08);
-          look(cam, sm.x, 7.5, sm.z, c.x - Math.sin(vy) * 6, 0.5, c.z - Math.cos(vy) * 6);
+          look(cam, sm.x, 12, sm.z, c.x - Math.sin(vy) * 8, 0.5, c.z - Math.cos(vy) * 8);
         };
       },
       step(t) { flash(t); caption(t, 0.4, 4.4, '5 CAPÍTULOS', 'A POLÍCIA NA COLA'); },
