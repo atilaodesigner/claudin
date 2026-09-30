@@ -45,7 +45,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .title-bg { position: absolute; inset: 0; background:
   repeating-linear-gradient(0deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 3px);
   pointer-events: none; }
-.title-inner { position: relative; text-align: center; padding: 24px; max-width: 520px; }
+#title { overflow-y: auto; padding: var(--safe-t) 0 var(--safe-b); }
+/* margin: auto centraliza sem cortar o topo quando não cabe (aí rola) */
+.title-inner { position: relative; text-align: center; padding: 24px; max-width: 520px; margin: auto; }
 .kicker { letter-spacing: 0.3em; font-size: 10px; color: rgba(255,255,255,0.55); }
 h1 { margin: 10px 0 6px; line-height: 0.86; font-weight: 400; }
 h1 span { display: block; font-family: Anton, Impact, sans-serif; font-size: clamp(64px, 20vw, 118px); letter-spacing: 0.02em;
@@ -542,3 +544,40 @@ body.tilt .controls .brake-b { order: -2; }
 .mm-paint .m-sw button { width: 32px; height: 32px; font-size: 11px; }
 /* com o menu aberto some o que ficaria por cima/atrás (aviso, controles, velocímetro) */
 body.yardmenu #hud .controls, body.yardmenu #hud .banner, body.yardmenu #hud .speedo, body.yardmenu #hud .nowplaying, body.yardmenu #hud .compass { visibility: hidden; }
+
+/* celular deitado: logo e frase à esquerda, menu à direita, tudo cabendo na altura */
+@media (max-height: 520px) and (orientation: landscape) {
+  #title .title-inner { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); grid-template-areas: 'kicker menu' 'logo menu' 'text menu';
+    align-items: center; align-content: center; column-gap: clamp(16px, 4vw, 40px); width: 100%; max-width: 900px;
+    padding: 10px max(20px, env(safe-area-inset-right, 0px)) 10px max(20px, env(safe-area-inset-left, 0px)); }
+  #title .kicker { grid-area: kicker; align-self: end; font-size: 8px; letter-spacing: 0.18em; }
+  #title .game-logo { grid-area: logo; margin: 4px auto 0; }
+  #title .game-logo img { width: auto; max-width: 100%; max-height: min(46vh, 190px); }
+  #title .title-inner p { grid-area: text; align-self: start; margin: 6px 0 0; font-size: 12px; }
+  #title .main-menu { grid-area: menu; width: 100%; max-width: 340px; gap: 6px; }
+  #title .mm { padding: 8px 14px 7px; }
+  #title .mm span { font-size: 18px; }
+  #title .mm small { font-size: 9px; }
+}
+/* celular deitado: mensagem do Zé em duas colunas, com o BORA! à vista */
+@media (max-height: 520px) and (orientation: landscape) {
+  #brief { align-items: center; padding: calc(8px + var(--safe-t)) max(12px, env(safe-area-inset-right, 0px)) calc(8px + var(--safe-b)) max(12px, env(safe-area-inset-left, 0px)); }
+  #brief .skip { top: calc(4px + var(--safe-t)); right: max(6px, env(safe-area-inset-right, 0px)); z-index: 1; padding: 4px 10px; }
+  #brief .card { width: min(860px, 100%); margin: auto; display: grid; grid-template-columns: minmax(120px, 170px) 1fr; }
+  #brief .who { flex-direction: column; align-items: flex-start; gap: 8px; padding: 10px; border-bottom: 0; border-right: 2px solid var(--y); }
+  #brief .avatar { width: 72px; height: 82px; }
+  #brief .avatar span { font-size: 30px; }
+  #brief .who h2 { font-size: 22px; }
+  #brief .who small { font-size: 8px; letter-spacing: 0.2em; }
+  #brief .msgbox { padding: 8px 12px 10px; min-width: 0; }
+  #brief #msg { font-size: 12px; line-height: 1.45; min-height: 0; margin: 6px 0; }
+  #brief .objectives { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 4px; margin: 6px 0 8px; }
+  #brief .objectives li:last-child { grid-column: span 2; }
+  #brief .objectives li { margin: 0; padding: 5px 7px; font-size: 9px; letter-spacing: 0.1em; gap: 6px; }
+  body.touch #brief .ctl-pick { margin: 6px 0 8px; }
+  #brief .ctl-opts { margin-top: 4px; gap: 6px; }
+  #brief .ctl-opts button { flex-direction: row; justify-content: center; gap: 8px; padding: 7px 8px; }
+  #brief .ctl-opts button b { height: 20px; font-size: 15px; }
+  #brief .ctl-opts button small { display: none; }
+  #brief #ride { width: 100%; padding: 10px 26px; }
+}
