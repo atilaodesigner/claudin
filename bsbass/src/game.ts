@@ -22,6 +22,8 @@ import { makeCloudAtlas, Particles, DustMotes } from './fx/particles';
 import { LightTrail, SkidMarks } from './fx/trails';
 import { Doodle, Doodles } from './fx/doodles';
 import { WetReflection, NO_REFLECT } from './fx/wet';
+import { GuideLine, offsetRight } from './fx/guide';
+import { worldAt } from './campaign/routes';
 import { prepareCar } from './car/gltfCar';
 import { buildGltfRig } from './car/gltfRig';
 import { CONE_VERTS, Rain, buildLightCones } from './fx/rain';
@@ -109,6 +111,8 @@ export class Game {
   private rig: MustangRig;
   readonly scorer = new DriftScorer();
   readonly missions: Missions;
+  /** linha guia no chão (missão e racha) */
+  private guide = new GuideLine();
   readonly traffic: Traffic;
   private smoke: Particles;
   private sparks: Particles;
@@ -294,6 +298,8 @@ export class Game {
     // ---------- missões / tráfego / efeitos ----------
     this.missions = new Missions(this.city, { fitas: this.save.fitas, rachas: this.save.rachas });
     this.scene.add(this.missions.group);
+    this.guide.mesh.layers.set(NO_REFLECT);
+    this.scene.add(this.guide.mesh);
     this.traffic = new Traffic(touch ? 22 : 30, 7, assets.cars.filter((c) => c.entry.role === 'traffic'));
     this.scene.add(this.traffic.group);
     // fumaça de pneu, poeira e batida: nuvens "brócolis" de desenho
@@ -1371,7 +1377,38 @@ export class Game {
     this.updateHudOnly(dt);
   }
 
+  /** linha guia: rota do capítulo na missão, checkpoints no racha; no mundo livre some */
+  private updateGuide(dt: number): void {
+    const car = this.car;
+    const g = this.guide;
+    const cg = this.campaign?.guide();
+    if (cg) {
+      g.begin();
+      for (let k = 0; !g.full; k++) {
+        const d = k * 1.25;
+        const w = Math.min(1, d / 14);
+        const p = worldAt(cg.route, cg.s + d, cg.x * (1 - w * w * (3 - 2 * w)));
+        g.push(p.x, p.z);
+      }
+      g.commit(dt, 0xffa640);
+      return;
+    }
+    const m = this.missions;
+    if (m.active) {
+      const r = m.active;
+      const counting = m.countdown > 0;
+      const i = counting ? 0 : m.cp;
+      const prev = i === 0 ? r.start : r.checkpoints[i - 1]!;
+      const pts = [prev, ...r.checkpoints.slice(i, i + 4)];
+      g.fromPolyline(offsetRight(pts, 3.3), car.x, car.z, `${m.activeIndex}:${i}`);
+      g.commit(dt, 0x33e0ff);
+      return;
+    }
+    g.hide();
+  }
+
   private updateHudOnly(dt: number): void {
+    this.updateGuide(dt);
     const car = this.car;
     const cm = this.campaign;
     const target = this.missions.active ? this.missions.target(car.x, car.z) : cm?.target(car.x, car.z, this.input.mapHeld) ?? this.missions.target(car.x, car.z);

@@ -595,6 +595,16 @@ export class Campaign {
     return out;
   }
 
+  /** rota e posição do jogador nela, pra linha guia (só com a missão rodando) */
+  guide(): { route: Route; s: number; x: number } | null {
+    if (this.mode !== 'mission') return null;
+    const st = this.mission.state;
+    if (st !== 'play' && st !== 'intro') return null;
+    const p = this.mission.player;
+    if (p.dead) return null;
+    return { route: this.routes[this.chapterIdx]!, s: p.s, x: p.x };
+  }
+
   /** linha da rota da missão pro minimapa */
   routeLine(): Float32Array | null {
     return this.mode === 'mission' ? this.routes[this.chapterIdx]!.P : null;
