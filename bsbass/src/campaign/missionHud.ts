@@ -383,7 +383,7 @@ export class MissionHud {
         .map((c) => {
           const bars = c.stats
             ? `<div class="mm-bars">${c.stats.map(([n, x]) => `<span>${n}<i><b style="width:${Math.round(x * 100)}%"></b></i></span>`).join('')}</div>`
-            : '<div class="mm-note">o azul da madrugada</div>';
+            : '';
           const btn =
             c.status === 'current' ? '<button disabled class="cur">NO VOLANTE</button>'
             : c.status === 'owned' ? `<button data-pick="car" data-id="${c.key}">USAR</button>`

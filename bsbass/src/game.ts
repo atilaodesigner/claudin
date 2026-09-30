@@ -37,7 +37,18 @@ import { AudioSystem } from './audio/audio';
 import { Radio } from './audio/radio';
 import { Input, type Action } from './input';
 import { Hud, fmt, type MapMarker } from './ui/hud';
-import { Campaign } from './campaign/campaign';
+import { Campaign, type OwnCar } from './campaign/campaign';
+
+/** cor de fábrica, apelido e jeito de cada carro do jogador (id do manifesto) */
+const OWN_LOOK: Record<string, { color: string; tag: string; mods?: OwnCar['mods'] }> = {
+  corvette: { color: '#b3121c', tag: 'Motor central, V8', mods: { power: 1.12, drag: 0.95, grip: 1.04 } },
+  camaro: { color: '#101f52', tag: 'Muscle car, torque bruto', mods: { power: 1.18, drag: 1.02, grip: 0.95 } },
+  porsche: { color: '#f2c200', tag: 'Traseira colada, precisão', mods: { power: 1.06, drag: 0.97, grip: 1.12 } },
+};
+const ownOrder = (id: string) => {
+  const i = Object.keys(OWN_LOOK).indexOf(id);
+  return i < 0 ? 99 : i;
+};
 import { MODELS as CAMPAIGN_MODELS } from './campaign/models';
 import type { SiteRig } from './campaign/siteRig';
 
@@ -175,6 +186,7 @@ export class Game {
   /** capítulos + ferro-velho (só existe se os modelos do BSBASS THE GAME carregaram) */
   campaign: Campaign | null = null;
   private mustangRig!: MustangRig;
+  private ownCars: OwnCar[] = [];
   private camOverride = false;
 
   constructor(container: HTMLElement, hudParent: HTMLElement, assets: Assets = { photos: {}, tex: {}, models: {}, cars: [] }) {
@@ -276,14 +288,23 @@ export class Game {
     } else {
       env = this.makeEnvMap();
     }
-    const playerCar = assets.cars.find((c) => c.entry.role === 'player');
-    this.rig = playerCar ? buildGltfRig(prepareCar(playerCar.scene, playerCar.entry), env, 0x16338a) : buildMustang(env);
+    // carros do jogador (GLB do manifesto); sem eles, o Mustang procedural
+    this.ownCars = assets.cars
+      .filter((c) => c.entry.role === 'player')
+      .map((c) => {
+        const look = OWN_LOOK[c.entry.id] ?? { color: '#16338a', tag: 'Esportivo' };
+        return { id: c.entry.id, name: c.entry.name, tag: look.tag, color: look.color, mods: look.mods, rig: buildGltfRig(prepareCar(c.scene, c.entry), env, look.color) };
+      })
+      .sort((a, b) => ownOrder(a.id) - ownOrder(b.id));
+    this.rig = this.ownCars[0]?.rig ?? buildMustang(env);
     if (assets.env) {
       // o HDRI real é bem mais forte que o ambiente sintético
-      this.rig.root.traverse((o) => {
-        const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | THREE.MeshStandardMaterial[] | undefined;
-        for (const mm of Array.isArray(m) ? m : m ? [m] : []) if (mm.envMap) mm.envMapIntensity *= 0.22;
-      });
+      for (const r of this.ownCars.length ? this.ownCars.map((c) => c.rig) : [this.rig]) {
+        r.root.traverse((o) => {
+          const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | THREE.MeshStandardMaterial[] | undefined;
+          for (const mm of Array.isArray(m) ? m : m ? [m] : []) if (mm.envMap) mm.envMapIntensity *= 0.22;
+        });
+      }
     }
     this.scene.add(this.rig.root);
     // luz de "estúdio" que segue o carro (senão ele vira silhueta contra a luz de sódio)
@@ -420,6 +441,7 @@ export class Game {
       ui: hudParent,
       touch: this.touch,
       mustangRig: this.mustangRig,
+      ownCars: this.ownCars,
       barrierModel: assets.models.concrete_road_barrier ?? null,
       getRig: () => this.rig,
       setRig: (r) => this.setRig(r),

@@ -95,6 +95,8 @@ export function buildGltfRig(p: PreparedCar, env: THREE.Texture | null, paintCol
       const swap = (x: THREE.Material) => {
         if (x !== pm) return x;
         const np = paint.clone();
+        // mesma Color em todas as peças: trocar a cor do rig pinta o carro inteiro
+        np.color = paint.color;
         np.normalMap = pm.normalMap;
         np.aoMap = pm.aoMap;
         return np;

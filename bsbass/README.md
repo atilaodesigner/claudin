@@ -19,14 +19,14 @@ A cidade, o Mustang, o neon, o áudio e as três rádios são procedurais. Por c
 
 **Campanha**: os carros do bonde (Rolê, Lâmina, Tanque), os pilotos (Duck Jay, Diey, Bella, Bozo), a viatura, o caminhão e as peças do ferro-velho (guindaste, contêiner, pilha de pneu, pilha de carro amassado, cerca, portão, guincho) vêm do **BSBASS THE GAME** (`site/`), com o mesmo visual de desenho (toon + contorno) e a mesma bandeira. Ficam em `public/campaign/`.
 
-**Carros de verdade (Sketchfab, CC-BY)**: `scripts/cars.json` lista o Mustang GT (S550, mesma carroceria do 2020) e os carros da rua (Gol, Gol G4, Uno, Uno com escada, Kombi, Fusca, Opala, Chevette, Palio, Corsa, Saveiro e um ônibus Comil). O Sketchfab só libera download com login, então precisa de um token (conta grátis → Settings → Password & API → API token) na variável `SKETCHFAB_TOKEN`:
+**Carros do jogador (Sketchfab)**: só três, escolhidos na GARAGEM do ferro-velho: **Chevrolet Corvette C8 Stingray** (vermelho de fábrica, por Hari Prasath R / Haris3D, CC-BY 4.0), **Chevrolet Camaro ZL1** (azul-escuro, por Ddiaz Design, CC-BY 4.0) e **Porsche 911 GT3 992.2** (amarelo, por Ddiaz Design, CC-BY-NC-SA 4.0). Cada um tem seu jeito na física (Camaro com mais torque e traseira solta, Porsche mais colado, Corvette no meio) e a pintura troca na garagem. Sem os arquivos, o jogo volta pro Mustang procedural. **Tráfego**: `scripts/cars.json` também lista os carros da rua (Gol, Gol G4, Uno, Uno com escada, Kombi, Fusca, Opala, Chevette, Palio, Corsa, Saveiro e um ônibus Comil); enquanto não forem baixados, o tráfego usa os modelos procedurais. O Sketchfab só libera download com login: ou um token (conta grátis → Settings → Password & API → API token) na variável `SKETCHFAB_TOKEN`, ou o GLB baixado na mão com `--local`:
 
 ```bash
 SKETCHFAB_TOKEN=... node scripts/fetch-cars.mjs          # baixa, simplifica, comprime e gera public/models/cars/manifest.json
-node scripts/fetch-cars.mjs --local mustang=/caminho/carro.glb   # usa um GLB seu no lugar
+node scripts/fetch-cars.mjs --local corvette=/caminho/carro.glb  # usa um GLB baixado na mão no lugar
 ```
 
-O jogo normaliza qualquer modelo sozinho (escala pelo comprimento real, frente/trás, chão, rodas girando e esterçando, pintura azul-escura no Mustang, faróis e lanternas acesos). Sem o manifesto, usa os carros procedurais. Os créditos aparecem em CRÉDITOS.
+O jogo normaliza qualquer modelo sozinho (escala pelo comprimento real, frente/trás, chão, rodas girando e esterçando, pintura de fábrica de cada carro, faróis e lanternas acesos). Sem o manifesto, usa os carros procedurais. Os créditos aparecem em CRÉDITOS.
 
 Os modelos foram otimizados com `gltf-transform` (texturas 512 px WebP, malha simplificada). Se algum asset não carregar, o jogo cai de volta na versão procedural. Pra hospedar onde `.glb`/`.hdr` não são servidos, dá pra buildar com `VITE_BIN_SUFFIX=.wasm` e acrescentar `.wasm` no nome desses arquivos (os carregadores reconhecem o formato pelo conteúdo).
 

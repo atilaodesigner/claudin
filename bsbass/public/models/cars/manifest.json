@@ -1,0 +1,35 @@
+[
+  {
+    "id": "corvette",
+    "role": "player",
+    "name": "Chevrolet Corvette C8 Stingray",
+    "length": 4.63,
+    "paint": "^Body_Color$",
+    "credit": "Hari Prasath R (Haris3D)",
+    "license": "CC-BY 4.0",
+    "file": "corvette.glb",
+    "url": "https://sketchfab.com/3d-models/790c40ccff6843eab0b7b4bd18421ff8"
+  },
+  {
+    "id": "camaro",
+    "role": "player",
+    "name": "Chevrolet Camaro ZL1",
+    "length": 4.83,
+    "paint": "carpaint",
+    "credit": "Ddiaz Design",
+    "license": "CC-BY 4.0",
+    "file": "camaro.glb",
+    "url": "https://sketchfab.com/3d-models/9b5681a56be3415282ac985153f04ad8"
+  },
+  {
+    "id": "porsche",
+    "role": "player",
+    "name": "Porsche 911 GT3 (992.2)",
+    "length": 4.57,
+    "paint": "Paint_Material",
+    "credit": "Ddiaz Design",
+    "license": "CC-BY-NC-SA 4.0",
+    "file": "porsche.glb",
+    "url": "https://sketchfab.com/3d-models/1503f8d08f154ec7ab52f95a99c55134"
+  }
+]

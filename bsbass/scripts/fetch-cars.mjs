@@ -47,13 +47,20 @@ function optimize(src, dest, car) {
     '--texture-size', String(car.tex ?? 512),
     '--simplify', ratio < 1 ? 'true' : 'false',
     '--simplify-ratio', ratio,
-    '--simplify-error', '0.002',
+    '--simplify-error', String(car.error ?? 0.002),
     // mantém nós separados (rodas precisam girar) e os nomes
     '--join', 'false',
     '--flatten', 'false',
     '--instance', 'false',
     '--palette', 'false',
   ], { stdio: 'inherit' });
+  if (car.lockBorder === false && ratio < 1) {
+    // o optimize não consegue simplificar malha feita de peças soltas; de novo, já soldada e sem travar borda
+    const cli = (...a) => execFileSync('npx', ['-y', '@gltf-transform/cli@4', ...a], { stdio: 'inherit' });
+    cli('weld', dest, dest);
+    cli('simplify', dest, dest, '--ratio', ratio, '--error', String(car.error ?? 0.002), '--lock-border', 'false');
+    cli('meshopt', dest, dest);
+  }
 }
 
 const manifest = [];
@@ -71,7 +78,7 @@ for (const car of list) {
       optimize(raw, dest, car);
     }
     console.log(`✓ ${car.name} ${(statSync(dest).size / 1e6).toFixed(1)} MB`);
-    const { uid, faces, tris, tex, ...entry } = car;
+    const { uid, faces, tris, tex, error, lockBorder, ...entry } = car;
     manifest.push({ ...entry, file, url: `https://sketchfab.com/3d-models/${uid}` });
   } catch (e) {
     console.warn(`✗ ${car.name}: ${e.message}`);

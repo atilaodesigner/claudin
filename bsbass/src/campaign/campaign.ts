@@ -26,9 +26,33 @@ const HOLD_T = 1.0;
 const STOP_SPEED = 1.6; // m/s
 const MUSTANG_BLUE = '#16338a';
 
-export type DriveKey = 'mustang' | 'role' | 'lamina' | 'tanque';
-export const DRIVE_KEYS: DriveKey[] = ['mustang', 'role', 'lamina', 'tanque'];
-const DRIVE_NAMES: Record<DriveKey, string> = { mustang: 'Mustang', role: 'Rolê', lamina: 'Lâmina', tanque: 'Tanque' };
+/** id do carro que o jogador dirige: um dos carros próprios (GLB) ou, sem eles, Mustang + bonde */
+export type DriveKey = string;
+const LEGACY_KEYS: DriveKey[] = ['mustang', 'role', 'lamina', 'tanque'];
+const LEGACY_NAMES: Record<string, string> = { mustang: 'Mustang', role: 'Rolê', lamina: 'Lâmina', tanque: 'Tanque' };
+
+/** barras da garagem (0..1) a partir do jeito do carro próprio */
+function ownStats(m: { power: number; drag: number; grip: number }): { velocidade: number; resposta: number; drift: number; resistencia: number } {
+  const c = (v: number) => Math.min(1, Math.max(0.08, v));
+  return {
+    velocidade: c(0.5 + (m.power / m.drag - 1) * 2.2),
+    resposta: c(0.55 + (m.grip - 1) * 3),
+    drift: c(0.6 + (1.06 - m.grip) * 3 + (m.power - 1) * 1.2),
+    resistencia: c(0.45 + (m.drag - 0.95) * 4),
+  };
+}
+
+/** carro do jogador que vem do jogo (GLB normalizado ou o Mustang procedural) */
+export interface OwnCar {
+  id: string;
+  name: string;
+  tag: string;
+  /** cor de fábrica (pintura "Original") */
+  color: string;
+  rig: MustangRig;
+  /** jeito do carro na física do mundo aberto (1 = Mustang) */
+  mods?: { power: number; drag: number; grip: number };
+}
 
 export interface CampaignHost {
   scene: THREE.Scene;
@@ -39,6 +63,8 @@ export interface CampaignHost {
   ui: HTMLElement;
   touch: boolean;
   mustangRig: MustangRig;
+  /** carros do jogador; com eles a garagem mostra só esses (sem os do bonde) */
+  ownCars: OwnCar[];
   barrierModel: THREE.Group | null;
   getRig(): MustangRig;
   setRig(rig: MustangRig): void;
@@ -291,8 +317,11 @@ export class Campaign {
   readonly hud: MissionHud;
   readonly mission: Mission;
   drive: DriveKey = 'mustang';
-  /** 'orig' = o azul-escuro de fábrica do Mustang */
-  mustangPaint = 'orig';
+  /** pintura escolhida de cada carro próprio ('orig' = cor de fábrica) */
+  ownPaint: Record<string, string> = {};
+  /** carros que aparecem na garagem */
+  private keys: DriveKey[] = LEGACY_KEYS;
+  private own = new Map<string, OwnCar>();
   mode: 'free' | 'mission' = 'free';
   inYard = false;
   private points: Point[] = [];
@@ -314,6 +343,11 @@ export class Campaign {
 
   constructor(private host: CampaignHost) {
     this.save = K.SaveStore(safeStorage(), SAVE_KEY);
+    // com carros próprios (GLB) a garagem é só deles; senão Mustang + carros do bonde
+    const own = host.ownCars.length ? host.ownCars : [{ id: 'mustang', name: 'Mustang', tag: 'Muscle car', color: MUSTANG_BLUE, rig: host.mustangRig }];
+    for (const c of own) this.own.set(c.id, c);
+    this.keys = host.ownCars.length ? own.map((c) => c.id) : LEGACY_KEYS;
+    this.drive = this.keys[0]!;
     this.loadGarage();
     this.routes = ROUTES.map((d) => buildRoute(d, blockKind));
     this.hud = new MissionHud(host.ui);
@@ -401,8 +435,10 @@ export class Campaign {
       onResult: (r) => this.onResult(r),
     });
     // ---------- carros do jogador e bonde no pátio ----------
-    this.rigs.mustang = host.mustangRig;
-    host.mustangRig.paint.color.set(this.paintOf('mustang') ?? MUSTANG_BLUE);
+    for (const c of this.own.values()) {
+      this.rigs[c.id] = c.rig;
+      c.rig.paint.color.set(this.paintOf(c.id) ?? c.color);
+    }
     this.placeGarage(true);
     this.placeCrew();
     this.applyCarMods();
@@ -412,35 +448,44 @@ export class Campaign {
   // ================= garagem (carro que dirige, pintura do Mustang) =================
   private loadGarage(): void {
     try {
-      const g = JSON.parse(safeStorage()?.getItem(GARAGE_KEY) || '{}') as { drive?: string; mustangPaint?: string };
-      if (g.drive && (DRIVE_KEYS as string[]).includes(g.drive)) this.drive = g.drive as DriveKey;
-      if (g.mustangPaint && K.PAINTS.some((p) => p.id === g.mustangPaint)) this.mustangPaint = g.mustangPaint;
+      const g = JSON.parse(safeStorage()?.getItem(GARAGE_KEY) || '{}') as { drive?: string; mustangPaint?: string; paints?: Record<string, string> };
+      if (g.drive && this.keys.includes(g.drive)) this.drive = g.drive;
+      if (g.mustangPaint) this.ownPaint.mustang = g.mustangPaint;
+      Object.assign(this.ownPaint, g.paints ?? {});
+      for (const [k, id] of Object.entries(this.ownPaint)) if (!K.PAINTS.some((p) => p.id === id)) delete this.ownPaint[k];
     } catch {
       /* sem storage */
     }
-    if (this.drive !== 'mustang' && !this.owned(this.drive)) this.drive = 'mustang';
+    if (!this.keys.includes(this.drive) || !this.owned(this.drive)) this.drive = this.keys[0]!;
   }
   private saveGarage(): void {
     try {
-      safeStorage()?.setItem(GARAGE_KEY, JSON.stringify({ drive: this.drive, mustangPaint: this.mustangPaint }));
+      safeStorage()?.setItem(GARAGE_KEY, JSON.stringify({ drive: this.drive, paints: this.ownPaint }));
     } catch {
       /* sem storage */
     }
   }
   private owned(k: DriveKey): boolean {
-    return k === 'mustang' || this.save.data.unlockedCars.includes(k);
+    return this.own.has(k) || this.save.data.unlockedCars.includes(k);
+  }
+  private paintId(k: DriveKey): string {
+    return (this.own.has(k) ? this.ownPaint[k] : this.save.data.paints[k]) || 'orig';
   }
   private paintOf(k: DriveKey): string | null {
-    const id = k === 'mustang' ? this.mustangPaint : this.save.data.paints[k] || 'orig';
-    if (k === 'mustang' && id === 'orig') return MUSTANG_BLUE;
+    const id = this.paintId(k);
+    const own = this.own.get(k);
+    if (own && id === 'orig') return own.color;
     return K.PAINTS.find((p) => p.id === id)?.color ?? null;
+  }
+  private nameOf(k: DriveKey): string {
+    return this.own.get(k)?.name ?? LEGACY_NAMES[k] ?? k;
   }
 
   /** rig do carro que o jogador dirige (constrói na primeira vez) */
   private rigFor(k: DriveKey): MustangRig {
     let r = this.rigs[k];
     if (!r) {
-      r = buildSiteRig(k, this.paintOf(k)) ?? this.host.mustangRig;
+      r = this.own.get(k)?.rig ?? buildSiteRig(k, this.paintOf(k)) ?? this.host.mustangRig;
       this.rigs[k] = r;
     }
     return r;
@@ -450,7 +495,7 @@ export class Campaign {
   private placeGarage(first: boolean): void {
     const spots = this.yard.spots;
     let si = 1;
-    for (const k of DRIVE_KEYS) {
+    for (const k of this.keys) {
       if (k === this.drive) {
         const p = this.parked[k];
         if (p) {
@@ -480,9 +525,10 @@ export class Campaign {
     }
   }
   private buildParked(k: DriveKey): { root: THREE.Object3D; mat?: THREE.Material } | null {
-    if (k === 'mustang') {
-      // cópia do Mustang sem as luzes de verdade
-      const root = this.host.mustangRig.root.clone(true);
+    const own = this.own.get(k);
+    if (own) {
+      // cópia do carro sem as luzes de verdade
+      const root = own.rig.root.clone(true);
       root.traverse((o) => {
         if ((o as THREE.Light).isLight) o.visible = false;
       });
@@ -533,7 +579,9 @@ export class Campaign {
     const mods = this.host.car.mods;
     mods.power = mods.drag = mods.grip = 1;
     const def = K.CARS[this.drive];
-    if (def) {
+    const om = this.own.get(this.drive)?.mods;
+    if (om) Object.assign(mods, om);
+    else if (def) {
       mods.power = def.accel / 19;
       mods.drag = (55 / def.maxSpeed) ** 2;
       mods.grip = (def.gripRear / 8.5) ** 0.3;
@@ -764,7 +812,7 @@ export class Campaign {
       this.applyCarMods();
       this.host.banner(K.pilotById(it.id).name.toUpperCase(), K.pilotById(it.id).perk.toUpperCase(), 2.2);
     } else if (it.kind === 'paint' && this.paintSel) {
-      if (this.drive === 'mustang') this.mustangPaint = this.paintSel;
+      if (this.own.has(this.drive)) this.ownPaint[this.drive] = this.paintSel;
       else this.save.data.paints[this.drive] = this.paintSel;
       this.save.save();
       this.saveGarage();
@@ -792,16 +840,16 @@ export class Campaign {
   private renderMenu(): void {
     const d = this.save.data;
     if (this.menuOpen === 'garage') {
-      const cars = DRIVE_KEYS.map((k) => {
+      const cars = this.keys.map((k) => {
         const def = K.CARS[k];
-        const st = k === 'mustang' ? { owned: true } : K.carUnlockState(d, k);
-        const stats = def ? K.carStats(def) : null;
-        const paint = k === 'mustang' ? this.mustangPaint : d.paints[k] || 'orig';
-        const color = K.PAINTS.find((p) => p.id === paint)?.color ?? (k === 'mustang' ? MUSTANG_BLUE : '#9aa0aa');
+        const own = this.own.get(k);
+        const st = own ? { owned: true, requirementMet: true, affordable: true, coins: 0, label: '' } : K.carUnlockState(d, k);
+        const stats = def ? K.carStats(def) : own?.mods ? ownStats(own.mods) : null;
+        const color = this.paintOf(k) ?? '#9aa0aa';
         return {
           key: k,
-          name: DRIVE_NAMES[k],
-          tag: def ? def.tag : 'Muscle car',
+          name: this.nameOf(k),
+          tag: own ? own.tag : def ? def.tag : '',
           color,
           stats: stats ? ([['Velocidade', stats.velocidade], ['Resposta', stats.resposta], ['Drift', stats.drift], ['Resistência', stats.resistencia]] as [string, number][]) : null,
           status: k === this.drive ? 'current' : st.owned ? 'owned' : st.requirementMet && st.affordable ? 'buy' : 'locked',
@@ -809,13 +857,14 @@ export class Campaign {
           reason: !st.owned ? (!st.requirementMet ? (st.label || 'BLOQUEADO').toUpperCase() : `🪙${st.coins}`) : undefined,
         } as const;
       });
-      const cur = this.drive === 'mustang' ? this.mustangPaint : d.paints[this.drive] || 'orig';
+      const cur = this.paintId(this.drive);
+      const factory = this.own.get(this.drive)?.color;
       this.hud.menu({
         kind: 'garage',
         coins: d.coins,
         cars,
-        paintOf: DRIVE_NAMES[this.drive],
-        swatches: K.PAINTS.map((p) => ({ id: p.id, color: p.id === 'orig' && this.drive === 'mustang' ? MUSTANG_BLUE : p.color, name: p.name, locked: !K.paintUnlocked(d, p), sel: p.id === cur })),
+        paintOf: this.nameOf(this.drive),
+        swatches: K.PAINTS.map((p) => ({ id: p.id, color: p.id === 'orig' && factory ? factory : p.color, name: p.name, locked: !K.paintUnlocked(d, p), sel: p.id === cur })),
       });
     } else if (this.menuOpen === 'crew') {
       this.hud.menu({
@@ -832,7 +881,7 @@ export class Campaign {
     else {
       this.previewPaint(id);
       if (this.paintSel === id) {
-        if (this.drive === 'mustang') this.mustangPaint = id;
+        if (this.own.has(this.drive)) this.ownPaint[this.drive] = id;
         else this.save.data.paints[this.drive] = id;
         this.save.save();
         this.saveGarage();
@@ -852,15 +901,15 @@ export class Campaign {
     const p = K.PAINTS.find((q) => q.id === id);
     const rig = this.host.getRig() as Partial<SiteRig> & MustangRig;
     if (rig.paintMat) setPaint(rig.paintMat, p?.color ?? null);
-    else rig.paint.color.set(p?.color ?? MUSTANG_BLUE);
+    else rig.paint.color.set(p?.color ?? this.own.get(this.drive)?.color ?? MUSTANG_BLUE);
   }
 
   /** troca: o carro escolhido vira o do jogador e o atual fica parado onde estava */
   private swapCar(k: DriveKey, inPlace = false): void {
-    if (k !== 'mustang' && !this.save.data.unlockedCars.includes(k)) {
+    if (!this.owned(k)) {
       if (!K.buyCar(this.save.data, k)) return;
       this.save.save();
-      this.host.banner('DESBLOQUEADO', `${DRIVE_NAMES[k].toUpperCase()} NO BONDE`, 2.2);
+      this.host.banner('DESBLOQUEADO', `${this.nameOf(k).toUpperCase()} NO BONDE`, 2.2);
     }
     const car = this.host.car;
     const old = this.drive;
@@ -891,7 +940,7 @@ export class Campaign {
     this.setDriverModel();
     this.applyCarMods();
     this.paintSel = null;
-    this.host.banner(DRIVE_NAMES[k].toUpperCase(), 'BORA PRO ROLÊ', 1.6);
+    this.host.banner(this.nameOf(k).toUpperCase(), 'BORA PRO ROLÊ', 1.6);
   }
 
   // ================= missão =================
