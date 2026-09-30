@@ -136,25 +136,34 @@
       },
       step(t) { caption(t, 0.5, 2.85, 'PERIFERIA DO DF', 'MADRUGADA · CHUVA · GRAVE'); },
     },
-    // 3–7 s: câmera baixa acompanhando o drift numa esquina
+    // 3–7 s: drift controlado em círculo no terrão, levantando poeira vermelha
     drift: {
       frames: 120,
       prepare() {
-        const r = routes()[0];
-        const c0 = nextCorner(r, 40);
-        placeOnRoute(r, c0 - 55, 22);
-        g.setAutopilot(follower(r, { speed: 25, corner: 17, gain: 2.6 }));
-        sim(0.8);
-        const cam0 = { x: 0, z: 0, init: false };
+        const b = g.city.blocks.find((q) => q.kind === 'terrao');
+        const c = g.car;
+        c.reset(b.x + 6, b.z, Math.PI);
+        c.vx = 0;
+        c.vz = -14;
+        let t = 0;
+        const slip = () => wrap(Math.atan2(c.vx, c.vz) - c.heading) * 57.3;
+        // segura ~35° de ângulo: contra-esterça e alivia o gás quando passa, pisa quando falta
+        g.setAutopilot(() => {
+          t += 1 / 120;
+          const sl = c.speed > 3 ? slip() : 0;
+          const e = sl + 35;
+          return { steer: clamp(0.5 + e * 0.03, -1, 1), throttle: clamp(0.8 + e * 0.02, 0.35, 1), handbrake: t < 0.3 || (Math.abs(sl) < 10 && c.speed > 8) };
+        });
+        sim(0.9);
+        const sm = { x: 0, z: 0, init: false };
         camFn = (cam) => {
-          const c = g.car;
           const vy = Math.atan2(c.vx, c.vz);
-          // lateral e um pouco à frente, bem baixo, suavizado
-          const px = c.x + Math.cos(vy) * 5.5 - Math.sin(vy) * 1.5, pz = c.z - Math.sin(vy) * 5.5 - Math.cos(vy) * 1.5;
-          if (!cam0.init) { cam0.x = px; cam0.z = pz; cam0.init = true; }
-          cam0.x = lerp(cam0.x, px, 0.18);
-          cam0.z = lerp(cam0.z, pz, 0.18);
-          look(cam, cam0.x, 0.9, cam0.z, c.x, 0.7, c.z);
+          // na frente e de lado: o carro vem de lado na direção da câmera, poeira atrás
+          const px = c.x + Math.sin(vy) * 6.5 + Math.cos(vy) * 3.2, pz = c.z + Math.cos(vy) * 6.5 - Math.sin(vy) * 3.2;
+          if (!sm.init) { sm.x = px; sm.z = pz; sm.init = true; }
+          sm.x = lerp(sm.x, px, 0.2);
+          sm.z = lerp(sm.z, pz, 0.2);
+          look(cam, sm.x, 1.0, sm.z, c.x, 0.8, c.z);
         };
       },
       step(t) { flash(t); caption(t, 0.4, 3.8, 'DRIFT NO GRAVE'); },
@@ -196,7 +205,7 @@
           return { throttle: 1, steer: clamp(err * 1.6, -0.5, 0.5) };
         });
         // câmera parada do outro lado da rua, baixa, olhando o poste
-        const cx = it.p0.x + li.dirX * 9 + ax * 7, cz = it.p0.z + li.dirZ * 9 + az * 7;
+        const cx = it.p0.x + li.dirX * 7 + ax * 5, cz = it.p0.z + li.dirZ * 7 + az * 5;
         camFn = (cam) => {
           const c = g.car;
           const k = clamp(T.t / 3, 0, 1);
@@ -258,26 +267,25 @@
       },
       step(t) { flash(t); caption(t, 0.4, 2.85, 'O FERRO-VELHO', 'BASE DO BONDE'); },
     },
-    // 17–20 s: cavalinho de pneu com fumaça + logo
+    // 17–20 s: o Mustang parado na chuva, embaixo do poste, câmera girando devagar + logo
     fim: {
       frames: 90,
       prepare() {
         const lamps = g.meshes.lampInst.lamps;
         const l = lamps.find((q) => Math.abs(q.x) < 200 && Math.abs(q.z) < 200 && q.dirX !== 0) || lamps[0];
-        const cx = l.x + l.dirX * 5, cz = l.z;
-        g.car.reset(cx, cz, 0);
-        g.setAutopilot((t) => ({ throttle: 1, steer: 1, handbrake: t % 1.2 < 0.25 }));
-        sim(2.2);
+        const cx = l.x + l.dirX * 3.2, cz = l.z;
+        g.car.reset(cx, cz, 0.35);
+        g.setAutopilot(() => ({ brake: 1 }));
+        sim(1);
         camFn = (cam) => {
-          const c = g.car;
-          const a = 0.6 + T.t * 0.35;
-          look(cam, cx + Math.sin(a) * 9, 1.4 + T.t * 0.25, cz + Math.cos(a) * 9, c.x, 1.3, c.z);
+          const a = 2.4 + T.t * 0.22;
+          look(cam, cx + Math.sin(a) * 6.5, 1.25 + T.t * 0.12, cz + Math.cos(a) * 6.5, cx, 0.9, cz);
         };
       },
       step(t) {
         flash(t);
         capEl.style.opacity = '0';
-        const a = clamp((t - 0.7) / 0.6, 0, 1);
+        const a = clamp((t - 0.6) / 0.7, 0, 1);
         endEl.style.opacity = String(a);
         endEl.querySelector('img').style.transform = `scale(${1.08 - ease(a) * 0.08})`;
       },
@@ -301,6 +309,8 @@
       flashEl.style.opacity = '0';
       g.settings.shake = false;
       g.settings.orbit = false;
+      // sem os feixes dos capítulos atravessando a cena
+      for (const p of g.campaign.points) p.group.visible = false;
       cur.prepare();
     },
     /** avança um quadro da cena e desenha */
