@@ -16,6 +16,8 @@ const browser = await chromium.launch({
 });
 for (const id of ids) {
   const page = await (await browser.newContext({ viewport: { width: 1080, height: 1920 } })).newPage();
+  // com vários renderizadores em paralelo um quadro pode levar mais de 30 s no SwiftShader
+  page.setDefaultTimeout(0);
   page.on('pageerror', (e) => console.log(`[${id}] pageerror`, e.message));
   await page.goto(url + (url.includes('?') ? '&' : '?') + 'manual');
   await page.waitForFunction(() => window.__game, null, { timeout: 240000, polling: 1000 });

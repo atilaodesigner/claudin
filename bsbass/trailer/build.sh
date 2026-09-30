@@ -10,14 +10,15 @@ cd "$(dirname "$0")"
 URL="${GAME_URL:-http://localhost:4173/}"
 OUT="${1:-bsbass-trailer.mp4}"
 FF="${FFMPEG:-ffmpeg}"
-rm -rf frames && mkdir -p frames
-
-# 4 renderizadores em paralelo, divididos por número de quadros
-node capture.mjs "$URL" frames 1 aereo fim &
-node capture.mjs "$URL" frames 1 drift &
-node capture.mjs "$URL" frames 1 policia &
-node capture.mjs "$URL" frames 1 poste ferro &
-wait
+if [ -z "${SKIP_RENDER:-}" ]; then
+  rm -rf frames && mkdir -p frames
+  # 4 renderizadores em paralelo, divididos por número de quadros
+  node capture.mjs "$URL" frames 1 aereo fim &
+  node capture.mjs "$URL" frames 1 drift &
+  node capture.mjs "$URL" frames 1 policia &
+  node capture.mjs "$URL" frames 1 poste ferro &
+  wait
+fi
 N=$(ls frames/*.jpg | wc -l)
 [ "$N" -eq 600 ] || { echo "faltam quadros: $N/600"; exit 1; }
 
