@@ -20,6 +20,16 @@ export interface ModelEntry {
 }
 
 export const MODELS: Partial<Record<CampaignModel | 'graffiti', ModelEntry>> = {};
+/** modelos realistas (GLB do manifesto) que substituem os de desenho nas missões */
+export const REAL: { truck?: THREE.Object3D } = {};
+
+/** usa um modelo realista já normalizado (frente em +Z, chão em 0, comprimento certo) como está */
+export function realModel(src: THREE.Object3D): { wrap: THREE.Group; w: number; h: number; l: number; wheels: WheelNode[] } {
+  const wrap = new THREE.Group();
+  wrap.add(src.clone(true));
+  const sz = new THREE.Box3().setFromObject(wrap).getSize(new THREE.Vector3());
+  return { wrap, w: sz.x, h: sz.y, l: sz.z, wheels: [] };
+}
 export let FLAG_IMAGE: HTMLImageElement | null = null;
 
 export const toonGrad = (() => {

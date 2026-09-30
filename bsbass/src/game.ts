@@ -25,7 +25,7 @@ import { WetReflection, NO_REFLECT } from './fx/wet';
 import { GuideLine, offsetRight } from './fx/guide';
 import { worldAt } from './campaign/routes';
 import { prepareCar } from './car/gltfCar';
-import { buildGltfRig } from './car/gltfRig';
+import { buildGltfRig, trafficLights } from './car/gltfRig';
 import { CONE_VERTS, Rain, buildLightCones } from './fx/rain';
 import { Breakables } from './world/breakables';
 import { PRESETS, autoPreset, loadSettings, lowerPreset, saveSettings, type Preset, type Settings } from './settings';
@@ -49,7 +49,7 @@ const ownOrder = (id: string) => {
   const i = Object.keys(OWN_LOOK).indexOf(id);
   return i < 0 ? 99 : i;
 };
-import { MODELS as CAMPAIGN_MODELS } from './campaign/models';
+import { MODELS as CAMPAIGN_MODELS, REAL as REAL_MODELS } from './campaign/models';
 import type { SiteRig } from './campaign/siteRig';
 
 const THEME_LABEL = '<b>ABERTURA</b> Um Grave Romance — tribo da periferia';
@@ -417,6 +417,13 @@ export class Game {
     this.refreshObjectives();
     this.input.on((a) => this.onAction(a));
     this.mustangRig = this.rig;
+    // caminhão das missões: Scania com carreta (GLB) no lugar do de desenho
+    const truck = assets.cars.find((c) => c.entry.role === 'truck');
+    if (truck) {
+      const p = prepareCar(truck.scene, truck.entry);
+      p.root.add(trafficLights(p));
+      REAL_MODELS.truck = p.root;
+    }
     if (CAMPAIGN_MODELS.car1 && CAMPAIGN_MODELS.jCrane) this.buildCampaign(hudParent, assets);
 
     window.addEventListener('resize', () => this.resize());

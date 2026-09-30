@@ -8,7 +8,7 @@ import * as THREE from 'three';
 export interface CarEntry {
   id: string;
   file: string;
-  role: 'player' | 'traffic';
+  role: 'player' | 'traffic' | 'truck';
   name: string;
   /** comprimento real (m) */
   length: number;

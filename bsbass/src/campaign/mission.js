@@ -13,7 +13,7 @@
 /* eslint-disable */
 import * as THREE from 'three';
 import { BSB as K } from './core.js';
-import { MODELS, makeMat, makeModel, makeCharacter, makePaintMat, setPaint, glowTex, shadowTex, beamTex, canvasTex } from './models';
+import { MODELS, REAL, realModel, makeMat, makeModel, makeCharacter, makePaintMat, setPaint, glowTex, shadowTex, beamTex, canvasTex } from './models';
 import { RHALF, LANES, frameAt, curvAt, wrapS as wrapRoute } from './routes';
 
 const V3 = THREE.Vector3;
@@ -330,7 +330,7 @@ export function createMission(host) {
       this.g = new THREE.Group();
       this.body = new THREE.Group();
       this.g.add(this.body);
-      const m = makeModel(key, len, mat, frontZ);
+      const m = key === 'truck2' && REAL.truck ? realModel(REAL.truck) : makeModel(key, len, mat, frontZ);
       this.model = m.wrap;
       this.body.add(m.wrap);
       this.len = len;
@@ -438,7 +438,8 @@ export function createMission(host) {
     CARS3.extra = new Car('car1', K.CARS.role.len, makePaintMat(MODELS.car1), true);
     CARS3.extra.key = 'extra';
   }
-  const TRUCK = MODELS.truck2 ? new Car('truck2', TRUCK_LEN, makeMat(MODELS.truck2), true, { head: false }) : null;
+  // caminhão: o Scania com carreta de verdade quando carregou, senão o de desenho
+  const TRUCK = REAL.truck || MODELS.truck2 ? new Car('truck2', TRUCK_LEN, MODELS.truck2 ? makeMat(MODELS.truck2) : null, true, { head: false }) : null;
   if (TRUCK)
     for (const sd of [-1, 1]) {
       const t = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xff2020, blending: THREE.AdditiveBlending, depthWrite: false }));

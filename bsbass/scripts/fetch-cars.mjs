@@ -49,8 +49,8 @@ function optimize(src, dest, car) {
     '--simplify-ratio', ratio,
     '--simplify-error', String(car.error ?? 0.002),
     // mantém nós separados (rodas precisam girar) e os nomes
-    '--join', 'false',
-    '--flatten', 'false',
+    '--join', car.join ? 'true' : 'false',
+    '--flatten', car.join ? 'true' : 'false',
     '--instance', 'false',
     '--palette', 'false',
   ], { stdio: 'inherit' });
@@ -78,7 +78,7 @@ for (const car of list) {
       optimize(raw, dest, car);
     }
     console.log(`✓ ${car.name} ${(statSync(dest).size / 1e6).toFixed(1)} MB`);
-    const { uid, faces, tris, tex, error, lockBorder, ...entry } = car;
+    const { uid, faces, tris, tex, error, lockBorder, join, ...entry } = car;
     manifest.push({ ...entry, file, url: `https://sketchfab.com/3d-models/${uid}` });
   } catch (e) {
     console.warn(`✗ ${car.name}: ${e.message}`);
