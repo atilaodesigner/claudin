@@ -29,6 +29,6 @@ N=$(ls frames/*.jpg | wc -l)
   -stream_loop -1 -t 20 -i ../public/sfx/rain_loop.mp3 \
   -filter_complex "[1:a]asetpts=PTS-STARTPTS,afade=t=out:st=18.4:d=1.6[m];[2:a]asetpts=PTS-STARTPTS,volume='if(lt(t,3),0.9,0.22)':eval=frame,afade=t=in:d=0.6,afade=t=out:st=18.4:d=1.6[r];[m][r]amix=inputs=2:normalize=0,loudnorm=I=-14:TP=-1.0:LRA=11[a]" \
   -map 0:v -map "[a]" \
-  -c:v libx264 -preset slow -crf 18 -pix_fmt yuv420p -profile:v high -r 30 \
+  -c:v libx264 -preset slow -crf 21 -maxrate 16M -bufsize 32M -pix_fmt yuv420p -profile:v high -r 30 \
   -c:a aac -b:a 192k -ar 48000 -movflags +faststart -shortest "$OUT"
 echo "trailer: $OUT"
