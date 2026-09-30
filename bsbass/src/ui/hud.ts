@@ -841,7 +841,7 @@ const TEMPLATE = /* html */ `
     </section>
     <section class="cred">
       <h4>MODELOS 3D</h4>
-      <p>Poly Haven (CC0): tambores, pneu, carro com capa, ar-condicionado, hidrante, lixeira, caixa de energia, barreira, saco de cimento, caixa, rádio.</p>
+      <p>Poly Haven (CC0): tambores, pneu, carro com capa, ar-condicionado, hidrante, lixeira, caixa de energia, barreira, saco de cimento, caixa, rádio, cadeira de plástico, engradado, botijão de gás, saco de lixo e caixote de madeira.</p>
     </section>
     <section class="cred">
       <h4>SONS</h4>

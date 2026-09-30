@@ -2,7 +2,9 @@
 // ar-condicionado nas fachadas, pilha de pneu e tambor azul na borracharia,
 // saco de cimento na porta de quem tá subindo a laje, carro com capa,
 // hidrante, lixeira, caixa de energia, barreira de concreto no canteiro,
-// rádio e caixas na feira. Tudo instanciado (um draw call por peça).
+// rádio e caixas na feira, cadeira de plástico empilhada e engradado na porta
+// do bar, botijão de gás, saco de lixo no meio-fio e caixote de feira.
+// Tudo instanciado (um draw call por peça).
 
 import * as THREE from 'three';
 import type { Assets, ModelName } from '../assets';
@@ -88,6 +90,10 @@ export const BREAKABLE: Partial<Record<ModelName, BreakSpec & { box?: boolean }>
   cardboard_box_01: { mass: 4, minV: 0.2, box: true },
   fire_hydrant: { mass: 140, minV: 2.5, fx: 'water' },
   utility_box_01: { mass: 90, minV: 2.5, fx: 'sparks', box: true },
+  plastic_monobloc_chair_01: { mass: 3, minV: 0.2 },
+  propane_tank: { mass: 16, minV: 0.4 },
+  trashbag: { mass: 4, minV: 0.2 },
+  wooden_crate_01: { mass: 6, minV: 0.2, box: true },
 };
 
 export interface BreakProp {
@@ -118,8 +124,11 @@ export interface Props {
   parts: Map<ModelName, PropPart[]>;
 }
 
-export function buildProps(city: City, models: Assets['models']): Props {
+/** lite: preset BAIXA, pula as pilhas decorativas (engradado é a malha mais pesada) */
+export function buildProps(city: City, models: Assets['models'], lite = false): Props {
   const rnd = mulberry32(3131);
+  // semente separada pros objetos novos, pra não mexer onde os antigos caem
+  const rnd2 = mulberry32(6161);
   const P = new Placer();
   const colliders: Shape[] = [];
   const breakables: BreakProp[] = [];
@@ -202,7 +211,7 @@ export function buildProps(city: City, models: Assets['models']): Props {
   }
 
   // ---------- calçadas: lixeira, hidrante, caixa de energia ----------
-  const sidewalkSpot = (): [number, number, number] | null => {
+  const sidewalkSpot = (rnd: () => number): [number, number, number] | null => {
     const vertical = rnd() < 0.5;
     const c = nodePos(Math.floor(rnd() * NODES));
     const t = (rnd() * 2 - 1) * EXTENT;
@@ -217,13 +226,63 @@ export function buildProps(city: City, models: Assets['models']): Props {
     return [x, z, facing];
   };
   for (let k = 0; k < 90; k++) {
-    const s = sidewalkSpot();
+    const s = sidewalkSpot(rnd);
     if (!s) continue;
     const [x, z, f] = s;
     const kind = rnd();
     if (kind < 0.45) loose('metal_trash_can', x, y0, z, f + range(rnd, -0.5, 0.5));
     else if (kind < 0.7) loose('utility_box_01', x, y0, z, f + Math.PI);
     else loose('fire_hydrant', x, y0, z, f);
+  }
+
+  // ---------- saco de lixo amontoado no meio-fio ----------
+  for (let k = 0; k < 45; k++) {
+    const s = sidewalkSpot(rnd2);
+    if (!s) continue;
+    const [x, z, f] = s;
+    const n = 1 + Math.floor(rnd2() * 4);
+    for (let j = 0; j < n; j++) {
+      // enfileirado ao longo do meio-fio
+      const t = (j - (n - 1) / 2) * 0.55 + range(rnd2, -0.08, 0.08);
+      loose('trashbag', x + Math.cos(f) * t, y0, z - Math.sin(f) * t, rnd2() * 6);
+    }
+  }
+
+  // ---------- bar, mercadinho e casa: cadeira, engradado, botijão ----------
+  for (const lot of city.lots) {
+    const hz = lotFront(lot);
+    const hw = lot.w / 2;
+    const bar = lot.shop === 0 || lot.shop === 1 || lot.shop === 10;
+    if (bar) {
+      // pilha de cadeira encostada na parede de um lado, engradado do outro
+      const side = rnd2() < 0.5 ? -1 : 1;
+      const chairs = 3 + Math.floor(rnd2() * 3);
+      const [cx, cz] = toWorld(lot, side * (hw - 0.55), hz + 0.45);
+      const crot = lot.rot + Math.PI + range(rnd2, -0.15, 0.15);
+      const stack = rnd2() < 0.5, crates = rnd2() < 0.4;
+      if (!lite && stack) {
+        for (let j = 0; j < chairs; j++) P.add('plastic_monobloc_chair_01', cx, y0 + j * 0.09, cz, crot);
+        colliders.push(circle(cx, cz, 0.33));
+      }
+      const cols = rnd2() < 0.25 ? 2 : 1;
+      for (let c = 0; c < cols; c++) {
+        const h = 2 + Math.floor(rnd2() * 3);
+        const [ex, ez] = toWorld(lot, -side * (hw - 0.5 - c * 0.53), hz + 0.3);
+        if (lite || !crates) continue;
+        for (let j = 0; j < h; j++) P.add('plastic_crate_02', ex, y0 + j * 0.25, ez, lot.rot + range(rnd2, -0.06, 0.06));
+        colliders.push(rect(ex, ez, 0.26, 0.21, lot.rot));
+      }
+      // uma cadeira largada na calçada
+      const [lx, lz] = toWorld(lot, range(rnd2, -hw + 1, hw - 1), hz + 2.6);
+      if (rnd2() < 0.5) loose('plastic_monobloc_chair_01', lx, y0, lz, rnd2() * 6);
+    }
+    // mercadinho: botijão na porta; casa: às vezes um encostado no muro
+    const tanks = lot.shop === 6 ? 1 + Math.floor(rnd2() * 3) : lot.shop < 0 && rnd2() < 0.04 ? 1 : 0;
+    const tx = range(rnd2, -hw + 1.2, hw - 1.2 - tanks * 0.6);
+    for (let j = 0; j < tanks; j++) {
+      const [x, z] = toWorld(lot, tx + j * 0.62, lot.d / 2 + 0.45);
+      loose('propane_tank', x, y0, z, rnd2() * 6);
+    }
   }
 
   // ---------- carros com capa (no lugar de parte dos estacionados) ----------
@@ -259,6 +318,8 @@ export function buildProps(city: City, models: Assets['models']): Props {
       const bx = feira.x - 25 + k * 10, bz = feira.z + 28;
       for (let j = 0; j < 3; j++) loose('cardboard_box_01', bx - 2.5 + j * 0.5 + range(rnd, -0.1, 0.1), 0.03, bz - 3.1, rnd() * 0.5);
       if (k % 2 === 0) loose('Barrel_02', bx + 3, 0.03, bz - 2.8, rnd() * 6);
+      // caixote de madeira do lado das caixas de papelão
+      for (let j = 0; j < 2; j++) loose('wooden_crate_01', bx + 0.4 + j * 0.9, 0.03, bz - 3.2 + range(rnd2, -0.1, 0.1), range(rnd2, -0.2, 0.2));
     }
     // rádio no chão do lado do paredão
     P.add('boombox', feira.x - 27.5, 0.03, feira.z - 11.5, Math.PI / 5 + Math.PI);

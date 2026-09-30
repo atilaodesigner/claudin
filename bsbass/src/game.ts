@@ -208,7 +208,7 @@ export class Game {
     this.meshes = buildCityMeshes(this.city, tx, assets.tex, hasProps, realTrees);
     this.scene.add(this.meshes.group);
     if (realTrees) this.scene.add(buildTrees(this.city, assets.tex.bark!, assets.tex.leaves!));
-    const props = hasProps ? buildProps(this.city, assets.models) : null;
+    const props = hasProps ? buildProps(this.city, assets.models, this.preset === 'baixa') : null;
     if (props) {
       this.scene.add(props.group);
       for (const c of props.colliders) this.grid.insert(c);
