@@ -43,8 +43,9 @@ export interface PreparedCar {
   wheelR: number;
 }
 
-const WHEEL_RE = /wheel|tire|tyre|rim|roda|pneu|llanta|rueda|felge|reifen/i;
-const NOT_WHEEL_RE = /steering|volante|spare|estepe|arch|well|fender/i;
+// "rim" só como palavra própria (senão pega "Trim", o acabamento do interior)
+const WHEEL_RE = /wheel|tire|tyre|(?<![a-z])rim|roda|pneu|llanta|rueda|felge|reifen/i;
+const NOT_WHEEL_RE = /steering|volante|spare|estepe|arch|well|fender|interior|door|porta/i;
 const PAINT_RE = /paint|body|carpaint|car_paint|exterior|lataria|pintura|carroceria|color|colour/i;
 const NOT_PAINT_RE = /glass|window|vidro|chrome|cromo|tire|tyre|rubber|light|lamp|lens|interior|seat|plastic|black|grill|rim|wheel/i;
 
@@ -103,6 +104,40 @@ function frontIsBack(model: THREE.Object3D, box: THREE.Box3): boolean {
   return n > 0 && sz / n > len * 0.03;
 }
 
+/** separa uma malha em duas (x > 0 e x < 0 no espaço do carro) pelo centro de cada triângulo */
+function splitBySide(m: THREE.Mesh, holder: THREE.Object3D): THREE.Mesh[] | null {
+  const g = m.geometry;
+  const pos = g.attributes.position;
+  if (!pos || Array.isArray(m.material) || g.groups.length > 1) return null;
+  holder.updateMatrixWorld(true);
+  const toCar = new THREE.Matrix4().copy(holder.matrixWorld).invert().multiply(m.matrixWorld);
+  const idx = g.index ? Array.from(g.index.array as ArrayLike<number>) : Array.from({ length: pos.count }, (_, i) => i);
+  const v = new THREE.Vector3();
+  const sides: number[][] = [[], []];
+  for (let t = 0; t + 2 < idx.length; t += 3) {
+    let x = 0;
+    for (let k = 0; k < 3; k++) x += v.fromBufferAttribute(pos, idx[t + k]!).applyMatrix4(toCar).x;
+    sides[x > 0 ? 0 : 1]!.push(idx[t]!, idx[t + 1]!, idx[t + 2]!);
+  }
+  if (!sides[0]!.length || !sides[1]!.length) return null;
+  const out = sides.map((list, i) => {
+    const ig = new THREE.BufferGeometry();
+    for (const [k, a] of Object.entries(g.attributes)) ig.setAttribute(k, a);
+    ig.setIndex(list);
+    // só os vértices usados (senão a caixa da metade seria a do eixo inteiro)
+    const ng = ig.toNonIndexed();
+    const nm = new THREE.Mesh(ng, m.material);
+    nm.name = `${m.name}_${i ? 'dir' : 'esq'}`;
+    nm.position.copy(m.position);
+    nm.quaternion.copy(m.quaternion);
+    nm.scale.copy(m.scale);
+    m.parent!.add(nm);
+    return nm;
+  });
+  m.parent!.remove(m);
+  return out;
+}
+
 export function prepareCar(src: THREE.Object3D, entry: CarEntry): PreparedCar {
   const model = src.clone(true);
   // materiais próprios por cópia (a pintura de cada carro é independente)
@@ -159,6 +194,15 @@ export function prepareCar(src: THREE.Object3D, entry: CarEntry): PreparedCar {
   });
   const quads: THREE.Mesh[][] = [[], [], [], []];
   const tmp = new THREE.Box3();
+  // eixo inteiro numa malha só (as duas rodas de trás juntas): divide pelo lado
+  for (const m of [...wheelMeshes]) {
+    tmp.setFromObject(m);
+    if (tmp.min.x < -size.x * 0.15 && tmp.max.x > size.x * 0.15) {
+      const halves = splitBySide(m, holder);
+      if (halves) wheelMeshes.splice(wheelMeshes.indexOf(m), 1, ...halves);
+    }
+  }
+  holder.updateMatrixWorld(true);
   for (const m of wheelMeshes) {
     tmp.setFromObject(m);
     const wc = tmp.getCenter(new THREE.Vector3());
