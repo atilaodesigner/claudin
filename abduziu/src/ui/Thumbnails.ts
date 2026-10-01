@@ -57,6 +57,11 @@ export class Thumbnails {
     const cached = this.cache.get(defId);
     if (cached) return cached;
     const def = getObjectDef(defId);
+    // crowd characters (memes) ship a pre-rendered portrait
+    if (def.thumb) {
+      this.cache.set(defId, def.thumb);
+      return def.thumb;
+    }
     const model = this.lib.get(this.lib.variantKey(def.model, 0));
     this.mesh.geometry = model.geometry;
     this.mat.fx.uTint.value.setHex(def.paints?.[0] ?? 0xffffff);

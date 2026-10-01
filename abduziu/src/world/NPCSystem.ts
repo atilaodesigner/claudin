@@ -66,6 +66,8 @@ const _m2 = new Matrix4();
 const _pivot = new Vector3();
 
 const DEF_FOR: Record<NpcKind, string> = { person: 'pessoa', dog: 'cachorro', chicken: 'galinha', cow: 'vaca' };
+/** Share of pedestrians that are one of the meme characters. */
+const MEME_CHANCE = 0.07;
 
 /**
  * City life. People film, point, run, hide or keep drinking their coffee; dogs bark
@@ -97,9 +99,12 @@ export class NPCSystem {
   }
 
   add(s: NpcSpawn): Npc {
-    const def = getObjectDef(DEF_FOR[s.kind]);
+    // people get a crowd character up front: a meme one is a different dex entry
+    const look = s.kind === 'person' ? this.pickLook() : -1;
+    const meme = look >= 0 ? this.crowd?.chars[look]?.meme : undefined;
+    const def = getObjectDef(meme ?? DEF_FOR[s.kind]);
     const model = s.kind === 'person' ? this.personUpModel : this.world.lib.get(def.model);
-    const obj = this.world.createObject(def, model.key, 'normal', s.district, s.kind === 'person' ? s.paint : 0xffffff);
+    const obj = this.world.createObject(def, model.key, def.rarity ?? 'normal', s.district, s.kind === 'person' ? s.paint : 0xffffff);
     const y = this.world.groundAt(s.x, s.z);
     obj.home.set(s.x, y, s.z);
     obj.pos.copy(obj.home);
@@ -138,16 +143,26 @@ export class NPCSystem {
       lastX: s.x,
       lastZ: s.z,
     };
-    // people become one of the Tripo characters (drawn by the crowd renderer)
-    const chars = this.crowd?.chars.length ?? 0;
-    if (s.kind === 'person' && chars > 0) {
-      npc.look = Math.floor(Math.random() * chars);
-      obj.crowd = npc.look;
+    // drawn by the crowd renderer instead of the procedural person
+    if (look >= 0) {
+      npc.look = look;
+      obj.crowd = look;
       this.world.livingBatch.setVisible(batchId, false);
     }
     this.world.hash.insert(obj.uid, s.x, s.z);
     this.npcs.push(npc);
     return npc;
+  }
+
+  /** Generic people most of the time; now and then one of the memes. -1 = procedural person. */
+  private pickLook(): number {
+    const chars = this.crowd?.chars ?? [];
+    if (!chars.length) return -1;
+    const memes: number[] = [];
+    const people: number[] = [];
+    chars.forEach((c, i) => (c.meme ? memes : people).push(i));
+    const pool = memes.length && (!people.length || Math.random() < MEME_CHANCE) ? memes : people;
+    return pool[Math.floor(Math.random() * pool.length)] as number;
   }
 
   private onDetach(obj: Abductable): void {

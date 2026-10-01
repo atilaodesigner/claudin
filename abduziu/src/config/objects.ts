@@ -28,7 +28,8 @@ export type ObjectTag =
   | 'secreto'
   | 'componente'
   | 'barco'
-  | 'marco';
+  | 'marco'
+  | 'meme';
 
 export interface ObjectDef {
   id: string;
@@ -46,6 +47,8 @@ export interface ObjectDef {
   matterMult?: number;
   /** Not listed in the dex (e.g. internal debris). */
   hidden?: boolean;
+  /** Dex portrait image (public path) instead of rendering `model`: crowd characters. */
+  thumb?: string;
 }
 
 const CAR_PAINTS = [0xd7263d, 0xf4f1e8, 0x1b4f9c, 0x2a2d34, 0xc9ccd1, 0x2e8b57, 0xf2b705, 0x7a1f2b, 0x3fa7d6, 0xe8703a];
@@ -329,6 +332,11 @@ export const OBJECTS: readonly ObjectDef[] = [
   { id: 'et_varginha', dex: 225, name: 'ET de Varginha', tier: 1, massKg: 35, model: 'et_varginha', tags: ['secreto', 'pessoa'], rarity: 'alien', secret: true, matterMult: 50, description: 'Desaparecido desde 1996. Finalmente resgatado pelos parentes.' },
   { id: 'boitata', dex: 226, name: 'Boitatá', tier: 3, massKg: 200, model: 'boitata', tags: ['secreto', 'animal'], rarity: 'alien', secret: true, matterMult: 30, description: 'Cobra de fogo azul que protege a mata. Agora protege a nave.' },
   { id: 'caramelo_dourado', dex: 227, name: 'Caramelo Dourado', tier: 1, massKg: 18, model: 'caramelo_dourado', tags: ['secreto', 'animal'], rarity: 'epico', secret: true, matterMult: 25, description: 'O vira-lata mais valioso do Brasil. Estampa a nota de 200. Vai voltar. Prometemos.' },
+
+  // ───────────── MEMES — personagens feitos na Tripo, raros no meio dos pedestres
+  { id: 'meme_huehue', dex: 228, name: 'Huehue', tier: 1, massKg: 70, model: 'person', tags: ['pessoa', 'meme'], rarity: 'raro', matterMult: 6, thumb: 'crowd/thumbs/huehue.webp', description: 'Não fala, só ri. Huehuehue. Lá em cima também.' },
+  { id: 'meme_cabeca_guidao', dex: 229, name: 'Cabeça de Guidão', tier: 1, massKg: 75, model: 'person', tags: ['pessoa', 'meme'], rarity: 'raro', matterMult: 6, thumb: 'crowd/thumbs/cabeca_guidao.webp', description: 'O cabelo vem com guidão de fábrica. Fez a curva errada e caiu no feixe.' },
+  { id: 'meme_manoel_gomes', dex: 230, name: 'Manoel Gomes', tier: 1, massKg: 80, model: 'person', tags: ['pessoa', 'meme'], rarity: 'epico', matterMult: 10, thumb: 'crowd/thumbs/manoel_gomes.webp', description: 'Ia cantar a da caneta azul. Foi abduzido no refrão. Azul caneta, caneta azul…' },
 ];
 
 export const OBJECT_BY_ID: ReadonlyMap<string, ObjectDef> = new Map(OBJECTS.map((o) => [o.id, o]));

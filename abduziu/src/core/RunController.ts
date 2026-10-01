@@ -346,6 +346,10 @@ export class RunController {
       g.hud.showBanner('PRÉDIO INTEIRO!', def.name.toUpperCase(), 'var(--gold)');
       g.time.slowMo(0.3, 0.6);
       g.cameraCtl.addTrauma(0.5);
+    } else if (def.tags.includes('meme')) {
+      this.highlights.record({ kind: 'legendary', label: def.name.toUpperCase(), score, time: this.time });
+      g.hud.showBanner('MEME ABDUZIDO', def.name.toUpperCase(), 'var(--gold)');
+      this.stats.bonusCores += 15;
     } else if (def.secret) {
       this.highlights.record({ kind: 'legendary', label: def.name.toUpperCase(), score, time: this.time });
       g.hud.showBanner('OBJETO LENDÁRIO', def.name.toUpperCase(), 'var(--frenzy-violet)');

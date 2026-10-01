@@ -155,7 +155,9 @@ function b64(buf) {
   return btoa(s);
 }
 
-const FINGER = /(Left|Right)Hand(Thumb|Index|Middle|Ring|Pinky)\d/i;
+// finger bones: Mixamo (LeftHandIndex1) or Quaternius (Index1.L, sanitised to Index1L by the loader)
+const FINGER = /(Left|Right)Hand(Thumb|Index|Middle|Ring|Pinky)\d|(Thumb|Index|Middle|Ring|Pinky)\d(L|R)$/i;
+const SIDE = { left: 'L', right: 'R', l: 'L', r: 'R' };
 
 /**
  * Bakes one character. clips: [{ name, as?, fps? }] (`as` = name inside the game).
@@ -191,10 +193,10 @@ window.bake = async ({ id, file, extra = [], clips, height = 1.75, texSize = 512
     .multiply(new THREE.Matrix4().makeScale(s, s, s));
 
   // fold fingers into the hand, keep only bones that actually move vertices
-  const handOf = (side) => bones.findIndex((b) => new RegExp(`${side}Hand$`, 'i').test(b.name));
+  const handOf = (side) => bones.findIndex((b) => new RegExp(`(${side === 'L' ? 'Left' : 'Right'}Hand|Wrist${side})$`, 'i').test(b.name));
   const remap = bones.map((b, i) => {
     const m = FINGER.exec(b.name);
-    return m ? handOf(m[1]) : i;
+    return m ? handOf(SIDE[(m[1] ?? m[4]).toLowerCase()]) : i;
   });
   const si = g.getAttribute('skinIndex');
   const sw = g.getAttribute('skinWeight');
@@ -220,8 +222,8 @@ window.bake = async ({ id, file, extra = [], clips, height = 1.75, texSize = 512
     const pivot = new THREE.Vector3();
     // body frame landmarks (game space): spine axis (hips -> head) and shoulder line (right -> left)
     const head = bones.find((b) => /Head$/i.test(b.name));
-    const lArm = bones.find((b) => /LeftArm$/i.test(b.name));
-    const rArm = bones.find((b) => /RightArm$/i.test(b.name));
+    const lArm = bones.find((b) => /(LeftArm|UpperArmL)$/i.test(b.name));
+    const rArm = bones.find((b) => /(RightArm|UpperArmR)$/i.test(b.name));
     const axis = new THREE.Vector3();
     const side = new THREE.Vector3();
     const w1 = new THREE.Vector3();
@@ -368,5 +370,50 @@ window.bake = async ({ id, file, extra = [], clips, height = 1.75, texSize = 512
   ctx.drawImage(mesh.material.map.image, 0, 0, texSize, texSize);
   const webp = cv.toDataURL('image/webp', 0.86).split(',')[1];
   return { bin: b64(out.buffer), webp, info: { ...header, layout: undefined, bytes: out.length, scale: s } };
+};
+/** Dex portrait: one pose of the full-resolution character, transparent background, WebP. */
+window.thumb = async ({ file, extra = [], clip = 'freaky', t = 0.3, size = 320, yaw = 0.45 }) => {
+  const set = await clipSet(file, extra);
+  const { gltf, mesh, hips } = set;
+  const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+  r.setPixelRatio(1);
+  r.setSize(size, size);
+  r.outputColorSpace = THREE.SRGBColorSpace;
+  r.toneMapping = THREE.ACESFilmicToneMapping;
+  r.setClearColor(0x000000, 0);
+  const scene = new THREE.Scene();
+  scene.add(new THREE.HemisphereLight(0xdcecff, 0x6b5a48, 1.3));
+  const sun = new THREE.DirectionalLight(0xfff0d8, 2.6);
+  sun.position.set(3, 6, 5);
+  scene.add(sun);
+  const rim = new THREE.DirectionalLight(0x9fd8ff, 1.4);
+  rim.position.set(-4, 3, -5);
+  scene.add(rim);
+  scene.add(gltf.scene);
+  mesh.skeleton.pose();
+  gltf.scene.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(gltf.scene);
+  const e = set.clips.get(clip);
+  const mixer = new THREE.AnimationMixer(gltf.scene);
+  if (e) {
+    const { clip: c } = inPlace(e, hips.name);
+    mixer.clipAction(c).play();
+    mixer.setTime(c.duration * t);
+  }
+  gltf.scene.updateMatrixWorld(true);
+  const h = box.max.y - box.min.y;
+  // centre on the posed body (skinned bounds), keep the rest height for the zoom
+  const c = new THREE.Box3().setFromObject(gltf.scene, true).getCenter(new THREE.Vector3());
+  const cam = new THREE.PerspectiveCamera(26, 1, 0.01, 100);
+  const d = (h * 0.56) / Math.tan((26 * Math.PI) / 360);
+  cam.position.set(c.x + Math.sin(yaw) * d, c.y + h * 0.08, c.z + Math.cos(yaw) * d);
+  cam.lookAt(c.x, c.y, c.z);
+  r.render(scene, cam);
+  const webp = r.domElement.toDataURL('image/webp', 0.9).split(',')[1];
+  mixer.stopAllAction();
+  scene.remove(gltf.scene);
+  mesh.skeleton.pose();
+  r.dispose();
+  return { webp };
 };
 window.ready = true;

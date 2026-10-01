@@ -27,7 +27,12 @@
         "fps": 12,
         "bellyUp": true
       }
-    ]
+    ],
+    "thumb": {
+      "clip": "run",
+      "t": 0.15,
+      "yaw": 0.7
+    }
   },
   {
     "id": "cabeca_guidao",
@@ -57,7 +62,12 @@
         "fps": 12,
         "bellyUp": true
       }
-    ]
+    ],
+    "thumb": {
+      "clip": "run",
+      "t": 0.15,
+      "yaw": 0.7
+    }
   },
   {
     "id": "manoel_gomes",
@@ -85,6 +95,349 @@
       {
         "name": "swim",
         "fps": 12,
+        "bellyUp": true
+      }
+    ],
+    "thumb": {
+      "clip": "run",
+      "t": 0.15,
+      "yaw": 0.7
+    }
+  },
+  {
+    "id": "servidor",
+    "name": "SERVIDOR",
+    "prep": "source/quaternius/M_Suit.gltf",
+    "file": "work/servidor.glb",
+    "texSize": 128,
+    "clips": [
+      {
+        "name": "run",
+        "fps": 30
+      },
+      {
+        "name": "afraid",
+        "fps": 15
+      },
+      {
+        "name": "freaky",
+        "fps": 30
+      },
+      {
+        "name": "swim",
+        "fps": 15,
+        "bellyUp": true
+      }
+    ]
+  },
+  {
+    "id": "servidora",
+    "name": "SERVIDORA",
+    "prep": "source/quaternius/W_Formal.gltf",
+    "file": "work/servidora.glb",
+    "texSize": 128,
+    "clips": [
+      {
+        "name": "run",
+        "fps": 30
+      },
+      {
+        "name": "afraid",
+        "fps": 15
+      },
+      {
+        "name": "freaky",
+        "fps": 30
+      },
+      {
+        "name": "swim",
+        "fps": 15,
+        "bellyUp": true
+      }
+    ]
+  },
+  {
+    "id": "peao",
+    "name": "PEÃO DE OBRA",
+    "prep": "source/quaternius/M_Worker.gltf",
+    "file": "work/peao.glb",
+    "texSize": 128,
+    "clips": [
+      {
+        "name": "run",
+        "fps": 30
+      },
+      {
+        "name": "afraid",
+        "fps": 15
+      },
+      {
+        "name": "freaky",
+        "fps": 30
+      },
+      {
+        "name": "swim",
+        "fps": 15,
+        "bellyUp": true
+      }
+    ]
+  },
+  {
+    "id": "mestre_obras",
+    "name": "MESTRE DE OBRAS",
+    "prep": "source/quaternius/W_Worker.gltf",
+    "file": "work/mestre_obras.glb",
+    "texSize": 128,
+    "clips": [
+      {
+        "name": "run",
+        "fps": 30
+      },
+      {
+        "name": "afraid",
+        "fps": 15
+      },
+      {
+        "name": "freaky",
+        "fps": 30
+      },
+      {
+        "name": "swim",
+        "fps": 15,
+        "bellyUp": true
+      }
+    ]
+  },
+  {
+    "id": "turista",
+    "name": "TURISTA",
+    "prep": "source/quaternius/M_Beach.gltf",
+    "file": "work/turista.glb",
+    "texSize": 128,
+    "clips": [
+      {
+        "name": "run",
+        "fps": 30
+      },
+      {
+        "name": "afraid",
+        "fps": 15
+      },
+      {
+        "name": "freaky",
+        "fps": 30
+      },
+      {
+        "name": "swim",
+        "fps": 15,
+        "bellyUp": true
+      }
+    ]
+  },
+  {
+    "id": "estudante",
+    "name": "ESTUDANTE",
+    "prep": "source/quaternius/W_Casual.gltf",
+    "file": "work/estudante.glb",
+    "texSize": 128,
+    "clips": [
+      {
+        "name": "run",
+        "fps": 30
+      },
+      {
+        "name": "afraid",
+        "fps": 15
+      },
+      {
+        "name": "freaky",
+        "fps": 30
+      },
+      {
+        "name": "swim",
+        "fps": 15,
+        "bellyUp": true
+      }
+    ]
+  },
+  {
+    "id": "moleque",
+    "name": "MOLEQUE",
+    "prep": "source/quaternius/M_Casual_Hoodie.gltf",
+    "file": "work/moleque.glb",
+    "texSize": 128,
+    "clips": [
+      {
+        "name": "run",
+        "fps": 30
+      },
+      {
+        "name": "afraid",
+        "fps": 15
+      },
+      {
+        "name": "freaky",
+        "fps": 30
+      },
+      {
+        "name": "swim",
+        "fps": 15,
+        "bellyUp": true
+      }
+    ]
+  },
+  {
+    "id": "agro",
+    "name": "AGRO",
+    "prep": "source/quaternius/M_Farmer.gltf",
+    "file": "work/agro.glb",
+    "texSize": 128,
+    "clips": [
+      {
+        "name": "run",
+        "fps": 30
+      },
+      {
+        "name": "afraid",
+        "fps": 15
+      },
+      {
+        "name": "freaky",
+        "fps": 30
+      },
+      {
+        "name": "swim",
+        "fps": 15,
+        "bellyUp": true
+      }
+    ]
+  },
+  {
+    "id": "casual",
+    "name": "CASUAL",
+    "prep": "source/quaternius/M_Casual_2.gltf",
+    "file": "work/casual.glb",
+    "texSize": 128,
+    "clips": [
+      {
+        "name": "run",
+        "fps": 30
+      },
+      {
+        "name": "afraid",
+        "fps": 15
+      },
+      {
+        "name": "freaky",
+        "fps": 30
+      },
+      {
+        "name": "swim",
+        "fps": 15,
+        "bellyUp": true
+      }
+    ]
+  },
+  {
+    "id": "punk",
+    "name": "PUNK",
+    "prep": "source/quaternius/W_Punk.gltf",
+    "file": "work/punk.glb",
+    "texSize": 128,
+    "clips": [
+      {
+        "name": "run",
+        "fps": 30
+      },
+      {
+        "name": "afraid",
+        "fps": 15
+      },
+      {
+        "name": "freaky",
+        "fps": 30
+      },
+      {
+        "name": "swim",
+        "fps": 15,
+        "bellyUp": true
+      }
+    ]
+  },
+  {
+    "id": "executiva",
+    "name": "EXECUTIVA",
+    "prep": "source/quaternius/W_Suit.gltf",
+    "file": "work/executiva.glb",
+    "texSize": 128,
+    "clips": [
+      {
+        "name": "run",
+        "fps": 30
+      },
+      {
+        "name": "afraid",
+        "fps": 15
+      },
+      {
+        "name": "freaky",
+        "fps": 30
+      },
+      {
+        "name": "swim",
+        "fps": 15,
+        "bellyUp": true
+      }
+    ]
+  },
+  {
+    "id": "punk2",
+    "name": "PUNK",
+    "prep": "source/quaternius/M_Punk.gltf",
+    "file": "work/punk2.glb",
+    "texSize": 128,
+    "clips": [
+      {
+        "name": "run",
+        "fps": 30
+      },
+      {
+        "name": "afraid",
+        "fps": 15
+      },
+      {
+        "name": "freaky",
+        "fps": 30
+      },
+      {
+        "name": "swim",
+        "fps": 15,
+        "bellyUp": true
+      }
+    ]
+  },
+  {
+    "id": "aventureira",
+    "name": "AVENTUREIRA",
+    "prep": "source/quaternius/W_Adventurer.gltf",
+    "file": "work/aventureira.glb",
+    "texSize": 128,
+    "clips": [
+      {
+        "name": "run",
+        "fps": 30
+      },
+      {
+        "name": "afraid",
+        "fps": 15
+      },
+      {
+        "name": "freaky",
+        "fps": 30
+      },
+      {
+        "name": "swim",
+        "fps": 15,
         "bellyUp": true
       }
     ]

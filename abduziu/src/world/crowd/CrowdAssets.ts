@@ -14,13 +14,27 @@ import {
 } from 'three';
 
 /**
- * Pedestrian characters made in Tripo, rigged (Mixamo skeleton) and baked by
- * `tools/crowd` into `public/crowd/<id>.bin` + `<id>.webp`. Add a new one there and list it here.
+ * Pedestrian characters, baked by `tools/crowd` into `public/crowd/<id>.bin` + `<id>.webp`.
+ * Most of the city is generic people (Quaternius CC0 rigs, animations authored in tools/crowd);
+ * the Tripo memes walk among them, rarely, and each one is its own entry in the dex (`meme`).
  */
-export const CROWD_CHARACTERS: ReadonlyArray<{ id: string; name: string }> = [
-  { id: 'huehue', name: 'HUEHUE' },
-  { id: 'cabeca_guidao', name: 'CABEÇA DE GUIDÃO' },
-  { id: 'manoel_gomes', name: 'MANOEL GOMES' },
+export const CROWD_CHARACTERS: ReadonlyArray<{ id: string; name: string; meme?: string }> = [
+  { id: 'servidor', name: 'SERVIDOR' },
+  { id: 'servidora', name: 'SERVIDORA' },
+  { id: 'executiva', name: 'EXECUTIVA' },
+  { id: 'peao', name: 'PEÃO DE OBRA' },
+  { id: 'mestre_obras', name: 'MESTRE DE OBRAS' },
+  { id: 'turista', name: 'TURISTA' },
+  { id: 'estudante', name: 'ESTUDANTE' },
+  { id: 'moleque', name: 'MOLEQUE' },
+  { id: 'agro', name: 'AGRO' },
+  { id: 'casual', name: 'CASUAL' },
+  { id: 'punk', name: 'PUNK' },
+  { id: 'punk2', name: 'PUNK' },
+  { id: 'aventureira', name: 'AVENTUREIRA' },
+  { id: 'huehue', name: 'HUEHUE', meme: 'meme_huehue' },
+  { id: 'cabeca_guidao', name: 'CABEÇA DE GUIDÃO', meme: 'meme_cabeca_guidao' },
+  { id: 'manoel_gomes', name: 'MANOEL GOMES', meme: 'meme_manoel_gomes' },
 ];
 
 export type CrowdClipName = 'run' | 'afraid' | 'freaky' | 'swim';
@@ -42,6 +56,8 @@ export interface CrowdClip {
 export interface CrowdCharacter {
   id: string;
   name: string;
+  /** Dex entry of a meme character (rare in the crowd, collectable); generic people have none. */
+  meme?: string;
   geometry: BufferGeometry;
   /** Same vertices, ~1/4 of the triangles: far pedestrians. */
   lod1: BufferGeometry;
@@ -79,7 +95,7 @@ function parse(buf: ArrayBuffer): { header: Header; parts: Record<string, Float3
   return { header, parts };
 }
 
-async function loadOne(base: string, id: string, name: string): Promise<CrowdCharacter> {
+async function loadOne(base: string, id: string, name: string, meme?: string): Promise<CrowdCharacter> {
   const [bin, map] = await Promise.all([
     fetch(`${base}${id}.bin`).then((r) => {
       if (!r.ok) throw new Error(`${id}.bin: ${r.status}`);
@@ -118,14 +134,14 @@ async function loadOne(base: string, id: string, name: string): Promise<CrowdCha
   const clips = {} as Record<CrowdClipName, CrowdClip>;
   for (const c of header.clips) clips[c.name as CrowdClipName] = c;
   for (const need of ['run', 'afraid', 'freaky', 'swim'] as const) if (!clips[need]) throw new Error(`${id}: missing clip ${need}`);
-  return { id, name, geometry: g, lod1, anim, map, bones: header.bones, height: header.height, clips };
+  return { id, name, meme, geometry: g, lod1, anim, map, bones: header.bones, height: header.height, clips };
 }
 
 /** Loads every crowd character; a broken one is skipped (the city keeps the procedural pedestrian). */
 export async function loadCrowd(base = 'crowd/'): Promise<CrowdCharacter[]> {
   const out = await Promise.all(
     CROWD_CHARACTERS.map((c) =>
-      loadOne(base, c.id, c.name).catch((err) => {
+      loadOne(base, c.id, c.name, c.meme).catch((err) => {
         console.warn(`[crowd] could not load ${c.id}`, err);
         return null;
       }),

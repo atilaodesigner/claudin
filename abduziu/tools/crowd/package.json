@@ -2,7 +2,7 @@
   "name": "abduziu-crowd-tools",
   "private": true,
   "type": "module",
-  "description": "Turns rigged Tripo/Mixamo GLB characters into ABDUZIU crowd assets (decimated mesh + baked bone animation texture + small texture).",
+  "description": "Turns rigged characters (Tripo/Mixamo memes and Quaternius CC0 pedestrians) into ABDUZIU crowd assets (mesh + baked bone animation texture + small texture).",
   "dependencies": {
     "@gltf-transform/core": "^4.2.0",
     "@gltf-transform/functions": "^4.2.0",
@@ -10,9 +10,13 @@
     "playwright-core": "^1.63.0"
   },
   "scripts": {
+    "fetch": "node fetch.mjs",
+    "prep": "node bake.mjs prep",
+    "sheet": "node bake.mjs sheet",
     "simplify": "node bake.mjs simplify",
     "preview": "node bake.mjs preview",
     "bake": "node bake.mjs bake",
-    "all": "node bake.mjs simplify && node bake.mjs bake"
+    "thumbs": "node bake.mjs thumbs",
+    "all": "node fetch.mjs && node bake.mjs prep && node bake.mjs simplify && node bake.mjs bake && node bake.mjs thumbs"
   }
 }
