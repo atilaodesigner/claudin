@@ -20,7 +20,12 @@ export const ROW = {
   windows: 13,
   laje: 14,
   telha: 15,
+  /** 16..31: metade direita do atlas — murais (BSBASS, favela, Brasil, DF) e paredes de tag */
+  graff0: 16,
 } as const;
+/** murais grandes na metade direita do atlas, depois as paredes só de tag */
+export const GRAFF_MURALS = 10;
+export const GRAFF_TAGS = 6;
 
 function canvas(w: number, h: number): [HTMLCanvasElement, CanvasRenderingContext2D] {
   const c = document.createElement('canvas');
@@ -243,7 +248,9 @@ function markerTag(ctx: CanvasRenderingContext2D, text: string, x: number, y: nu
   ctx.restore();
 }
 
-const TAGS = ['BSB', 'DF 61', 'CEI', 'QNN', 'SAMAMBA', 'RAP', 'QUEBRADA', 'SOL NASCENTE', 'GRAVE', 'PAZ', 'TAGUA', 'P.SUL', 'BSBASS', 'É NÓIS', 'LOKO'];
+const TAGS = ['BSB', 'DF 61', 'CEI', 'QNN', 'SAMAMBA', 'RAP', 'QUEBRADA', 'SOL NASCENTE', 'GRAVE', 'PAZ', 'TAGUA', 'P.SUL', 'BSBASS', 'É NÓIS', 'LOKO', 'FAVELA', 'BRASIL', 'DISTRITO FEDERAL'];
+// paredes temáticas: o nome do álbum, a favela, o Brasil e o DF
+const THEME_TAGS = ['BSBASS', 'BSBASS 61', 'FAVELA', 'FAVELA VIVE', 'BRASIL', 'DF', 'DISTRITO FEDERAL', 'DF 61', 'CEI', 'BSB', 'QUEBRADA', 'SOL NASCENTE', 'RECANTO', 'GAMA', 'PLANALTINA', 'SAMAMBAIA', 'TRIBO'];
 
 function pixoWall(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, rnd: Rng, base: 'plaster' | 'brick' | 'block'): void {
   if (base === 'plaster') plaster(ctx, x, y, w, h, rnd, true);
@@ -312,6 +319,151 @@ function grafiteWall(ctx: CanvasRenderingContext2D, x: number, y: number, w: num
     ctx.fillRect(x + rnd() * w, y + h * 0.7, 2, range(rnd, 10, 50));
   }
   redDust(ctx, x, y, w, h, 0.4);
+}
+
+type MuralStyle = 'spray' | 'brasil' | 'df' | 'wild';
+
+/** mural grande: fundo (spray, bandeira do Brasil ou do DF), letra de grafite com sombra 3D e contorno */
+function mural(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, rnd: Rng, word: string, style: MuralStyle): void {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.clip();
+  if (style === 'brasil') {
+    // verde, losango amarelo e círculo azul (pintados à mão no muro)
+    ctx.fillStyle = '#0d7a3a';
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = '#f2c814';
+    ctx.beginPath();
+    ctx.moveTo(x + w * 0.5, y + 14); ctx.lineTo(x + w - 40, y + h / 2); ctx.lineTo(x + w * 0.5, y + h - 14); ctx.lineTo(x + 40, y + h / 2);
+    ctx.fill();
+    ctx.fillStyle = '#1b3a8c';
+    ctx.beginPath();
+    ctx.arc(x + w / 2, y + h / 2, h * 0.36, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (style === 'df') {
+    // bandeira do DF: branco com o quadrado verde e a cruz amarela no meio
+    ctx.fillStyle = '#ecebe4';
+    ctx.fillRect(x, y, w, h);
+    const q = h * 0.7;
+    ctx.fillStyle = '#0f6b34';
+    ctx.fillRect(x + w / 2 - q / 2, y + h / 2 - q / 2, q, q);
+    ctx.strokeStyle = '#f2c814';
+    ctx.lineWidth = q * 0.1;
+    for (const [dx, dy] of [[1, 0], [0, 1]] as const) {
+      ctx.beginPath();
+      ctx.moveTo(x + w / 2 - dx * q * 0.38, y + h / 2 - dy * q * 0.38);
+      ctx.lineTo(x + w / 2 + dx * q * 0.38, y + h / 2 + dy * q * 0.38);
+      ctx.stroke();
+    }
+  } else {
+    ctx.fillStyle = pick(rnd, ['#1d2a6b', '#5c1f6e', '#0f5c55', '#6e2412', '#20242c', '#3a1010', '#102a3a']);
+    ctx.fillRect(x, y, w, h);
+  }
+  noise(ctx, x, y, w, h, rnd, 0.1, 5000, 2);
+  // spray em nuvens
+  const neon = ['#ff2d95', '#26e0ff', '#ffe23b', '#7cff4f', '#ff6a1a', '#9b5cff'];
+  for (let i = 0; i < (style === 'spray' || style === 'wild' ? 60 : 18); i++) {
+    const c = pick(rnd, neon);
+    const gx = x + rnd() * w, gy = y + rnd() * h, r = range(rnd, 10, 60);
+    const g = ctx.createRadialGradient(gx, gy, 0, gx, gy, r);
+    g.addColorStop(0, c + '55');
+    g.addColorStop(1, c + '00');
+    ctx.fillStyle = g;
+    ctx.fillRect(gx - r, gy - r, r * 2, r * 2);
+  }
+  // letras
+  const size = Math.floor(h * (word.length > 10 ? 0.42 : 0.6));
+  ctx.font = `${size}px "Permanent Marker", Impact, sans-serif`;
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  const chars = [...word];
+  const widths = chars.map((c) => ctx.measureText(c).width * (style === 'wild' ? 1.05 : 0.98));
+  const total = widths.reduce((a, b) => a + b, 0);
+  const sx = Math.min(1, (w * 0.9) / total);
+  const fills: [string, string][] = style === 'brasil' ? [['#ffffff', '#f2c814']] : style === 'df' ? [['#f2c814', '#0f6b34']] : [[pick(rnd, ['#ffe23b', '#26e0ff', '#ff2d95', '#ffffff']), pick(rnd, ['#ff6a1a', '#7cff4f', '#9b5cff', '#26e0ff'])]];
+  ctx.translate(x + w / 2 - (total * sx) / 2, y + h * 0.52);
+  ctx.scale(sx, 1);
+  ctx.rotate(-0.03);
+  // três passadas: sombra 3D, contorno branco + preenchimento, contorno fino
+  for (const pass of [0, 1, 2]) {
+    let cx = 0;
+    chars.forEach((c, i) => {
+      const r2 = mulberry32(i * 31 + word.length);
+      const rot = style === 'wild' ? range(r2, -0.22, 0.22) : range(r2, -0.05, 0.05);
+      const dy = style === 'wild' ? range(r2, -h * 0.08, h * 0.08) : 0;
+      ctx.save();
+      ctx.translate(cx + widths[i]! / 2, dy);
+      ctx.rotate(rot);
+      if (pass === 0) {
+        ctx.fillStyle = '#0a0a0a';
+        ctx.fillText(c, -widths[i]! / 2 + 9, 9);
+      } else if (pass === 1) {
+        const g = ctx.createLinearGradient(0, -size * 0.4, 0, size * 0.4);
+        g.addColorStop(0, fills[0]![0]);
+        g.addColorStop(1, fills[0]![1]);
+        ctx.lineWidth = 12;
+        ctx.strokeStyle = style === 'df' ? '#111' : '#fff';
+        ctx.strokeText(c, -widths[i]! / 2, 0);
+        ctx.fillStyle = g;
+        ctx.fillText(c, -widths[i]! / 2, 0);
+      } else {
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = '#111';
+        ctx.strokeText(c, -widths[i]! / 2, 0);
+        // seta de wildstyle saindo de algumas letras
+        if (style === 'wild' && r2() < 0.35) {
+          ctx.lineWidth = 7;
+          ctx.strokeStyle = fills[0]![1];
+          ctx.beginPath();
+          ctx.moveTo(0, -size * 0.45); ctx.lineTo(widths[i]! * 0.5, -size * 0.7); ctx.lineTo(widths[i]! * 0.3, -size * 0.55);
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+      cx += widths[i]!;
+    });
+  }
+  ctx.restore();
+  // escorrido + brilhos
+  for (let i = 0; i < 14; i++) {
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.fillRect(x + rnd() * w, y + h * 0.7, 2, range(rnd, 10, 50));
+  }
+  redDust(ctx, x, y, w, h, 0.4);
+}
+
+/** "bomb"/throw-up: letra gorda prateada com contorno preto (rápido, de madrugada) */
+function throwUp(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, rnd: Rng): void {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(range(rnd, -0.08, 0.06));
+  ctx.font = `${size}px Anton, Impact, sans-serif`;
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = size * 0.16;
+  ctx.strokeStyle = '#0c0c0c';
+  ctx.strokeText(text, 0, 0);
+  ctx.fillStyle = pick(rnd, ['#d8d8d8', '#c9c9c9', '#f0e14a', '#ffffff']);
+  ctx.fillText(text, 0, 0);
+  ctx.restore();
+}
+
+/** parede de tags temáticas: pixo reto, throw-ups e assinaturas de caneta */
+function themedTagWall(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, rnd: Rng, base: 'plaster' | 'brick' | 'block'): void {
+  if (base === 'plaster') plaster(ctx, x, y, w, h, rnd, true);
+  else if (base === 'brick') brick(ctx, x, y, w, h, rnd);
+  else concreteBlock(ctx, x, y, w, h, rnd);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.clip();
+  for (let i = 0; i < 2; i++) drawPixo(ctx, x + range(rnd, -20, w - 160), y + range(rnd, 10, 120), range(rnd, 50, 90), rnd, 'rgba(15,15,15,0.9)');
+  for (let i = 0; i < 2; i++) throwUp(ctx, pick(rnd, ['BSBASS', 'DF', 'FAVELA', 'BSB', '61']), x + range(rnd, 0, w - 330), y + range(rnd, 70, h - 60), range(rnd, 70, 110), rnd);
+  for (let i = 0; i < 5; i++) {
+    markerTag(ctx, pick(rnd, THEME_TAGS), x + rnd() * (w - 220), y + range(rnd, 40, h - 14), range(rnd, 24, 46), pick(rnd, ['#111', '#222', '#c01', '#fff', '#0f6b34', '#1b3a8c']), range(rnd, -0.2, 0.12));
+  }
+  ctx.restore();
 }
 
 function rollingDoor(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, rnd: Rng, color: string, pixo: boolean): void {
@@ -446,7 +598,8 @@ export function makeTextures(photos: typeof PHOTOS = {}): Textures {
   const rnd = mulberry32(6161);
 
   // ---------- atlas das paredes ----------
-  const [wc, w] = canvas(1024, 256 * ATLAS_ROWS);
+  // 2048 de largura: metade esquerda as paredes de sempre, direita os grafites temáticos
+  const [wc, w] = canvas(2048, 256 * ATLAS_ROWS);
   const R = (r: number) => r * 256;
   plaster(w, 0, R(ROW.plaster), 1024, 256, rnd, false);
   plaster(w, 0, R(ROW.plasterDirty), 1024, 256, rnd, true);
@@ -456,6 +609,13 @@ export function makeTextures(photos: typeof PHOTOS = {}): Textures {
   for (let i = 0; i < 6; i++) pixoWall(w, 0, R(ROW.pixo0 + i), 1024, 256, rnd, bases[i]!);
   grafiteWall(w, 0, R(ROW.grafite0), 1024, 256, rnd, 'BSBASS');
   grafiteWall(w, 0, R(ROW.grafite0 + 1), 1024, 256, rnd, 'QUEBRADA 61');
+  const murals: [string, MuralStyle][] = [
+    ['BSBASS', 'wild'], ['FAVELA', 'spray'], ['BRASIL', 'brasil'], ['DISTRITO FEDERAL', 'df'], ['DF 61', 'wild'],
+    ['BSBASS 61', 'spray'], ['FAVELA VIVE', 'wild'], ['CEILÂNDIA', 'spray'], ['BSBASS', 'brasil'], ['QUEBRADA', 'wild'],
+  ];
+  murals.forEach(([word, st], i) => mural(w, 1024, R(i), 1024, 256, rnd, word, st));
+  const tagBases = ['brick', 'plaster', 'block', 'plaster', 'brick', 'plaster'] as const;
+  for (let i = 0; i < GRAFF_TAGS; i++) themedTagWall(w, 1024, R(GRAFF_MURALS + i), 1024, 256, rnd, tagBases[i]!);
   const doorColors = ['#7d8084', '#6a4a2a', '#2f5a7a', '#8a8f93'];
   for (let i = 0; i < 4; i++) rollingDoor(w, i * 256, R(ROW.doors), 256, 256, rnd, doorColors[i]!, i !== 2);
   for (let i = 0; i < 4; i++) windowTile(w, i * 256, R(ROW.windows), 256, 256, rnd, i);

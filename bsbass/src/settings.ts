@@ -33,8 +33,6 @@ export const PRESET_NAMES: Record<PresetChoice, string> = { auto: 'AUTO', baixa:
 
 export interface Settings {
   preset: PresetChoice;
-  /** rabiscos estilo Unbound */
-  doodles: boolean;
   /** rastro das lanternas e faróis */
   trails: boolean;
   rain: boolean;
@@ -50,7 +48,7 @@ export interface Settings {
 
 const KEY = 'bsbass-drift-settings-v1';
 
-export const DEFAULT_SETTINGS: Settings = { preset: 'auto', doodles: true, trails: true, rain: true, shake: true, lens: true, fps: false, control: 'buttons', orbit: true };
+export const DEFAULT_SETTINGS: Settings = { preset: 'auto', trails: true, rain: true, shake: true, lens: true, fps: false, control: 'buttons', orbit: true };
 
 export function loadSettings(): Settings {
   try {

@@ -22,7 +22,6 @@ import { buildMustang, WHEEL_POS, type MustangRig } from './car/mustang';
 import { Traffic } from './traffic/traffic';
 import { makeCloudAtlas, Particles, DustMotes } from './fx/particles';
 import { LightTrail, SkidMarks } from './fx/trails';
-import { Doodle, Doodles } from './fx/doodles';
 import { WetReflection, NO_REFLECT } from './fx/wet';
 import { GuideLine, offsetRight } from './fx/guide';
 import { worldAt } from './campaign/routes';
@@ -136,8 +135,6 @@ export class Game {
   private skids = new SkidMarks();
   private trails: LightTrail[] = [];
   private headTrails: LightTrail[] = [];
-  readonly doodles = new Doodles();
-  private dT = { nitro: 0, speed: 0, drift: 0, wing: 0, burn: 0, color: 0 };
   readonly audio = new AudioSystem();
   readonly radio: Radio;
   readonly input = new Input();
@@ -203,7 +200,7 @@ export class Game {
     this.pixelRatio = Math.min(window.devicePixelRatio || 1, PRESETS[this.preset].pixelRatio);
     this.renderer.setPixelRatio(this.pixelRatio);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.toneMappingExposure = 1.3;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     container.appendChild(this.renderer.domElement);
     this.bindOrbit(this.renderer.domElement);
@@ -212,12 +209,13 @@ export class Game {
     this.camMode = this.save.cam;
 
     // ---------- mundo ----------
-    this.scene.fog = new THREE.FogExp2(0x1c1320, 0.0085);
+    this.scene.fog = new THREE.FogExp2(0x231828, 0.0065);
     this.scene.background = new THREE.Color(0x07060a);
     this.scene.add(buildSky());
-    const hemi = new THREE.HemisphereLight(0x55508a, 0x3a1a0c, 0.95);
+    // rua iluminada: céu de cidade (luz de sódio rebatendo nas nuvens) e chão quente
+    const hemi = new THREE.HemisphereLight(0x6a64a8, 0x5a2c14, 1.6);
     this.scene.add(hemi);
-    const moon = new THREE.DirectionalLight(0x8aa0d8, 0.35);
+    const moon = new THREE.DirectionalLight(0x8aa0d8, 0.55);
     moon.position.set(-300, 400, 200);
     this.scene.add(moon);
 
@@ -350,8 +348,6 @@ export class Game {
       this.headTrails.push(h);
       this.scene.add(h.mesh);
     }
-    this.scene.add(this.doodles.points);
-    this.doodles.points.layers.set(NO_REFLECT);
     this.scorer.total = this.save.total;
     this.scorer.best = this.save.best;
 
@@ -641,7 +637,6 @@ export class Game {
     this.wet?.setScale(this.reflScale, w * this.pixelRatio, h * this.pixelRatio);
     this.smoke.setViewportHeight(h * this.pixelRatio, this.camera.fov);
     this.sparks.setViewportHeight(h * this.pixelRatio, this.camera.fov);
-    this.doodles.setViewportHeight(h * this.pixelRatio, this.camera.fov);
   }
 
   private theme: HTMLAudioElement | null = null;
@@ -921,11 +916,9 @@ export class Game {
     this.rain.setDensity((q.rain * RAIN_BASE) / RAIN_MAX);
     this.cones.visible = q.cones;
     this.smoke.density = this.sparks.density = q.particles;
-    this.doodles.enabled = st.doodles;
-    this.doodles.points.visible = st.doodles;
     for (const t of [...this.trails, ...this.headTrails]) t.mesh.visible = st.trails;
     this.grade.uniforms.uGrain!.value = st.lens ? 0.045 : 0;
-    this.setLightPool(this.lampPool, q.lamps, () => new THREE.PointLight(0xff9a45, 0, 30, 1.6));
+    this.setLightPool(this.lampPool, q.lamps, () => new THREE.PointLight(0xff9a45, 0, 38, 1.5));
     this.setLightPool(this.neonPool, q.neon, () => new THREE.PointLight(0xffffff, 0, 16, 1.6));
     this.lampTimer = 0;
     this.lampTargets = [];
@@ -1002,7 +995,6 @@ export class Game {
     this.crashCd = 0.35;
     this.audio.crash(v);
     this.shake = Math.min(1, this.shake + v * 0.05);
-    if (v > 5) this.burst('crash', px, 0.3, pz);
     for (let i = 0; i < Math.min(40, v * 3); i++) {
       this.sparks.emit({
         x: px, y: 0.5 + Math.random() * 0.4, z: pz,
@@ -1053,7 +1045,6 @@ export class Game {
           const e = this.scorer.nearMiss();
           if (e && e.type === 'nearMiss') {
             this.hud.popup(`RASPANDO! +${fmt(e.points)}`, 'gold');
-            this.burst('near', this.car.x, 0, this.car.z);
             this.audio.nearMiss();
             this.car.addNitro(0.08);
           }
@@ -1093,7 +1084,6 @@ export class Game {
       if (e.type === 'bank') {
         this.hud.bank(e.points, e.label);
         this.audio.bank(e.points > 5000);
-        if (e.points > 1500) this.burst('bank', car.x, 0, car.z);
         this.refreshObjectives();
         this.persist();
       } else if (e.type === 'mult') {
@@ -1284,83 +1274,6 @@ export class Game {
       t.update(this.tmpV2, this.camera, headBase * 0.8);
     });
 
-    if (active) this.emitDoodles(dt, toWorld, c, s);
-    this.doodles.update(dt, this.time);
-  }
-
-  // cores chapadas (≤ 1): traço de desenho, sem brilho de bloom
-  private dColors = [new THREE.Color(0.15, 0.8, 0.85), new THREE.Color(0.85, 0.2, 0.6), new THREE.Color(0.9, 0.75, 0.1)];
-  private dWhite = new THREE.Color(0.85, 0.85, 0.85);
-  private dTeal = new THREE.Color(0.2, 0.85, 0.75);
-  private dYellow = new THREE.Color(0.9, 0.78, 0.1);
-
-  /** rabiscos estilo Unbound: nitro, drift, patinada */
-  private emitDoodles(dt: number, toWorld: (x: number, y: number, z: number, out: THREE.Vector3) => THREE.Vector3, c: number, s: number): void {
-    const car = this.car;
-    const T = this.dT;
-    for (const k of Object.keys(T) as (keyof typeof T)[]) if (k !== 'color') T[k] -= dt;
-    const fwdX = s, fwdZ = c;
-    const v = this.tmpV;
-    // nitro: chama rabiscada ciano nas ponteiras + linhas de velocidade
-    if (car.nitroActive) {
-      if (T.nitro <= 0) {
-        T.nitro = 0.06;
-        for (const e of [this.rig.exhausts[0]!, this.rig.exhausts[2]!]) {
-          toWorld(e.x, e.y + 0.05, e.z - 0.35, v);
-          this.doodles.emit(Doodle.Flame, v.x, v.y, v.z, car.vx * 0.6 - fwdX * 5, 0.2, car.vz * 0.6 - fwdZ * 5, 0.5, 0.26, this.dTeal, { rot: Math.PI + (Math.random() - 0.5) * 0.4, grow: 0.3 });
-        }
-      }
-      if (T.speed <= 0) {
-        T.speed = 0.11;
-        const side = Math.random() < 0.5 ? -1 : 1;
-        toWorld(side * (1.4 + Math.random() * 0.8), 0.6 + Math.random() * 0.9, -1 - Math.random() * 2, v);
-        this.doodles.emit(Doodle.Speed, v.x, v.y, v.z, car.vx * 0.5 - fwdX * 8, 0, car.vz * 0.5 - fwdZ * 8, 0.85, 0.24, this.dWhite, { rot: (Math.random() - 0.5) * 0.3, alpha: 0.85 });
-        if (Math.random() < 0.25) {
-          toWorld(side * 1.2, 1.1, -2.6, v);
-          this.doodles.emit(Doodle.Bolt, v.x, v.y, v.z, car.vx * 0.4, 0.3, car.vz * 0.4, 0.6, 0.3, this.dTeal, { rot: (Math.random() - 0.5) * 0.8 });
-        }
-      }
-    }
-    // drift: nuvens rabiscadas saindo da traseira + asa quando o ângulo é grande
-    if (this.scorer.drifting && car.rearSlip > 0.35) {
-      if (T.drift <= 0) {
-        T.drift = 0.1;
-        T.color = (T.color + 1) % 3;
-        const wx = Math.random() < 0.5 ? 0.9 : -0.9;
-        toWorld(wx, 0.5, -1.6, v);
-        this.doodles.emit(Doodle.Cloud, v.x, v.y, v.z, car.vx * 0.25, 0.7, car.vz * 0.25, 0.6 + Math.random() * 0.25, 0.55, this.dColors[T.color]!, { grow: 0.9, spin: (Math.random() - 0.5) * 2 });
-      }
-      if (this.scorer.angle > 32 && T.wing <= 0) {
-        T.wing = 0.45;
-        const out = car.slipAngle > 0 ? -1 : 1; // lado de fora da curva
-        toWorld(out * 1.6, 1.2, -0.4, v);
-        this.doodles.emit(Doodle.Wing, v.x, v.y, v.z, car.vx * 0.85, 0.4, car.vz * 0.85, 1.05, 0.42, this.dWhite, { rot: out > 0 ? 0 : Math.PI, grow: 0.2 });
-      }
-    }
-    // patinada / arrancada: espiral e estrelinhas nas rodas
-    if (car.wheelSpin > 0.35 && car.speed < 14 && T.burn <= 0) {
-      T.burn = 0.12;
-      const wx = Math.random() < 0.5 ? 0.9 : -0.9;
-      toWorld(wx, 0.4, -1.5, v);
-      this.doodles.emit(Math.random() < 0.6 ? Doodle.Swirl : Doodle.Star, v.x, v.y, v.z, (Math.random() - 0.5) * 2, 1, (Math.random() - 0.5) * 2, 0.5, 0.45, this.dWhite, { spin: 4 });
-    }
-  }
-
-  /** estouro de rabiscos num ponto (batida, raspada, combo) */
-  burst(kind: 'crash' | 'near' | 'bank', x: number, y: number, z: number): void {
-    const d = this.doodles;
-    if (kind === 'crash') {
-      d.emit(Doodle.Star, x, y + 0.6, z, 0, 1.2, 0, 0.8, 0.45, this.dYellow, { spin: 3 });
-      d.emit(Doodle.Bolt, x + 0.4, y + 0.9, z, 0, 1, 0, 0.6, 0.4, this.dWhite);
-    } else if (kind === 'near') {
-      d.emit(Doodle.Ring, x, y + 1.8, z, 0, 0.6, 0, 0.7, 0.5, this.dYellow, { grow: 0.6 });
-    } else {
-      d.emit(Doodle.Ring, x, y + 2.4, z, 0, 1, 0, 1.3, 0.7, this.dYellow, { grow: 0.7 });
-      for (let k = 0; k < 5; k++) {
-        const a = (k / 5) * Math.PI * 2;
-        d.emit(Doodle.Star, x + Math.cos(a) * 1.5, y + 1.8, z + Math.sin(a) * 1.5, Math.cos(a) * 3, 2, Math.sin(a) * 3, 0.45, 0.6, this.dColors[k % 3]!, { spin: 5 });
-      }
-    }
   }
 
   private camTgtPos = new THREE.Vector3();
@@ -1610,7 +1523,7 @@ export class Game {
     }
     this.lampTargets.forEach((t, i) => {
       const l = this.lampPool[i]!;
-      l.intensity += (t.w * 55 - l.intensity) * Math.min(1, dt * 8);
+      l.intensity += (t.w * 80 - l.intensity) * Math.min(1, dt * 8);
     });
     // neon mais perto pinta o carro e o chão molhado de cor
     const near = this.neonLights

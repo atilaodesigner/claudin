@@ -6,10 +6,10 @@ import * as THREE from 'three';
 import { makeSoftTexture, type MustangRig } from './mustang';
 import type { PreparedCar } from './gltfCar';
 
-const TAIL_RE = /tail.?light|tail.?lamp|rear.?light|back.?light|brake.?light|stop.?light|lanterna|luz.?tras|rear.?lamp|farol.?tras|tras(eir|er)/i;
+const TAIL_RE = /tail.?light|tail.?lamp|rear.?light|back.?light|brake.?light|stop.?light|lanterna|luz.?tras|rear.?lamp|farol.?tras/i;
 const HEAD_RE = /head.?light|headlamp|front.?light|farol|head_lamp|frontlamp|tungsten/i;
 // carcaça, cromado, vidro, pinça de freio...: não acendem (senão o farol inteiro estoura no bloom)
-const NOT_LAMP_RE = /housing|chrome|chome|caliper|calliper|disc|glass|vidro|plastic|paint|shadow|interior|misc|filler/i;
+const NOT_LAMP_RE = /housing|chrome|chome|caliper|calliper|disc|glass|vidro|plastic|paint|shadow|interior|misc|filler|pneu|tire|tyre|wheel|aro_|rim/i;
 
 /** ponto da superfície do carro visto de frente (+1) ou de trás (-1) numa altura/lado */
 function probe(p: PreparedCar, dir: 1 | -1, x: number, y: number): THREE.Vector3 {
@@ -150,7 +150,7 @@ export function buildGltfRig(p: PreparedCar, env: THREE.Texture | null, paintCol
   root.add(underglow);
 
   // farol aceso em qualquer qualidade (o BAIXA não tem bloom): brilho nas lentes e mancha de luz no asfalto
-  const glowMat = new THREE.MeshBasicMaterial({ map: soft, color: new THREE.Color(1.2, 1.12, 0.98), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+  const glowMat = new THREE.MeshBasicMaterial({ map: soft, color: new THREE.Color(0.8, 0.75, 0.66), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
   for (const hpos of L.heads) {
     const g = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.26), glowMat);
     g.position.copy(hpos).setZ(hpos.z + 0.05);

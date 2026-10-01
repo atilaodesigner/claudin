@@ -805,7 +805,6 @@ const TEMPLATE = /* html */ `
     </section>
     <section>
       <h4>EFEITOS</h4>
-      <button class="tg" role="switch" data-opt="doodles"><span>Rabiscos no drift e no nitro</span><i></i></button>
       <button class="tg" role="switch" data-opt="trails"><span>Rastro das lanternas e faróis</span><i></i></button>
       <button class="tg" role="switch" data-opt="rain"><span>Chuva</span><i></i></button>
       <button class="tg" role="switch" data-opt="shake"><span>Tremida de câmera</span><i></i></button>

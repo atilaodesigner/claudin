@@ -24,6 +24,8 @@ export interface CarEntry {
   weight?: number;
   /** tipo pro tráfego: 4 = ônibus (anda mais devagar, mais pesado) */
   bus?: boolean;
+  /** o modelo veio com um material só pra tudo: monta pintura, vidro, cromo, pneu... pelo nome das peças */
+  restyle?: boolean;
   credit: string;
   license: string;
   url: string;
@@ -81,7 +83,7 @@ function frontIsBack(model: THREE.Object3D, box: THREE.Box3): boolean {
     const m = o as THREE.Mesh;
     if (!m.isMesh) return;
     const n = `${m.name} ${(Array.isArray(m.material) ? m.material : [m.material]).map((x) => x.name).join(' ')}`;
-    const isTail = /tail.?light|taillamp|rear.?light|lanterna|brake.?light|tras(eir|er)/i.test(n);
+    const isTail = /tail.?light|taillamp|rear.?light|lanterna|brake.?light|farol.?tras/i.test(n);
     const isHead = !isTail && /head.?light|headlamp|farol|front.?light/i.test(n);
     if (!isHead && !isTail) return;
     tb.setFromObject(m);
@@ -140,6 +142,34 @@ function splitBySide(m: THREE.Mesh, holder: THREE.Object3D): THREE.Mesh[] | null
   return out;
 }
 
+// nome da peça → material (modelos que chegam sem material, como o Uno)
+const STYLE: [RegExp, () => THREE.MeshStandardMaterial][] = [
+  [/vidro|glass|window/i, () => new THREE.MeshStandardMaterial({ name: 'glass', color: 0x050608, metalness: 0.2, roughness: 0.08 })],
+  [/farol_tras|lanterna|tail/i, () => new THREE.MeshStandardMaterial({ name: 'tail light', color: 0x8a0a06, emissive: 0x300000, roughness: 0.2 })],
+  [/seta|pisca/i, () => new THREE.MeshStandardMaterial({ name: 'seta', color: 0xd06a10, roughness: 0.25 })],
+  [/farol|lente|lampada|headl/i, () => new THREE.MeshStandardMaterial({ name: 'headlight', color: 0xdfe4e8, metalness: 0.6, roughness: 0.1 })],
+  [/pneu|tire|tyre|borracha/i, () => new THREE.MeshStandardMaterial({ name: 'rubber', color: 0x101010, roughness: 0.9 })],
+  [/aro|rim|calota/i, () => new THREE.MeshStandardMaterial({ name: 'rim', color: 0xb8bcc0, metalness: 0.85, roughness: 0.3 })],
+  [/espelho|logo|parafuso|escape|cromo|chrome|fechadura|emblema/i, () => new THREE.MeshStandardMaterial({ name: 'chrome', color: 0xd8d8d8, metalness: 1, roughness: 0.15 })],
+  [/placa/i, () => new THREE.MeshStandardMaterial({ name: 'plate', color: 0xc9c9c0, roughness: 0.5 })],
+  [/chassi|capo|porta|teto|spoiler|bogidinho|lataria|body/i, () => new THREE.MeshStandardMaterial({ name: 'carpaint', color: 0x9a9da2, metalness: 0.5, roughness: 0.35 })],
+];
+const STYLE_DEFAULT = () => new THREE.MeshStandardMaterial({ name: 'black plastic', color: 0x18191b, roughness: 0.7 });
+
+/** troca o material único do modelo por um por peça, escolhido pelo nome */
+function restyle(model: THREE.Object3D): void {
+  const made = new Map<number, THREE.MeshStandardMaterial>();
+  model.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return;
+    const name = chainName(m, model);
+    let k = STYLE.findIndex(([re]) => re.test(name));
+    if (k < 0) k = STYLE.length;
+    if (!made.has(k)) made.set(k, k < STYLE.length ? STYLE[k]![1]() : STYLE_DEFAULT());
+    m.material = made.get(k)!;
+  });
+}
+
 const GLASS_RE = /glass|window|windshield|windscreen|vidro|janela|parabrisa/i;
 const NOT_GLASS_RE = /light|lamp|farol|lanterna|red|orange|amber|mirror|espelho/i;
 
@@ -161,6 +191,7 @@ function tintGlass(mat: THREE.MeshPhysicalMaterial): void {
 
 export function prepareCar(src: THREE.Object3D, entry: CarEntry): PreparedCar {
   const model = src.clone(true);
+  if (entry.restyle) restyle(model);
   // materiais próprios por cópia (a pintura de cada carro é independente)
   model.traverse((o) => {
     const m = o as THREE.Mesh;

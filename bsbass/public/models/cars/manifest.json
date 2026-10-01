@@ -41,7 +41,9 @@
     "credit": "subishi",
     "license": "CC-BY 4.0",
     "file": "uno.glb",
-    "url": "https://sketchfab.com/3d-models/f5e38b26c0af4ef2ab2f4c4b2e5aad5c"
+    "url": "https://sketchfab.com/3d-models/f5e38b26c0af4ef2ab2f4c4b2e5aad5c",
+    "restyle": true,
+    "paint": "^carpaint$"
   },
   {
     "id": "uno-escada",

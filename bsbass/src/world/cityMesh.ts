@@ -9,7 +9,7 @@ import {
   AVENUE_Z, BALAO, BLOCK_HALF, BORDER, CURB_H, EXTENT, NODES, PITCH, ROAD, SHOP_NAMES, SIDEWALK,
   inBalao, nodePos, type City, type Lamp, type Lot,
 } from './city';
-import { ATLAS_ROWS, ROW, SIGN_ROW, type Textures } from './textures';
+import { ATLAS_ROWS, GRAFF_MURALS, GRAFF_TAGS, ROW, SIGN_ROW, type Textures } from './textures';
 import { buildVehicle, PAINTS } from '../traffic/vehicles';
 import { patchTriplanar } from '../fx/triplanar';
 import type { Assets } from '../assets';
@@ -20,16 +20,33 @@ const TILE_W = 12; // metros por largura de linha do atlas
 const FLOOR_H = 3;
 
 function rowUV(row: number, u0: number, u1: number, vf0 = 0, vf1 = 1): UVRect {
-  const top = 1 - row / ATLAS_ROWS;
-  const bot = 1 - (row + 1) / ATLAS_ROWS;
+  // linhas 16+ ficam na metade direita do atlas (grafites temáticos)
+  const half = row >= ROW.graff0 ? 1 : 0;
+  const r = row - half * ROW.graff0;
+  const top = 1 - r / ATLAS_ROWS;
+  const bot = 1 - (r + 1) / ATLAS_ROWS;
   const h = top - bot;
-  // encolhe meio texel pra não sangrar a linha vizinha
+  // encolhe meio texel pra não sangrar a linha vizinha (e a outra metade)
   const e = 0.5 / (256 * ATLAS_ROWS);
-  return [u0, bot + h * vf0 + e, u1, bot + h * vf1 - e];
+  const eu = 1 / 2048;
+  const u = (t: number) => half * 0.5 + eu + t * (0.5 - 2 * eu);
+  return [u(u0), bot + h * vf0 + e, u(u1), bot + h * vf1 - e];
+}
+
+/** mural: às vezes os dois antigos, quase sempre os temáticos (BSBASS, favela, Brasil, DF) */
+function muralRow(rnd: () => number): number {
+  return rnd() < 0.15 ? ROW.grafite0 + Math.floor(rnd() * 2) : ROW.graff0 + Math.floor(rnd() * GRAFF_MURALS);
+}
+
+/** parede pixada: metade pixo reto, metade tags temáticas */
+function tagRow(rnd: () => number): number {
+  return rnd() < 0.5 ? ROW.pixo0 + Math.floor(rnd() * 6) : ROW.graff0 + GRAFF_MURALS + Math.floor(rnd() * GRAFF_TAGS);
 }
 
 function spanUV(row: number, width: number, rnd: () => number, vf0 = 0, vf1 = 1): UVRect {
-  const span = Math.min(1, width / TILE_W);
+  // mural é palavra inteira: espreme na parede em vez de cortar no meio
+  const mural = (row >= ROW.grafite0 && row < ROW.grafite0 + 2) || (row >= ROW.graff0 && row < ROW.graff0 + GRAFF_MURALS);
+  const span = mural ? 1 : Math.min(1, width / TILE_W);
   const u0 = rnd() * (1 - span);
   return rowUV(row, u0, u0 + span, vf0, vf1);
 }
@@ -254,7 +271,7 @@ export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = 
         const ax = l.x + dx * 2.2, az = l.z + dz * 2.2;
         (k === 0 ? medianPoles : medianArms).push(new THREE.Matrix4().makeRotationY(Math.atan2(dx, dz)).setPosition(l.x, 0, l.z));
         lampLights.push(new THREE.Vector3(ax, LAMP_H - 0.6, az));
-        poolQuad(pools, ax, az, 10.5, hex(0xff9a3c, 0.32));
+        poolQuad(pools, ax, az, 10.5, hex(0xff9a3c, 0.46));
       });
       continue;
     }
@@ -278,7 +295,7 @@ export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = 
       flat.mat = 3;
       lampLights.push(new THREE.Vector3(ax, H - 0.6, az));
       // mancha de luz no chão
-      poolQuad(pools, ax, az, 10.5, hex(0xff9a3c, 0.32));
+      poolQuad(pools, ax, az, 10.5, hex(0xff9a3c, 0.46));
     }
   }
   flat.resetTransform();
@@ -355,7 +372,7 @@ export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = 
       const t0 = k / n, t1 = (k + 1) / n;
       const ax = x0 + (x1 - x0) * t0, az = z0 + (z1 - z0) * t0;
       const bx = x0 + (x1 - x0) * t1, bz = z0 + (z1 - z0) * t1;
-      const row = rnd() < 0.7 ? ROW.pixo0 + Math.floor(rnd() * 6) : rnd() < 0.5 ? ROW.grafite0 + Math.floor(rnd() * 2) : ROW.block;
+      const row = rnd() < 0.55 ? tagRow(rnd) : rnd() < 0.7 ? muralRow(rnd) : ROW.block;
       walls.quad([bx, 0, bz], [ax, 0, az], [ax, 3.2, az], [bx, 3.2, bz], spanUV(row, 10, rnd), [1, 1, 1]);
       walls.quad([ax, 0, az], [bx, 0, bz], [bx, 3.2, bz], [ax, 3.2, az], spanUV(ROW.block, 10, rnd), [0.8, 0.8, 0.8]);
     }
@@ -439,7 +456,7 @@ export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = 
   };
   if (breakLamps.length) {
     const pp = new GeoBuilder();
-    poolQuad(pp, 0, 2.2, 10.5, hex(0xff9a3c, 0.32));
+    poolQuad(pp, 0, 2.2, 10.5, hex(0xff9a3c, 0.46));
     const pool = instOf(pp.build(), poolMat, lampBase, 'lampPools', 2);
     if (lampModel) {
       const nv = lampModel.variants.length;
@@ -657,7 +674,7 @@ function buildLot(lot: Lot, walls: GeoBuilder, glow: GeoBuilder, signs: GeoBuild
   for (const B of [walls, glow, signs, flat, emissive]) B.setTransform(lot.x, y0, lot.z, lot.rot);
 
   const baseRow = lot.style === 'brick' ? ROW.brick : lot.style === 'block' ? ROW.block : rnd() < 0.5 ? ROW.plaster : ROW.plasterDirty;
-  const pixoRow = () => ROW.pixo0 + Math.floor(rnd() * 6);
+  const pixoRow = () => tagRow(rnd);
 
   // ---- corpo da casa, andar por andar ----
   for (let f = 0; f < lot.floors; f++) {
@@ -666,7 +683,7 @@ function buildLot(lot: Lot, walls: GeoBuilder, glow: GeoBuilder, signs: GeoBuild
     const unfinished = f > 0 && f === lot.floors - 1 && rnd() < 0.45;
     let row: number = unfinished ? ROW.brick : baseRow;
     let col: RGB = unfinished || row === ROW.brick || row === ROW.block ? [1, 1, 1] : paint;
-    if (f === 0 && !lot.muro && rnd() < 0.45) { row = pixoRow(); col = [1, 1, 1]; }
+    if (f === 0 && !lot.muro && rnd() < 0.45) { row = rnd() < 0.25 ? muralRow(rnd) : pixoRow(); col = [1, 1, 1]; }
     // fachada
     walls.wallZ(-hw, hw, fy0, fy1, hz, spanUV(row, lot.w, rnd), col);
     // laterais (aparecem quando o vizinho é mais baixo)
@@ -765,7 +782,7 @@ function buildLot(lot: Lot, walls: GeoBuilder, glow: GeoBuilder, signs: GeoBuild
     const mh = 2.3;
     const gate = range(rnd, 2.6, 3.2);
     const gx = range(rnd, -hw + gate / 2 + 0.5, hw - gate / 2 - 0.5);
-    const mRow = rnd() < 0.55 ? pixoRow() : rnd() < 0.12 ? ROW.grafite0 + Math.floor(rnd() * 2) : baseRow;
+    const mRow = rnd() < 0.5 ? pixoRow() : rnd() < 0.3 ? muralRow(rnd) : baseRow;
     const mCol: RGB = mRow >= ROW.pixo0 || mRow === ROW.brick || mRow === ROW.block ? [1, 1, 1] : paint;
     const z = front - 0.1;
     walls.wallZ(-hw, gx - gate / 2, 0, mh, z, spanUV(mRow, gx - gate / 2 + hw, rnd, 0, mh / FLOOR_H), mCol);

@@ -86,13 +86,14 @@ O build é estático (`base: './'`): dá pra hospedar `dist/` em qualquer lugar.
 - **Achando o caminho**: a bússola no topo aponta o ponto disponível mais perto (ou o próximo a destrancar); segurando o mapa ela aponta o ferro-velho e o mapa grande abre. Minimapa e mapa usam as mesmas cores.
 - **Ferro-velho (base do bonde)**: pátio de terra cercado com guindastes, torre de luz, contêiner, pilhas de pneu e de carro, tambor com fogo e a bandeira do BSBASS balançando entre os ganchos. O portão abre quando você chega e fecha depois. Lá dentro tem dois círculos com ícone girando, igual os das missões: **GARAGEM** (troca, compra e pinta o carro) e **PERSONAGENS** (escolhe quem pilota); para dentro e segura a ação pra abrir o menu. Os carros do bonde ficam estacionados e a galera em pé em volta do fogo. É lugar seguro: sem polícia, sem dano, sem pontuação, e a música abaixa. Tem ícone próprio no mapa desde o começo.
 - **Rua de verdade**: os postes são de madeira (Poly Haven), com cruzeta e isoladores onde os fios amarram, um em cada quatro com transformador, braço curvo e luminária de sódio; as cruzetas só aparecem até uns 230 m da câmera. Os carros estacionados no meio-fio são os mesmos modelos do tráfego (Uno, Uno com escada, Kombi; o ônibus não estaciona), parados, de farol apagado e cada um com uma cor. Todo carro (o seu, o tráfego e os estacionados) tem vidro com película preta: não dá pra ver o interior.
+- **Grafite e pixo**: murais grandes de BSBASS, FAVELA, BRASIL (na bandeira), DISTRITO FEDERAL (na bandeira do DF), DF 61, CEILÂNDIA, QUEBRADA, com letra de wildstyle, e paredes de tag com throw-ups e assinaturas das quebradas do DF. O mural sempre aparece inteiro no muro.
 - **Farol sempre aceso**: o carro do jogador acende o farol em qualquer qualidade, com brilho nas lentes e a luz no asfalto à frente mesmo no BAIXA (sem bloom).
 - **Coisas que caem**: poste de calçada, lixeira, tambor, caixa de papelão, cadeira de plástico, botijão, saco de lixo, caixote, hidrante e caixa de energia não seguram o carro: batendo rápido o bastante eles saem voando (o poste tomba, apaga e arrebenta os fios, o hidrante vira chafariz, a caixa de energia solta faísca) e o carro perde só o embalo que o objeto leva, sem perder o combo. Devagar, o poste ainda segura. Longe dali, tudo volta pro lugar.
 - **Tráfego**: Gol quadrado, Uno, Kombi saia-e-blusa, picape e busão. Andam na mão, contornam o balão no sentido certo, buzinam se você parar na frente e saem rodando quando levam pancada.
 - **Superfícies**: asfalto, calçada e o **terrão** de terra vermelha (menos aderência, levanta poeira).
 - **Rádio**: GRAVE 61 FM (funk de quebrada), BSBASS PHONK (drift phonk) e EIXÃO TRAP, tudo sintetizado na hora. O paredão da feira pisca no grave. Volume de música e de carro separados.
 - **Fumaça de desenho**: a fumaça do pneu, a poeira e a das batidas são nuvens "brócolis" (cacho de bolotas com sombra de desenho e borda firme) que se desfazem pelas bordas.
-- **Rabiscos estilo NFS Unbound**: traço de caneta que "ferve" em volta do carro: laçadas de fumaça no drift, asa quando o ângulo passa de 32°, zigue-zague de chama e linhas de velocidade no nitro, espiral na patinada e estalos na batida, no raspando e quando o combo vai pro bolso. Lanternas e faróis deixam rastro de luz.
+- **Rastro de luz**: lanternas e faróis deixam rastro de luz.
 - **Abertura**: logo da Gueto Game Studio animada em código (moldura desenhada por um rastro de lanterna, letras entrando de lado, separação de cor, GAME STUDIO acendendo como neon) e depois o vídeo da logo BSBASS, enquanto o jogo carrega, monta a cidade e compila os shaders por trás. Toque ou tecla pula.
 - **Celular em pé**: antes da abertura aparece o aviso DEITA O CELULAR (com botão de tela cheia deitada no Android); vira o celular e ele some sozinho, ou dá pra jogar em pé mesmo.
 - **HUD enxuto**: velocímetro no canto de baixo (no celular deitado, pequeno entre os controles), textos menores e o nome da música só aparece quando troca.
@@ -100,7 +101,7 @@ O build é estático (`base: './'`): dá pra hospedar `dist/` em qualquer lugar.
 - **Controle no celular**: antes do BORA! o jogador escolhe BOTÕES (◀ ▶ na tela) ou GIRAR O CELULAR (inclina o celular deitado igual volante, estilo Asphalt; freio e drift na esquerda, gás e nitro na direita). No iPhone a permissão do sensor é pedida no toque; sem sensor fica nos botões.
 - **Música de abertura**: toca nas logos, no menu e segue na partida até acabar; trocar a rádio (Q / RÁDIO) pula pra rádio.
 - **Menu**: JOGAR, CONFIGURAÇÕES e COMO JOGAR. Os créditos ficam no fim das configurações: desenvolvido pela Gueto Game Studio, direção artística e construção por Átila (@atiladesigner) para o álbum BSBASS da Tribo da Periferia.
-- **Qualidade gráfica**: AUTO, BAIXA, MÉDIA, ALTA e ULTRA mudam resolução, reflexo do asfalto, bloom, chuva, luzes dinâmicas, cones de luz e partículas na hora, sem recarregar. No AUTO começa em MÉDIA (celular) ou ALTA (PC) e desce sozinho se o FPS cair. Dá pra desligar rabiscos, rastro de luz, chuva, tremida de câmera e efeito de lente, e mostrar o FPS.
+- **Qualidade gráfica**: AUTO, BAIXA, MÉDIA, ALTA e ULTRA mudam resolução, reflexo do asfalto, bloom, chuva, luzes dinâmicas, cones de luz e partículas na hora, sem recarregar. No AUTO começa em MÉDIA (celular) ou ALTA (PC) e desce sozinho se o FPS cair. Dá pra desligar rastro de luz, chuva, tremida de câmera e efeito de lente, e mostrar o FPS.
 - Progresso (pontos, maior drift, fitas, rachas, câmera, rádio, capítulos, moedas, carro, piloto e pintura) e as configurações ficam salvos no navegador.
 
 ## Estrutura
@@ -126,7 +127,6 @@ src/
   utils/mergeModel.ts   junta as malhas de um GLB por material (pra instanciar)
   assets.ts             carrega texturas e modelos
   traffic/              modelos e IA do tráfego
-  fx/doodles.ts         rabiscos estilo Unbound (atlas em canvas + pontos na GPU)
   fx/                   fumaça, poeira, faíscas, marcas de pneu, rastro das lanternas
   settings.ts           presets de qualidade e opções salvas
   audio/                motor V8, pneu, efeitos e as rádios
