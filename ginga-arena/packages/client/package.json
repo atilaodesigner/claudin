@@ -1,0 +1,22 @@
+{
+  "name": "@ginga/client",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/three": "0.186.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.1"
+  },
+  "dependencies": {
+    "@colyseus/sdk": "0.18.4",
+    "@ginga/shared": "0.0.1",
+    "three": "0.186.1"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "ginga-arena",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:client": "npm run dev -w @ginga/client",
+    "dev:server": "npm run dev -w @ginga/server",
+    "build": "npm run build -w @ginga/client",
+    "start:server": "npm run start -w @ginga/server",
+    "test": "npm run test -w @ginga/shared -w @ginga/server",
+    "typecheck": "npm run typecheck -w @ginga/shared -w @ginga/server -w @ginga/client -w @ginga/edge",
+    "dev:edge": "npm run dev -w @ginga/edge",
+    "deploy:server": "npm run deploy -w @ginga/edge"
+  }
+}

@@ -1,4 +1,4 @@
-> **Outros projetos neste repositório:** [`abduziu/`](abduziu/): jogo web em Three.js, *ABDUZIU*.
+> **Outros projetos neste repositório:** [`abduziu/`](abduziu/): jogo web em Three.js, *ABDUZIU*. [`ginga-arena/`](ginga-arena/): futevôlei arcade multiplayer para navegador, *GINGA ARENA* (plano).
 
 # Balanço do Barco: color grading
 

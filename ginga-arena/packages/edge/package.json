@@ -1,0 +1,20 @@
+{
+  "name": "@ginga/edge",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "prepare-rapier": "node scripts/prepare-rapier.mjs",
+    "dev": "npm run prepare-rapier && wrangler dev --port 8787",
+    "deploy": "npm run prepare-rapier && wrangler deploy",
+    "typecheck": "npm run prepare-rapier && tsc --noEmit"
+  },
+  "dependencies": {
+    "@ginga/shared": "0.0.1"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20260928.1",
+    "typescript": "7.0.2",
+    "wrangler": "4.143.0"
+  }
+}
