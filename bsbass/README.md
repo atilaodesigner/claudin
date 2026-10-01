@@ -6,7 +6,7 @@ Jogo de drift que roda direto no navegador (celular em pé ou PC), feito com **T
 
 É madrugada depois do temporal: asfalto molhado com reflexo de verdade (câmera espelhada + poças), chuva fina, cone de luz nos postes, neon de bar, açaí, sinuca, igreja e barbearia, fita de LED no comércio e outdoor aceso em cima da laje.
 
-A cidade, o Mustang, o neon, o áudio e as três rádios são procedurais. Por cima disso entram assets gratuitos de licença **CC0** (domínio público):
+A cidade, o Mustang, o neon e os sons do carro são procedurais. Por cima disso entram assets gratuitos de licença **CC0** (domínio público):
 
 | O quê | Fonte | Onde |
 |---|---|---|
@@ -91,7 +91,7 @@ O build é estático (`base: './'`): dá pra hospedar `dist/` em qualquer lugar.
 - **Coisas que caem**: poste de calçada, lixeira, tambor, caixa de papelão, cadeira de plástico, botijão, saco de lixo, caixote, hidrante e caixa de energia não seguram o carro: batendo rápido o bastante eles saem voando (o poste tomba, apaga e arrebenta os fios, o hidrante vira chafariz, a caixa de energia solta faísca) e o carro perde só o embalo que o objeto leva, sem perder o combo. Devagar, o poste ainda segura. Longe dali, tudo volta pro lugar.
 - **Tráfego**: Gol quadrado, Uno, Kombi saia-e-blusa, picape e busão. Andam na mão, contornam o balão no sentido certo, buzinam se você parar na frente e saem rodando quando levam pancada.
 - **Superfícies**: asfalto, calçada e o **terrão** de terra vermelha (menos aderência, levanta poeira).
-- **Rádio**: GRAVE 61 FM (funk de quebrada), BSBASS PHONK (drift phonk) e EIXÃO TRAP, tudo sintetizado na hora. O paredão da feira pisca no grave. Volume de música e de carro separados.
+- **Rádio** (música de verdade, em streaming de `public/radio/`): **BSBASS FM** abre com *Um Grave Romance* (Tribo da Periferia, a música da abertura) e segue no hip-hop; **TRAP 61** e **CRUNK DO DF** (crunk / dirty south). Faixas do [ccMixter](https://ccmixter.org), licença CC-BY 3.0: *The Power of Will*, *Trap Monopoly*, *Goat (Southern Trap)*, *SunLight* e *The Right Voice* (Robbero), *Slow Down Move Over* (Reiswerk), *I Dunno* (grapes), *Slumlord* (lotagblanco), *PoPPin Over Here* (Jeffo_32), *KyA (dirrty)* (Paulus), *The Crunk Alphabet* (blakeht), *M.U.S.T.A.N.G (Going South)* (whytong). Normalizadas em −14 LUFS, 96 kbps. O paredão da feira pisca no grave da música. Volume de música e de carro separados.
 - **Fumaça de desenho**: a fumaça do pneu, a poeira e a das batidas são nuvens "brócolis" (cacho de bolotas com sombra de desenho e borda firme) que se desfazem pelas bordas.
 - **Rastro de luz**: lanternas e faróis deixam rastro de luz.
 - **Abertura**: logo da Gueto Game Studio animada em código (moldura desenhada por um rastro de lanterna, letras entrando de lado, separação de cor, GAME STUDIO acendendo como neon) e depois o vídeo da logo BSBASS, enquanto o jogo carrega, monta a cidade e compila os shaders por trás. Toque ou tecla pula.
@@ -129,7 +129,7 @@ src/
   traffic/              modelos e IA do tráfego
   fx/                   fumaça, poeira, faíscas, marcas de pneu, rastro das lanternas
   settings.ts           presets de qualidade e opções salvas
-  audio/                motor V8, pneu, efeitos e as rádios
+  audio/                motor V8, pneu, efeitos e a rádio (MP3 em streaming)
   ui/intro.ts           abertura (Gueto Game Studio + vídeo BSBASS) e barra de carregamento
   car/gltfCar.ts        normaliza carros GLB (escala, frente, rodas, pintura)
   ui/hud.ts             HUD, menu, configurações, intro, pausa, player do rádio, minimapa, mapa grande

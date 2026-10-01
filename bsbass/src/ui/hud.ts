@@ -843,6 +843,10 @@ const TEMPLATE = /* html */ `
       <p>Poly Haven (CC0): tambores, pneu, carro com capa, ar-condicionado, hidrante, lixeira, caixa de energia, barreira, saco de cimento, caixa, rádio, cadeira de plástico, engradado, botijão de gás, saco de lixo e caixote de madeira.</p>
     </section>
     <section class="cred">
+      <h4>MÚSICA</h4>
+      <p>Abertura e BSBASS FM: <b>Um Grave Romance</b>, Tribo da Periferia. Rádios (ccMixter, CC-BY 3.0): Robbero, Reiswerk, grapes, lotagblanco, Jeffo_32, Paulus, blakeht, whytong.</p>
+    </section>
+    <section class="cred">
       <h4>SONS</h4>
       <p>Freesound: FreeCarSoundsGaming, audible-edge, magnuswaker, LPA134, qubodup, innov8_Music, Pól, craigsmith, mihnelis, FiretailHorizons.</p>
     </section>

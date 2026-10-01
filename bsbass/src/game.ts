@@ -370,11 +370,12 @@ export class Game {
     this.hud.onStart = () => {
       this.audio.start();
       // a música de abertura continua na partida; a rádio espera ela acabar
-      if (this.themePlaying()) {
+      const theme = this.themePlaying();
+      if (theme) {
         this.radio.on = false;
         this.hud.themeLabel = THEME_LABEL;
       }
-      this.radio.start();
+      this.radio.start(theme);
       this.hud.renderRadio();
     };
     this.hud.onPauseChange = (p) => {
