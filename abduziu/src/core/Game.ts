@@ -1,4 +1,4 @@
-import { Color, PerspectiveCamera, Scene, Vector3, type Texture } from 'three';
+import { Color, PerspectiveCamera, Scene, Vector2, Vector3, type Texture } from 'three';
 import { AbductionSystem } from '../abduction/AbductionSystem';
 import { ArenaSystem } from '../arena/ArenaSystem';
 import { OnlineArena } from '../arena/OnlineArena';
@@ -83,6 +83,7 @@ import { RunController } from './RunController';
 import { Time } from './Time';
 import { Rng } from '../utils/rng';
 import { loadCrowd } from '../world/crowd/CrowdAssets';
+import { MemeHunt } from './MemeHunt';
 import { CrowdRenderer } from '../world/crowd/CrowdRenderer';
 
 export type GameState = 'loading' | 'menu' | 'intro' | 'playing' | 'paused' | 'extracting' | 'dying' | 'results';
@@ -90,6 +91,8 @@ export type GameState = 'loading' | 'menu' | 'intro' | 'playing' | 'paused' | 'e
 const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
 const _v = new Vector3();
 const _v2 = new Vector3();
+/** Stick at rest (meme cinematic). */
+const NO_MOVE = new Vector2();
 
 /**
  * Composition root and state machine. Owns every service and runs the frame.
@@ -140,6 +143,8 @@ export class Game {
   npcs!: NPCSystem;
   /** Tripo pedestrians (GPU crowd); null when the assets did not load. */
   crowd: CrowdRenderer | null = null;
+  /** Story mode: super rare glowing memes + their abduction cinematic. */
+  memeHunt!: MemeHunt;
   traffic!: TrafficSystem;
   abduction!: AbductionSystem;
   enemies!: EnemyManager;
@@ -244,6 +249,7 @@ export class Game {
 
     this.ui = container.querySelector('#ui') as HTMLElement;
     this.hud = new HUD(this.ui);
+    this.memeHunt = new MemeHunt(this, this.scene, this.ui);
     this.evoDock = new EvolutionDock(this.hud.root);
     this.loading = new LoadingScreen(this.ui);
     this.menu = new MainMenu(this.ui);
@@ -1024,6 +1030,7 @@ export class Game {
     // online rooms: keep the frame light (effects cost, powers don't change)
     this.quality.setCap(mode === 'online' ? (this.input.isTouchDevice ? 1 : 2) : null);
     this.run.start(seed, mode, city);
+    this.memeHunt.start(mode);
     const wanted = new Set(this.run.challenges.active.filter((c) => c.kind === 'abduct_id' && c.goal === 1).map((c) => c.template.objectId));
     this.landmarkTargets = this.world.objects.filter((o) => wanted.has(o.def.id));
     this.time.resetRun();
@@ -1563,6 +1570,7 @@ export class Game {
   }
 
   private endRun(reason: 'extracted' | 'destroyed' | 'quit'): void {
+    this.memeHunt.stop();
     this.state = 'results';
     this.evoDock.close();
     this.input.enabled = false;
@@ -1823,17 +1831,19 @@ export class Game {
     this.computeStats(dt);
     this.shield.max = this.stats.maxShield;
     this.damage.setMaxHull(this.stats.maxHull);
-    this.damage.god = this.godMode || !MODES[r.mode].damage;
+    // a meme cinematic holds the saucer still and out of harm's way
+    const cine = this.memeHunt.cinematic;
+    this.damage.god = this.godMode || !MODES[r.mode].damage || cine;
     this.damage.update(dt);
 
     // input actions
     if (this.input.consume('pause')) this.pause();
-    if (playing && this.input.consume('emp') && this.emp.trigger(this.stats.empCooldown)) {
+    if (playing && !cine && this.input.consume('emp') && this.emp.trigger(this.stats.empCooldown)) {
       this.audio.empCharge();
       this.vfx.empCharge(this.ufo.position, this.stats.radius);
     }
     this.dashCooldown = Math.max(0, this.dashCooldown - dt);
-    if (playing && this.input.consume('dash') && this.stats.dashUnlocked && this.dashCooldown <= 0) {
+    if (playing && !cine && this.input.consume('dash') && this.stats.dashUnlocked && this.dashCooldown <= 0) {
       if (this.ufo.dash(this.input.move)) {
         this.dashCooldown = this.stats.dashCooldown;
         this.audio.dash();
@@ -1841,7 +1851,7 @@ export class Game {
         this.bus.emit('player:dash', {});
       }
     }
-    if (playing && this.input.consume('extract')) this.startExtraction();
+    if (playing && !cine && this.input.consume('extract')) this.startExtraction();
     // city cleared: the portal opens and the saucer leaves on its own
     if (playing && r.autoExtract >= 0) {
       r.autoExtract -= dt;
@@ -1896,7 +1906,7 @@ export class Game {
       this.ufo.controlsLocked = r.beamOffline > 0 ? 0.1 : 0;
       const px = this.ufo.position.x;
       const pz = this.ufo.position.z;
-      this.ufo.update(dt, this.input.move, this.stats, this.abduction.minUfoAltitude);
+      this.ufo.update(dt, cine ? NO_MOVE : this.input.move, this.stats, this.abduction.minUfoAltitude);
       const wrap = this.world.wrap;
       if (wrap) {
         // crossed the seam of the endless arena: everything that follows the saucer jumps with it
@@ -1940,6 +1950,7 @@ export class Game {
 
     // life
     this.npcs.update(dt, this.ufo.position, this.stats.radius, r.threat.alert, this.cameraCtl.focus);
+    this.memeHunt.update(dt, this.time.realDelta);
     this.traffic.update(dt, this.ufo.position, this.stats.radius);
     this.enemies.spawningEnabled = playing && MODES[this.run.mode].enemies;
     this.enemies.update(dt, r.time, this.playerSnapshot(), r.threat.alert);
@@ -2082,6 +2093,7 @@ export class Game {
     if (hint) this.blips.push({ x: hint.pos.x, z: hint.pos.z, kind: 'rare' });
     // landmark objectives always show on the radar
     for (const o of this.landmarkTargets) if (o.alive) this.blips.push({ x: o.pos.x, z: o.pos.z, kind: 'event' });
+    this.memeHunt.blips(this.blips);
     this.arena?.blips(this.blips);
     this.pvp?.blips(this.blips);
     hud.drawRadar(dt, p.x, p.z, 110 + this.stats.radius * 10, this.blips, this.time.realElapsed);

@@ -29,9 +29,10 @@ export interface LivingLink {
 
 export class Abductable {
   readonly uid: number;
-  readonly def: ObjectDef;
+  /** Mutable: a pedestrian can be promoted to a meme character (story mode). */
+  def: ObjectDef;
   readonly model: ModelInfo;
-  readonly rarity: Rarity;
+  rarity: Rarity;
   readonly district: DistrictId;
   paint: number;
 

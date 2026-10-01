@@ -1,5 +1,5 @@
 import { Matrix4, Quaternion, Vector3 } from 'three';
-import { getObjectDef } from '../config/objects';
+import { getObjectDef, type ObjectDef } from '../config/objects';
 import type { ModelInfo } from '../assets/ModelLibrary';
 import { clamp, dampAngle, TAU } from '../utils/math';
 import { AState, type Abductable } from './Abductable';
@@ -66,8 +66,6 @@ const _m2 = new Matrix4();
 const _pivot = new Vector3();
 
 const DEF_FOR: Record<NpcKind, string> = { person: 'pessoa', dog: 'cachorro', chicken: 'galinha', cow: 'vaca' };
-/** Share of pedestrians that are one of the meme characters. */
-const MEME_CHANCE = 0.07;
 
 /**
  * City life. People film, point, run, hide or keep drinking their coffee; dogs bark
@@ -99,10 +97,9 @@ export class NPCSystem {
   }
 
   add(s: NpcSpawn): Npc {
-    // people get a crowd character up front: a meme one is a different dex entry
+    // people get a generic crowd character; memes are promoted later, in story mode only (MemeHunt)
     const look = s.kind === 'person' ? this.pickLook() : -1;
-    const meme = look >= 0 ? this.crowd?.chars[look]?.meme : undefined;
-    const def = getObjectDef(meme ?? DEF_FOR[s.kind]);
+    const def = getObjectDef(DEF_FOR[s.kind]);
     const model = s.kind === 'person' ? this.personUpModel : this.world.lib.get(def.model);
     const obj = this.world.createObject(def, model.key, def.rarity ?? 'normal', s.district, s.kind === 'person' ? s.paint : 0xffffff);
     const y = this.world.groundAt(s.x, s.z);
@@ -154,15 +151,59 @@ export class NPCSystem {
     return npc;
   }
 
-  /** Generic people most of the time; now and then one of the memes. -1 = procedural person. */
+  /** A generic crowd character (memes never spawn on their own). -1 = procedural person. */
   private pickLook(): number {
     const chars = this.crowd?.chars ?? [];
-    if (!chars.length) return -1;
-    const memes: number[] = [];
     const people: number[] = [];
-    chars.forEach((c, i) => (c.meme ? memes : people).push(i));
-    const pool = memes.length && (!people.length || Math.random() < MEME_CHANCE) ? memes : people;
-    return pool[Math.floor(Math.random() * pool.length)] as number;
+    chars.forEach((c, i) => !c.meme && people.push(i));
+    if (!people.length) return -1;
+    return people[Math.floor(Math.random() * people.length)] as number;
+  }
+
+  /** Crowd characters that are memes. */
+  get memeLooks(): number[] {
+    const out: number[] = [];
+    (this.crowd?.chars ?? []).forEach((c, i) => c.meme && out.push(i));
+    return out;
+  }
+
+  /** Dex entry of a meme crowd character. */
+  memeDefOf(look: number): string | undefined {
+    return this.crowd?.chars[look]?.meme;
+  }
+
+  /**
+   * Promotes a calm pedestrian between minD and maxD from `from` to a meme character: it changes
+   * skin and dex entry. Falls back to anyone 25 m away or more; null if nobody fits.
+   */
+  spawnMeme(look: number, def: ObjectDef, from: Vector3, minD: number, maxD: number, rand: () => number): Abductable | null {
+    const chars = this.crowd?.chars ?? [];
+    const fits = (n: Npc, lo: number, hi: number): boolean => {
+      if (n.kind !== 'person' || n.look < 0 || chars[n.look]?.meme || n.state === NpcState.Gone || !n.obj.alive || n.obj.state !== AState.Static) return false;
+      const d = Math.hypot(this.world.dx(from.x, n.x), this.world.dz(from.z, n.z));
+      return d >= lo && d <= hi;
+    };
+    let pool = this.npcs.filter((n) => fits(n, minD, maxD));
+    if (!pool.length) pool = this.npcs.filter((n) => fits(n, 25, Infinity));
+    if (!pool.length) return null;
+    const n = pool[Math.floor(rand() * pool.length)] as Npc;
+    n.look = look;
+    n.obj.crowd = look;
+    n.obj.def = def;
+    n.obj.rarity = def.rarity ?? 'normal';
+    return n.obj;
+  }
+
+  /** Every meme back to a generic pedestrian (a new run in the same city). */
+  clearMemes(): void {
+    const chars = this.crowd?.chars ?? [];
+    for (const n of this.npcs) {
+      if (n.look < 0 || !chars[n.look]?.meme) continue;
+      n.look = this.pickLook();
+      n.obj.crowd = n.look;
+      n.obj.def = getObjectDef(DEF_FOR.person);
+      n.obj.rarity = 'normal';
+    }
   }
 
   private onDetach(obj: Abductable): void {
@@ -438,12 +479,14 @@ export class NPCSystem {
       const ch = cr.chars[n.look];
       if (!ch) continue;
       const o = n.obj;
+      // memes shine (gold rim) and are drawn even beyond the detail distance: visible across the map
+      const glow = ch.meme ? 0.85 + 0.35 * Math.sin(this.time * 5 + i) : 0;
       if (n.state === NpcState.Gone) {
         if (!o.alive || o.dynamicIndex < 0 || o.state === AState.Absorbed) continue;
-        this.drawCarried(n, ch.clips, ch.height, dt, camera, rimOf(o));
+        this.drawCarried(n, ch.clips, ch.height, dt, camera, Math.max(rimOf(o), glow));
         continue;
       }
-      if (n.hidden) continue;
+      if (n.hidden && !ch.meme) continue;
       let name: CrowdClipName = 'afraid';
       let rate = 0.3;
       const run = ch.clips.run;
@@ -485,7 +528,7 @@ export class NPCSystem {
       _s.set(1, 1, 1);
       _m.compose(_p, _q, _s);
       const far = (n.x - camera.x) ** 2 + (n.z - camera.z) ** 2 > 30 * 30;
-      cr.add(n.look, _m, ch.clips[name], n.animTime, far);
+      cr.add(n.look, _m, ch.clips[name], n.animTime, far, glow);
     }
     cr.end();
   }

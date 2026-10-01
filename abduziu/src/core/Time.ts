@@ -19,6 +19,8 @@ export class Time {
   private slowTimer = 0;
   private hitStopTimer = 0;
   private reduceMotion = false;
+  /** Slow-motion scale held by a cinematic until released (null = none). */
+  private hold: number | null = null;
 
   setReduceMotion(v: boolean): void {
     this.reduceMotion = v;
@@ -33,7 +35,8 @@ export class Time {
       if (this.slowTimer <= 0) this.slowTarget = 1;
     }
     // ease in/out of slow-mo so it never feels like a hard cut
-    this.scale = damp(this.scale, this.slowTarget, this.slowTarget < this.scale ? 30 : 7, this.realDelta);
+    const target = this.hold ?? this.slowTarget;
+    this.scale = damp(this.scale, target, target < this.scale ? 30 : 7, this.realDelta);
 
     if (this.hitStopTimer > 0) {
       this.hitStopTimer -= this.realDelta;
@@ -53,6 +56,11 @@ export class Time {
     this.slowTimer = Math.min(durationSeconds, 0.9);
   }
 
+  /** Holds slow motion for a cinematic (longer than slowMo allows); null releases it. */
+  setHold(scale: number | null): void {
+    this.hold = scale === null ? null : this.reduceMotion ? Math.max(scale, 0.6) : scale;
+  }
+
   hitStop(durationSeconds: number): void {
     this.hitStopTimer = Math.max(this.hitStopTimer, Math.min(durationSeconds, 0.12));
   }
@@ -63,6 +71,7 @@ export class Time {
     this.slowTarget = 1;
     this.slowTimer = 0;
     this.hitStopTimer = 0;
+    this.hold = null;
     this.paused = false;
   }
 }

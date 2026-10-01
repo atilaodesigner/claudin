@@ -1,8 +1,13 @@
 # Multidão do ABDUZIU
 
-Transforma personagens com rig nos pedestres do jogo. A cidade é feita de **gente comum** e, de vez em
-quando (7% dos pedestres), aparece um dos **memes** feitos na Tripo. Cada meme é uma entrada própria na
-Coleção (dex #228–230): abduzir um deles mostra "MEME ABDUZIDO" e registra na coleção.
+Transforma personagens com rig nos pedestres do jogo. A cidade é feita de **gente comum**. Os **memes**
+feitos na Tripo só existem no **modo história** (campanha) e são super raros: em ~35% das fases um deles
+aparece no meio da multidão depois de 35 a 110 s (às vezes um segundo, mais tarde). Ele vem brilhando
+dourado, com uma coluna de luz que dá pra ver de qualquer ponto da cidade e um ponto pulsando no radar.
+Quando o feixe levanta o meme, roda uma mini cinematic na hora: tarjas pretas, câmera lenta, a câmera
+girando em volta dele enquanto sobe (procura um ângulo sem prédio na frente) e o cartão com nome, número
+e raridade. No fim aparece "+1 NA COLEÇÃO" e o jogo volta ao normal. A lógica fica em `src/core/MemeHunt.ts`.
+Cada meme é uma entrada própria na Coleção (dex #228–230).
 
 Todos correm da nave, surtam embaixo do feixe e, quando o feixe levanta, **nadam de costas com a barriga
 virada pro céu** até serem abduzidos.

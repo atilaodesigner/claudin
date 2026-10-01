@@ -97,7 +97,7 @@ export class DexScreen extends Screen {
     row('CAPTURAS', e ? formatInt(e.count) : '—');
     row('PRIMEIRA CAPTURA', e ? new Date(e.firstCaptureAt).toLocaleDateString('pt-BR') : '—');
     row('MAIOR COMBO', e ? `x${e.bestCombo}` : '—');
-    const desc = h('div', '', e ? def.description : def.secret ? 'Objeto secreto. Aparece raramente em algum canto de Nova Aurora.' : 'Ainda não abduzido.');
+    const desc = h('div', '', e ? def.description : def.tags.includes('meme') ? 'Meme super raro: aparece brilhando pela cidade só no modo história.' : def.secret ? 'Objeto secreto. Aparece raramente em algum canto de Nova Aurora.' : 'Ainda não abduzido.');
     desc.style.marginTop = '8px';
     desc.style.fontStyle = 'italic';
     info.appendChild(desc);

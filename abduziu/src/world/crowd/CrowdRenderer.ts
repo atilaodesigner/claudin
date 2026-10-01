@@ -120,6 +120,8 @@ export class CrowdRenderer {
   ) {
     for (const ch of chars) {
       const mats = crowdMaterials(ch.map, ch.anim);
+      // memes shine gold (walking around and in the beam)
+      if (ch.meme) mats.mat.fx.uRimColor.value.setHex(0xffc84a);
       this.lods.push([makeLod(scene, ch.geometry, ch, mats, 'lod0'), makeLod(scene, ch.lod1, ch, mats, 'lod1')]);
     }
   }

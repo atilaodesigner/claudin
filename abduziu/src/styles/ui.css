@@ -3551,3 +3551,95 @@ svg.brazil .pin.sel .dot {
     grid-template-columns: 1fr;
   }
 }
+
+/* ─── meme cinematic (story mode): letterbox + name card, the HUD steps aside */
+.hud.visible.cine {
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+.meme-cine {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.meme-cine .mc-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 12vh;
+  background: #000;
+  transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.meme-cine .mc-top {
+  top: 0;
+  transform: translateY(-100%);
+}
+.meme-cine .mc-bot {
+  bottom: 0;
+  transform: translateY(100%);
+}
+.meme-cine.on .mc-top,
+.meme-cine.on .mc-bot {
+  transform: none;
+}
+.meme-cine .mc-card {
+  position: absolute;
+  left: calc(28px * var(--ui-scale));
+  bottom: calc(12vh + 22px * var(--ui-scale));
+  opacity: 0;
+  transform: translateX(-24px);
+  transition: opacity 0.35s 0.2s, transform 0.5s 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  font-family: var(--font-title);
+  color: #fff;
+  text-shadow: 0 3px 0 rgba(0, 0, 0, 0.45), 0 0 18px rgba(255, 200, 74, 0.55);
+}
+.meme-cine.on .mc-card {
+  opacity: 1;
+  transform: none;
+}
+.meme-cine .mc-label {
+  font-family: var(--font-hud);
+  font-weight: 700;
+  font-size: calc(13px * var(--ui-scale));
+  letter-spacing: 0.22em;
+  color: #ffc84a;
+}
+.meme-cine .mc-name {
+  font-weight: 900;
+  font-style: italic;
+  font-size: calc(52px * var(--ui-scale));
+  line-height: 0.95;
+  margin-top: calc(4px * var(--ui-scale));
+}
+.meme-cine .mc-rarity {
+  display: inline-block;
+  margin-top: calc(8px * var(--ui-scale));
+  padding: calc(3px * var(--ui-scale)) calc(10px * var(--ui-scale));
+  border: 2px solid var(--rc, #ffc84a);
+  border-radius: 999px;
+  font-family: var(--font-hud);
+  font-weight: 700;
+  font-size: calc(12px * var(--ui-scale));
+  letter-spacing: 0.18em;
+  color: var(--rc, #ffc84a);
+  text-shadow: none;
+}
+.meme-cine .mc-got {
+  position: absolute;
+  right: calc(28px * var(--ui-scale));
+  bottom: calc(12vh + 26px * var(--ui-scale));
+  font-family: var(--font-title);
+  font-weight: 900;
+  font-style: italic;
+  font-size: calc(30px * var(--ui-scale));
+  color: #ffc84a;
+  text-shadow: 0 3px 0 rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  transform: scale(1.4);
+  transition: opacity 0.25s, transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1.4);
+}
+.meme-cine.on.got .mc-got {
+  opacity: 1;
+  transform: none;
+}

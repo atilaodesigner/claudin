@@ -10,7 +10,7 @@ export type Tone = 'info' | 'good' | 'warn' | 'danger' | 'alien' | 'gold';
 export interface RadarBlip {
   x: number;
   z: number;
-  kind: 'enemy' | 'missile' | 'event' | 'rare' | 'boss';
+  kind: 'enemy' | 'missile' | 'event' | 'rare' | 'boss' | 'meme';
 }
 
 const ALERT_COLORS = ['#5dffa0', '#9dffb0', '#ffe066', '#ffb020', '#ff7a2a', '#ff3b4e', '#ff1a3a'];
@@ -338,6 +338,11 @@ export class HUD {
     setText(this.strainSub, sub);
   }
 
+  /** Meme cinematic: the HUD steps aside (letterbox and name card are drawn by MemeHunt). */
+  setCinematic(on: boolean): void {
+    toggleClass(this.root, 'cine', on);
+  }
+
   setLock(on: boolean): void {
     toggleClass(this.lockWarn, 'on', on);
   }
@@ -464,9 +469,19 @@ export class HUD {
       const y = r + dz * r;
       const blink = b.kind === 'missile' ? Math.floor(time * 8) % 2 === 0 : true;
       if (!blink) continue;
-      c.fillStyle = b.kind === 'enemy' ? '#ff4d5e' : b.kind === 'missile' ? '#ffb020' : b.kind === 'event' ? '#ffcf3f' : b.kind === 'boss' ? '#ff7b00' : '#b36bff';
+      if (b.kind === 'meme') {
+        // meme on the loose: a pulsing gold ring around the dot
+        c.strokeStyle = '#ffc84a';
+        c.lineWidth = 1.5;
+        c.globalAlpha = 0.5 + 0.5 * Math.sin(time * 6);
+        c.beginPath();
+        c.arc(x, y, 6 + 2 * Math.sin(time * 6), 0, Math.PI * 2);
+        c.stroke();
+        c.globalAlpha = 1;
+      }
+      c.fillStyle = b.kind === 'enemy' ? '#ff4d5e' : b.kind === 'missile' ? '#ffb020' : b.kind === 'event' ? '#ffcf3f' : b.kind === 'boss' ? '#ff7b00' : b.kind === 'meme' ? '#ffc84a' : '#b36bff';
       c.beginPath();
-      c.arc(x, y, b.kind === 'boss' ? 6 : b.kind === 'missile' ? 2.5 : 3.5, 0, Math.PI * 2);
+      c.arc(x, y, b.kind === 'boss' ? 6 : b.kind === 'missile' ? 2.5 : b.kind === 'meme' ? 4 : 3.5, 0, Math.PI * 2);
       c.fill();
     }
     c.fillStyle = '#eafff4';
