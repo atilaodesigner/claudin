@@ -59,6 +59,8 @@ export interface Parked {
   rot: number;
   model: number;
   color: number;
+  /** colisor (o carro pode ser arremessado numa batida forte) */
+  shape?: Shape;
 }
 
 export interface Tree {
@@ -271,8 +273,9 @@ export function buildCity(seed = 61): City {
     if (lamps.some((l) => Math.hypot(l.x - x, l.z - z) < 4)) continue;
     if (parked.some((p) => Math.hypot(p.x - x, p.z - z) < 7)) continue;
     const model = Math.floor(rnd() * 4);
-    parked.push({ x, z, rot, model, color: Math.floor(rnd() * 1000) });
-    colliders.push(rect(x, z, 0.95, 2.1, rot));
+    const shape = rect(x, z, 0.95, 2.1, rot);
+    parked.push({ x, z, rot, model, color: Math.floor(rnd() * 1000), shape });
+    colliders.push(shape);
   }
 
   // ---------- terrão, praça, feira ----------

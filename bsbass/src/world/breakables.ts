@@ -24,6 +24,8 @@ export interface PropPart {
   local: THREE.Matrix4;
   /** instância própria dessa peça (senão a do objeto) */
   index?: number;
+  /** some enquanto o objeto está solto (sombra de contato no chão) */
+  hideOnHit?: boolean;
 }
 
 export interface BreakFx {
@@ -64,6 +66,8 @@ const G = 9.8;
 const UP = new THREE.Vector3(0, 1, 0);
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 const RESPAWN_DIST = 90;
+/** daqui pra cima (kg) é carro: voa menos, gira devagar, faz barulho de batida */
+const HEAVY = 500;
 const LAMP_REST = 0.02; // folga do chão quando deita (braço e cabeça)
 
 const _m = new THREE.Matrix4(), _m2 = new THREE.Matrix4(), _s = new THREE.Vector3();
@@ -182,16 +186,18 @@ export class Breakables {
       this.fx.sparks(l.x + l.dirX * 2.2, 8.4, l.z + l.dirZ * 2.2, 18);
       this.fx.sound(Math.max(5, v));
     } else {
-      // voa com o carro: quanto mais leve, mais acompanha
-      const k = it.spec.mass < 50 ? 1.15 : 0.8;
+      // voa com o carro: quanto mais leve, mais acompanha (carro estacionado é arremessado, mas pesa)
+      const heavy = it.spec.mass >= HEAVY;
+      const k = it.spec.mass < 50 ? 1.15 : heavy ? 0.6 : 0.8;
       it.pos.copy(it.p0).y += it.h;
       it.vel.set(vx * k - nx * (1 + v * 0.35), 0, vz * k - nz * (1 + v * 0.35));
       const hs = Math.hypot(it.vel.x, it.vel.z);
       if (hs > 16) it.vel.multiplyScalar(16 / hs);
-      it.vel.y = Math.min(7, 1.6 + (speed + v) * 0.12) * (it.spec.mass < 50 ? 1 : 0.6);
-      it.w.set(Math.random() - 0.5, (Math.random() - 0.5) * 0.4, Math.random() - 0.5).normalize().multiplyScalar(Math.min(14, 2 + (speed + v) * 0.45));
+      it.vel.y = Math.min(7, 1.6 + (speed + v) * 0.12) * (it.spec.mass < 50 ? 1 : heavy ? 0.5 : 0.6);
+      it.w.set(Math.random() - 0.5, (Math.random() - 0.5) * 0.4, Math.random() - 0.5).normalize().multiplyScalar(heavy ? Math.min(5, 0.8 + (speed + v) * 0.16) : Math.min(14, 2 + (speed + v) * 0.45));
       if (it.spec.fx === 'sparks') this.fx.sparks(it.p0.x, it.p0.y + 0.6, it.p0.z, 26);
-      this.fx.sound(it.spec.mass < 50 ? Math.min(3, 1 + v * 0.2) : Math.max(4, v * 0.6));
+      this.fx.sound(it.spec.mass < 50 ? Math.min(3, 1 + v * 0.2) : heavy ? Math.max(7, v) : Math.max(4, v * 0.6));
+      if (heavy) this.fx.sparks(it.pos.x, 0.5, it.pos.z, 20);
     }
     this.active.push(it);
   }
@@ -241,8 +247,9 @@ export class Breakables {
     _m.compose(it.pos, it.q, _s.setScalar(it.scale));
     _m2.makeTranslation(0, -it.h / it.scale, 0);
     _m.multiply(_m2);
+    const loose = it.state !== 'idle';
     for (const p of it.parts) {
-      p.im.setMatrixAt(p.index ?? it.index, _m2.multiplyMatrices(_m, p.local));
+      p.im.setMatrixAt(p.index ?? it.index, p.hideOnHit && loose ? ZERO : _m2.multiplyMatrices(_m, p.local));
       this.dirty.add(p.im);
     }
   }
@@ -343,7 +350,7 @@ export class Breakables {
         const c = collide(this.probe, { kind: 'rect', x: car.x, z: car.z, hw: car.hw, hl: car.hl, rot: car.rot });
         if (c) {
           // leve acompanha o carro; pesado (hidrante, caixa de energia) só é empurrado pro lado
-          const k = it.spec.mass < 50 ? 1.1 : 0.55, side = it.spec.mass < 50 ? 2 : 3.5;
+          const k = it.spec.mass < 50 ? 1.1 : it.spec.mass >= HEAVY ? 0.35 : 0.55, side = it.spec.mass < 50 ? 2 : 3.5;
           it.vel.set(cvx * k + c.nx * side, Math.min(5, 1 + cs * 0.1) * (it.spec.mass < 50 ? 1 : 0.5), cvz * k + c.nz * side);
           it.w.set(Math.random() - 0.5, 0, Math.random() - 0.5).normalize().multiplyScalar(Math.min(12, 2 + cs * 0.4));
           it.state = 'fly';

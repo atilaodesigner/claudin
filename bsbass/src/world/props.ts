@@ -288,7 +288,10 @@ export function buildProps(city: City, models: Assets['models'], lite = false): 
   // ---------- carros com capa (no lugar de parte dos estacionados) ----------
   for (const p of city.parked) {
     if (!isCovered(p)) continue;
-    P.add('covered_car', p.x, 0, p.z, p.rot);
+    const { index, matrix } = P.add('covered_car', p.x, 0, p.z, p.rot);
+    const size = sizeOf('covered_car');
+    // batida forte arremessa (usa o colisor do estacionado)
+    if (p.shape && size) breakables.push({ name: 'covered_car', index, shape: p.shape, base: matrix, h: size.y / 2, r: Math.min(size.x, size.z) / 2, spec: { mass: 950, minV: 6 } });
   }
 
   // ---------- barreiras de concreto nas pontas do canteiro ----------

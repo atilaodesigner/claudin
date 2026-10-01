@@ -230,7 +230,7 @@ export class Game {
     const lampModel = buildLampModel([assets.models.utility_pole_a, assets.models.utility_pole_b]);
     this.meshes = buildCityMeshes(this.city, tx, assets.tex, hasProps, realTrees, !!parked, lampModel);
     this.scene.add(this.meshes.group);
-    if (parked) this.scene.add(parked);
+    if (parked) this.scene.add(parked.group);
     if (realTrees) this.scene.add(buildTrees(this.city, assets.tex.bark!, assets.tex.leaves!));
     const props = hasProps ? buildProps(this.city, assets.models, this.preset === 'baixa') : null;
     if (props) {
@@ -279,6 +279,8 @@ export class Game {
     });
     this.breakables.addLamps(this.meshes.lampInst, this.meshes.lampLights.length, this.meshes.wires);
     if (props) this.breakables.addProps(props.breakables, props.parts);
+    // carro estacionado: batida forte arremessa
+    if (parked) this.breakables.addProps(parked.breakables, parked.parts);
     this.breakables.setCones(this.cones, CONE_VERTS);
     this.rain = new Rain(RAIN_MAX);
     this.rain.lines.layers.set(NO_REFLECT);
