@@ -1,0 +1,13 @@
+# raw screen recordings (browser tabs/bookmarks are personal) and everything regenerable
+src/
+clips/
+frames/
+studio/
+look/
+preview/
+out/frames/
+out/*.wav
+*.log
+*.done
+node_modules
+out/chat-*.mp4
