@@ -11,3 +11,4 @@ out/*.wav
 *.done
 node_modules
 out/chat-*.mp4
+out/frames2/

@@ -10,7 +10,7 @@ const browser = await chromium.launch({ executablePath: process.env.CHROME || '/
 const page = await browser.newPage();
 page.on('pageerror', (e) => console.log('pageerror', e.message));
 await page.setContent('<html><body></body></html>');
-await page.addScriptTag({ path: join(here, 'music.js') });
+await page.addScriptTag({ path: join(here, process.env.MUSIC || 'music.js') });
 const b64 = await page.evaluate(async (m) => {
   const buf = new Uint8Array(await window.renderShowreelAudio(m));
   let s = '';

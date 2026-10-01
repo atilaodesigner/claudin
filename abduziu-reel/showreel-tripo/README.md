@@ -44,3 +44,19 @@ node music.mjs music out/music.wav && node music.mjs sfx out/sfx.wav
 ```
 
 `node comp.mjs look/p 15` gera um frame a cada 0,5 s pra revisar rápido.
+
+## Motion v2 (60 s, sem narração)
+
+`out/abduziu-tripo-motion-v2.mp4`: outra montagem com o mesmo material. A linguagem é de Brasília modernista × sci-fi:
+fundo de concreto, azulejos de Athos Bulcão, cortes com barras verticais como os blocos dos ministérios e o disco do
+OVNI como máscara em círculo. Os 10 recursos da Tripo aparecem numerados (01/10 a 10/10): geração 3D, multiview,
+textura/PBR, Smart Mesh P2.0, Quad Topology 500–25K, Mesh Edit, Smart UV, rigging, Text to Motion e export GLB.
+Como não tem narração, a trilha (`music2.js`) tem uma melodia de lead com delay e sai normalizada em −14 LUFS.
+A cena de Text to Motion é uma caixa de prompt desenhada aqui (as gravações não mostram essa tela), e a corrida
+que sai dela são as animações dos GLBs.
+
+```bash
+PAGE=comp2.html node comp.mjs out/frames2
+MUSIC=music2.js node music.mjs music out/music2.wav
+./encode2.sh
+```
