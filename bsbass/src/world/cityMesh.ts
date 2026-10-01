@@ -905,24 +905,10 @@ function buildFeira(flat: GeoBuilder, emissive: GeoBuilder, signs: GeoBuilder, m
 }
 
 function buildPosto(flat: GeoBuilder, emissive: GeoBuilder, signs: GeoBuilder, pools: GeoBuilder, walls: GeoBuilder, x: number, z: number): void {
+  // cobertura, bombas e totem são 3D de verdade (posto.ts); aqui fica a luz no chão e a loja
+  void flat;
   const cz = z + 15;
-  // cobertura
-  flat.mat = 1;
-  flat.box(x, 5.8, cz, 26, 0.9, 20, hex(0xe8e8e8));
-  flat.mat = 0;
-  flat.box(x, 6.0, cz + 10.02, 26, 0.5, 0.05, hex(0xc01818));
-  flat.box(x, 6.0, cz - 10.02, 26, 0.5, 0.05, hex(0xc01818));
-  emissive.box(x, 5.33, cz, 24, 0.04, 18, hex(0xf0f6ff, 0.75));
-  flat.mat = 1;
-  for (const sx of [-10, 10]) for (const sz of [-7, 7]) flat.box(x + sx, 2.7, cz + sz, 0.8, 5.4, 0.8, hex(0xd8d8d8));
-  flat.mat = 0;
-  // bombas
-  for (const sx of [-5, 5]) {
-    flat.box(x + sx, 0.9, cz, 1.2, 1.8, 3.6, hex(0xe0e0e0));
-    emissive.box(x + sx + 0.61, 1.3, cz, 0.02, 0.5, 1.2, hex(0x40ff90, 1.6));
-    emissive.box(x + sx - 0.61, 1.3, cz, 0.02, 0.5, 1.2, hex(0x40ff90, 1.6));
-  }
-  poolQuad(pools, x, cz, 20, hex(0xdfe8ff, 0.22), 0.05);
+  poolQuad(pools, x, cz, 20, hex(0xdfe8ff, 0.3), 0.05);
   // conveniência
   const sz = z - 22;
   walls.setTransform(x, 0, sz, 0);
@@ -931,16 +917,6 @@ function buildPosto(flat: GeoBuilder, emissive: GeoBuilder, signs: GeoBuilder, p
   emissive.box(x, 1.4, sz + 6.05, 14, 2.4, 0.05, hex(0xe8fff0, 0.8));
   signs.setTransform(x, 0, sz + 6.15, 0);
   signs.wallZ(-8, 8, 3.0, 4.0, 0, signUV(SIGN_ROW.conveniencia), [1.4, 1.4, 1.4]);
-  signs.resetTransform();
-  // totem
-  flat.mat = 3;
-  flat.box(x + 16, 4, z + 36, 0.4, 8, 0.4, hex(0x666666));
-  flat.mat = 0;
-  signs.setTransform(x + 16, 0, z + 36.3, 0);
-  signs.wallZ(-3, 3, 7, 8.6, 0, signUV(SIGN_ROW.posto), [1.6, 1.6, 1.6]);
-  signs.resetTransform();
-  signs.setTransform(x + 16, 0, z + 35.7, Math.PI);
-  signs.wallZ(-3, 3, 7, 8.6, 0, signUV(SIGN_ROW.posto), [1.6, 1.6, 1.6]);
   signs.resetTransform();
 }
 

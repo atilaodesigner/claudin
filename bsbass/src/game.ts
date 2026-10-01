@@ -15,6 +15,7 @@ import { buildCity, nearestLane, surfaceAt, type City } from './world/city';
 import { buildCityMeshes, type CityMeshes } from './world/cityMesh';
 import { buildParked } from './world/parked';
 import { buildLampModel } from './world/lampModel';
+import { buildPosto } from './world/posto';
 import { makeTextures } from './world/textures';
 import { buildSky } from './world/sky';
 import { Missions } from './world/missions';
@@ -231,6 +232,9 @@ export class Game {
     this.meshes = buildCityMeshes(this.city, tx, assets.tex, hasProps, realTrees, !!parked, lampModel);
     this.scene.add(this.meshes.group);
     if (parked) this.scene.add(parked.group);
+    // posto de gasolina em 3D (cobertura, bombas, totem)
+    const posto = this.city.blocks.find((b) => b.kind === 'posto');
+    if (posto) this.scene.add(buildPosto(posto, assets.models));
     if (realTrees) this.scene.add(buildTrees(this.city, assets.tex.bark!, assets.tex.leaves!));
     const props = hasProps ? buildProps(this.city, assets.models, this.preset === 'baixa') : null;
     if (props) {

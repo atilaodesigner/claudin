@@ -87,6 +87,7 @@ O build é estático (`base: './'`): dá pra hospedar `dist/` em qualquer lugar.
 - **Ferro-velho (base do bonde)**: pátio de terra cercado com guindastes, torre de luz, contêiner, pilhas de pneu e de carro, tambor com fogo e a bandeira do BSBASS balançando entre os ganchos. O portão abre quando você chega e fecha depois. Lá dentro tem dois círculos com ícone girando, igual os das missões: **GARAGEM** (troca, compra e pinta o carro) e **PERSONAGENS** (escolhe quem pilota); para dentro e segura a ação pra abrir o menu. Os carros do bonde ficam estacionados e a galera em pé em volta do fogo. É lugar seguro: sem polícia, sem dano, sem pontuação, e a música abaixa. Tem ícone próprio no mapa desde o começo.
 - **Rua de verdade**: os postes são de madeira (Poly Haven), com cruzeta e isoladores onde os fios amarram, um em cada quatro com transformador, braço curvo e luminária de sódio; as cruzetas só aparecem até uns 230 m da câmera. Os carros estacionados no meio-fio são os mesmos modelos do tráfego (Uno, Uno com escada, Kombi; o ônibus não estaciona), parados, de farol apagado e cada um com uma cor. Todo carro (o seu, o tráfego e os estacionados) tem vidro com película preta: não dá pra ver o interior.
 - **Grafite e pixo**: murais grandes de BSBASS, FAVELA, BRASIL (na bandeira), DISTRITO FEDERAL (na bandeira do DF), DF 61, CEILÂNDIA, QUEBRADA, com letra de wildstyle, e paredes de tag com throw-ups e assinaturas das quebradas do DF. O mural sempre aparece inteiro no muro.
+- **Posto 61 em 3D**: cobertura de bordas arredondadas com a faixa vermelha e painéis de LED, pilares pintados, ilhas com meio-fio zebrado, quatro bombas com visor de preço aceso (gasolina, etanol, diesel), mangueira e bico, totem de preços em LED, calibrador e pneus.
 - **Farol sempre aceso**: o carro do jogador acende o farol em qualquer qualidade, com brilho nas lentes e a luz no asfalto à frente mesmo no BAIXA (sem bloom).
 - **Carro estacionado voa**: batendo forte (acima de ~22 km/h) nos carros estacionados (e nos com capa) eles são arremessados, giram, capotam e param onde caírem; o seu carro perde o embalo de bater num carro de verdade. Longe dali, voltam pro lugar.
 - **Coisas que caem**: poste de calçada, lixeira, tambor, caixa de papelão, cadeira de plástico, botijão, saco de lixo, caixote, hidrante e caixa de energia não seguram o carro: batendo rápido o bastante eles saem voando (o poste tomba, apaga e arrebenta os fios, o hidrante vira chafariz, a caixa de energia solta faísca) e o carro perde só o embalo que o objeto leva, sem perder o combo. Devagar, o poste ainda segura. Longe dali, tudo volta pro lugar.
@@ -125,6 +126,7 @@ src/
   world/breakables.ts   postes e objetos derrubáveis (física solta, respawn)
   world/lampModel.ts    poste de madeira de verdade + braço e luminária
   world/parked.ts       carros estacionados (GLB do tráfego, instanciados)
+  world/posto.ts        posto de gasolina em 3D
   utils/mergeModel.ts   junta as malhas de um GLB por material (pra instanciar)
   assets.ts             carrega texturas e modelos
   traffic/              modelos e IA do tráfego

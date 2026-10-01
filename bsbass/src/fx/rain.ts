@@ -114,7 +114,7 @@ export function buildLightCones(heads: THREE.Vector3[]): THREE.Mesh {
   g.setIndex(idx);
   g.computeBoundingSphere();
   const mat = new THREE.ShaderMaterial({
-    uniforms: { uColor: { value: new THREE.Color(1.0, 0.55, 0.22) }, uStrength: { value: 0.1 } },
+    uniforms: { uColor: { value: new THREE.Color(1.0, 0.55, 0.22) }, uStrength: { value: 0.065 } },
     vertexShader: /* glsl */ `
       attribute float hh;
       varying float vH;
