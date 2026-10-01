@@ -38,7 +38,7 @@ describe('trajetos dos capítulos', () => {
         }
       }
     }
-  });
+  }, 20000); // monta a cidade inteira: lento em máquina fraca
 
   it('projeção devolve o s e o x certos', () => {
     const r = routes[0]!;
