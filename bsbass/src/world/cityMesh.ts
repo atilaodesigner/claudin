@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { GeoBuilder, hex, type RGB, type UVRect } from '../utils/geo';
 import { mulberry32, pick, range } from '../utils/rng';
 import {
-  AVENUE_Z, BALAO, BLOCK_HALF, BORDER, CURB_H, EXTENT, NODES, PITCH, ROAD, SHOP_NAMES, SIDEWALK,
+  AVENUE_Z, BALAO, BLOCK_HALF, BORDER, CURB_H, EXTENT, GRID_EDGE, NODES, PITCH, ROAD, SHOP_NAMES, SIDEWALK,
   inBalao, nodePos, type City, type Lamp, type Lot,
 } from './city';
 import { ATLAS_ROWS, GRAFF_MURALS, GRAFF_TAGS, ROW, SIGN_ROW, type Textures } from './textures';
@@ -161,6 +161,51 @@ export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = 
       slab(sidewalk, b.x, b.z, BLOCK_HALF * 2, BLOCK_HALF * 2);
     }
     if (b.kind === 'praca') buildPraca(flat, emissive, marks, b.x, b.z);
+  }
+
+  // ================= becos, terrenos baldios e miolo de quadra aberto =================
+  for (const o of city.openLots) {
+    if (o.kind === 'vacant') {
+      dirt.setTransform(o.x, CURB_H + 0.012, o.z, o.rot);
+      const hw = o.w / 2, hd = o.d / 2;
+      dirt.quad([-hw, 0, hd], [hw, 0, hd], [hw, 0, -hd], [-hw, 0, -hd], [0, 0, o.w / 6, o.d / 6]);
+      dirt.resetTransform();
+    } else {
+      // beco: canaleta escura no meio do piso
+      flat.setTransform(o.x, CURB_H, o.z, o.rot);
+      flat.mat = 1;
+      flat.box(0, 0.006, 0, 0.4, 0.012, o.d, hex(0x2e2e30));
+      flat.mat = 0;
+      flat.resetTransform();
+    }
+  }
+  for (const c of city.courtyards) {
+    // miolo de terra batida (dá pra atravessar a quadra pelo beco)
+    dirt.setTransform(c.x, CURB_H + 0.012, c.z, 0);
+    const h = c.half;
+    dirt.quad([-h, 0, h], [h, 0, h], [h, 0, -h], [-h, 0, -h], [0, 0, h / 6, h / 6]);
+    dirt.resetTransform();
+    // poste de madeira com lâmpada no meio do miolo
+    flat.mat = 3;
+    flat.box(c.x + 3, CURB_H + 2.3, c.z - 2, 0.18, 4.6, 0.18, hex(0x5a4030));
+    flat.box(c.x + 3, CURB_H + 4.5, c.z - 1.6, 0.08, 0.08, 0.8, hex(0x333333));
+    flat.mat = 0;
+    emissive.box(c.x + 3, CURB_H + 4.4, c.z - 1.2, 0.22, 0.22, 0.22, hex(0xffc070, 3));
+    lampLights.push(new THREE.Vector3(c.x + 3, CURB_H + 4.1, c.z - 1.2));
+    poolQuad(pools, c.x + 3, c.z - 1.2, 11, hex(0xff9a3c, 0.4), CURB_H + 0.03);
+  }
+
+  // ================= fora da grade: estrada de terra e rodovia =================
+  const trail = new GeoBuilder();
+  const highway = new GeoBuilder();
+  for (const r of city.outerRoads) {
+    if (r.kind === 'dirt') ribbon(trail, r.pts, r.w, 0.02, !!r.loop, 0, r.w / 6, 6, hex(0xffffff));
+    else {
+      ribbon(highway, r.pts, r.w, 0.025, false, 0, r.w / 7, 7, hex(0xffffff));
+      // bordas brancas e faixa amarela tracejada no meio
+      for (const off of [-(r.w / 2 - 0.5), r.w / 2 - 0.5]) ribbon(marks, r.pts, 0.15, 0.03, false, off, 1, 1, hex(0xdedede, 0.8));
+      ribbon(marks, r.pts, 0.16, 0.03, false, 0, 1, 1, hex(0xe8b21e, 0.9), 4);
+    }
   }
 
   // ================= marcações de rua =================
@@ -424,6 +469,16 @@ export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = 
   add(marks, marksMat, 'marks', 1);
   add(pools, poolMat, 'pools', 2);
   add(dirt, dirtMat, 'dirt');
+  // estrada de terra batida: a mesma terra, mais clara e lisa
+  const trailMat = dirtMat.clone();
+  trailMat.color.setHex(real.dirt ? 0xf0b088 : 0xd0a080);
+  add(trail, trailMat, 'trail');
+  // rodovia: asfalto com textura em metros (repete a cada 7 m)
+  const hwTex = (real.asphalt ?? tx.asphalt).clone();
+  hwTex.repeat.set(1, 1);
+  hwTex.wrapS = hwTex.wrapT = THREE.RepeatWrapping;
+  hwTex.needsUpdate = true;
+  add(highway, new THREE.MeshStandardMaterial({ map: hwTex, roughness: 0.8, color: real.asphalt ? 0xb8b0a8 : 0xa8a29c }), 'highway');
 
   // carros estacionados (um draw call)
   if (parkedGroup.length) {
@@ -587,6 +642,35 @@ function mergeGeos(list: THREE.BufferGeometry[]): THREE.BufferGeometry {
   return out;
 }
 
+/**
+ * faixa no chão seguindo uma linha (estrada fora da grade). off = deslocamento
+ * lateral; uw/vlen = UV por largura e por metros ao longo; dash > 0 pula trechos.
+ */
+function ribbon(b: GeoBuilder, pts: [number, number][], w: number, y: number, loop: boolean, off: number, uw: number, vlen: number, col: RGB, dash = 0): void {
+  const n = pts.length, m = loop ? n : n - 1;
+  const nor = pts.map((_, i) => {
+    const a = pts[loop ? (i - 1 + n) % n : Math.max(0, i - 1)]!, c = pts[loop ? (i + 1) % n : Math.min(n - 1, i + 1)]!;
+    const dx = c[0] - a[0], dz = c[1] - a[1];
+    const l = Math.hypot(dx, dz) || 1;
+    return [-dz / l, dx / l] as const;
+  });
+  let v = 0;
+  for (let i = 0; i < m; i++) {
+    const j = (i + 1) % n;
+    const p = pts[i]!, q = pts[j]!, np = nor[i]!, nq = nor[j]!;
+    const L = Math.hypot(q[0] - p[0], q[1] - p[1]);
+    const v1 = v + L / vlen;
+    if (dash > 0 && i % 2 === 1) { v = v1; continue; }
+    const P = (pt: readonly [number, number], nn: readonly [number, number], s: number): [number, number, number] => [pt[0] + nn[0] * (off + s * w / 2), y, pt[1] + nn[1] * (off + s * w / 2)];
+    const a = P(p, np, -1), bb = P(p, np, 1), c = P(q, nq, 1), d = P(q, nq, -1);
+    // normal pra cima: (b - a) x (d - a) tem que ter y > 0
+    const ny = (bb[2] - a[2]) * (d[0] - a[0]) - (bb[0] - a[0]) * (d[2] - a[2]);
+    if (ny > 0) b.quad(a, bb, c, d, [0, v, uw, v1], col);
+    else b.quad(a, d, c, bb, [0, v, uw, v1], col);
+    v = v1;
+  }
+}
+
 function slab(b: GeoBuilder, cx: number, cz: number, sx: number, sz: number): void {
   b.resetTransform();
   const x0 = cx - sx / 2, x1 = cx + sx / 2, z0 = cz - sz / 2, z1 = cz + sz / 2, h = CURB_H;
@@ -661,7 +745,8 @@ function poolQuad(b: GeoBuilder, x: number, z: number, r: number, col: RGB, y = 
 
 function buildLot(lot: Lot, walls: GeoBuilder, glow: GeoBuilder, signs: GeoBuilder, flat: GeoBuilder, emissive: GeoBuilder, lines: number[]): void {
   const rnd = mulberry32(lot.seed);
-  const y0 = CURB_H;
+  // fora da grade não tem calçada: a casa senta no chão
+  const y0 = Math.max(Math.abs(lot.x), Math.abs(lot.z)) > GRID_EDGE ? 0 : CURB_H;
   const hw = lot.w / 2;
   const front = lot.d / 2; // fachada em z = +front (local)
   const setback = lot.muro ? range(rnd, 3, 5) : 0;

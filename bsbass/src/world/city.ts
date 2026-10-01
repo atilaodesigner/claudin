@@ -14,7 +14,11 @@ export const BLOCK_HALF = (PITCH - ROAD) / 2; // 40
 export const SIDEWALK = 3;
 export const CURB_H = 0.12;
 export const LANE = 3.3; // afastamento da faixa em relação ao eixo
-export const BORDER = EXTENT + ROAD / 2 + 26; // muro do fim do mapa
+/** faixa de cerrado e ocupação além da grade de ruas (estrada de terra, barracos) */
+export const OUTER = 200;
+export const BORDER = EXTENT + ROAD / 2 + OUTER; // muro do fim do mapa
+/** borda do asfalto da grade */
+export const GRID_EDGE = EXTENT + ROAD / 2;
 export const BALAO = { x: 0, z: 0, island: 12, ring: 34 };
 export const AVENUE_Z = 0; // a avenida corta o mapa no eixo X
 
@@ -78,6 +82,24 @@ export interface RoadSign {
   sub: string;
 }
 
+/** estrada fora da grade: anel de terra, saídas tortas e a rodovia (continuação da avenida) */
+export interface OuterRoad {
+  pts: [number, number][];
+  w: number;
+  kind: 'dirt' | 'asphalt';
+  loop?: boolean;
+}
+
+/** terreno baldio ou beco (sem casa, dá pra entrar com o carro) */
+export interface OpenLot {
+  x: number;
+  z: number;
+  w: number;
+  d: number;
+  rot: number;
+  kind: 'vacant' | 'alley';
+}
+
 export interface City {
   blocks: Block[];
   lots: Lot[];
@@ -87,6 +109,11 @@ export interface City {
   signs: RoadSign[];
   colliders: Shape[];
   medians: { x0: number; x1: number }[]; // canteiro da avenida (z = AVENUE_Z)
+  outerRoads: OuterRoad[];
+  /** becos e terrenos baldios */
+  openLots: OpenLot[];
+  /** miolo de quadra aberto (dá pra atravessar pelo beco) */
+  courtyards: { x: number; z: number; half: number }[];
 }
 
 export const SHOP_NAMES = [
@@ -144,8 +171,19 @@ export function buildCity(seed = 61): City {
   // ---------- lotes ----------
   const inner = BLOCK_HALF - SIDEWALK; // 37
   const depth = 21;
+  const openLots: OpenLot[] = [];
+  const courtyards: City['courtyards'] = [];
+  // sorteio separado pros becos e baldios (não mexe no resto da cidade)
+  const rndA = mulberry32(seed * 7 + 3);
   for (const b of blocks) {
     if (b.kind === 'terrao' || b.kind === 'feira' || b.kind === 'praca') continue;
+    // quadra comum: às vezes um beco (ou dois, de lado a lado) e terreno baldio
+    const canOpen = b.kind === 'res' && !inBalao(b.x, b.z, BLOCK_HALF * 1.5);
+    const alleySide = canOpen && rndA() < 0.55 ? (rndA() < 0.5 ? 0 : 1) : -1;
+    const through = alleySide >= 0 && rndA() < 0.5;
+    // onde o beco cai ao longo da fileira (dentro da largura do miolo)
+    const alleyAt = (rndA() * 2 - 1) * (inner - depth - 6);
+    let opened = false;
     // 4 lados. rot = direção pra onde a fachada olha
     const sides = [
       { rot: 0, len: inner * 2, ox: 0, oz: inner - depth / 2, along: [1, 0] }, // norte (+Z) olha pra +Z
@@ -153,7 +191,7 @@ export function buildCity(seed = 61): City {
       { rot: Math.PI / 2, len: (inner - depth) * 2, ox: inner - depth / 2, oz: 0, along: [0, -1] },
       { rot: -Math.PI / 2, len: (inner - depth) * 2, ox: -(inner - depth / 2), oz: 0, along: [0, 1] },
     ];
-    for (const s of sides) {
+    for (const [si, s] of sides.entries()) {
       let n = Math.max(1, Math.round(s.len / range(rnd, 8.5, 12)));
       if (b.kind === 'posto' && s.rot === 0) continue; // frente do posto aberta
       if (b.kind === 'ferro' && s.rot !== Math.PI) continue; // ferro-velho: só a fileira de casas dos fundos
@@ -168,7 +206,7 @@ export function buildCity(seed = 61): City {
         const style: HouseStyle = r < 0.3 ? 'brick' : r < 0.45 ? 'block' : r < 0.75 ? 'painted' : 'plaster';
         const floors = rnd() < 0.5 ? 1 : rnd() < 0.8 ? 2 : 3;
         const shop = rnd() < 0.22 ? Math.floor(rnd() * SHOP_NAMES.length) : -1;
-        lots.push({
+        const lot: Lot = {
           x: lx,
           z: lz,
           w: w - 0.05,
@@ -180,14 +218,27 @@ export function buildCity(seed = 61): City {
           shop,
           muro: shop < 0 && rnd() < 0.55,
           seed: Math.floor(rnd() * 1e9),
-        });
+        };
+        if (canOpen) {
+          // beco só onde dá no miolo (as fileiras do lado tampam as pontas)
+          const centered = Math.abs(t) + w / 2 <= inner - depth + 0.5;
+          const alley = (si === alleySide || (through && si === 1 - alleySide)) && centered && Math.abs(t - alleyAt) <= w / 2;
+          const vacant = !alley && shop < 0 && rndA() < 0.07;
+          if (alley || vacant) {
+            openLots.push({ x: lx, z: lz, w: lot.w, d: depth, rot: s.rot, kind: alley ? 'alley' : 'vacant' });
+            opened = true;
+            continue;
+          }
+        }
+        lots.push(lot);
         const horiz = Math.abs(Math.sin(s.rot)) > 0.5;
         colliders.push(rect(lx, lz, horiz ? depth / 2 : (w - 0.05) / 2, horiz ? (w - 0.05) / 2 : depth / 2));
       }
     }
     // miolo da quadra (inalcançável, mas precisa de colisor se o balão abrir espaço)
     const innerHalf = inner - depth;
-    if (b.kind !== 'ferro' && !inBalao(b.x, b.z, innerHalf + 12)) colliders.push(rect(b.x, b.z, innerHalf, innerHalf));
+    if (opened) courtyards.push({ x: b.x, z: b.z, half: innerHalf });
+    else if (b.kind !== 'ferro' && !inBalao(b.x, b.z, innerHalf + 12)) colliders.push(rect(b.x, b.z, innerHalf, innerHalf));
   }
 
   // ---------- canteiro central da avenida ----------
@@ -321,14 +372,20 @@ export function buildCity(seed = 61): City {
     }
   }
 
+  // ---------- fora da grade: estrada de terra, rodovia e a ocupação ----------
+  const outerRoads = buildOuterRoads(mulberry32(seed + 101));
+  const outerLots = buildOuterLots(outerRoads, mulberry32(seed + 202), lots, colliders, lamps);
+  const nearOuter = (x: number, z: number, pad: number) => roadDist(outerRoads, x, z) < pad || outerLots.some((l) => Math.hypot(l.x - x, l.z - z) < l.w / 2 + l.d / 2 + 3);
+
   // ---------- cerrado em volta + muro do fim do mapa ----------
-  for (let k = 0; k < 120; k++) {
+  for (let k = 0; k < 360; k++) {
     const side = Math.floor(rnd() * 4);
     const t = range(rnd, -BORDER, BORDER);
-    const o = range(rnd, EXTENT + ROAD / 2 + 4, BORDER - 2);
+    const o = range(rnd, GRID_EDGE + 4, BORDER - 2);
     const x = side === 0 ? t : side === 1 ? -o : side === 2 ? t : o;
     const z = side === 0 ? o : side === 1 ? t : side === 2 ? -o : t;
-    trees.push({ x, z, s: range(rnd, 0.7, 1.3), kind: 'cerrado' });
+    if (nearOuter(x, z, 9)) continue;
+    trees.push({ x, z, s: range(rnd, 0.7, 1.4), kind: 'cerrado' });
     colliders.push(circle(x, z, 0.35));
   }
   const W = BORDER;
@@ -348,7 +405,8 @@ export function buildCity(seed = 61): City {
     signs.push({ x, z, rot: vertical ? Math.PI : Math.PI / 2, text, sub });
   }
 
-  return { blocks, lots, lamps, parked, trees, signs, colliders, medians };
+  setRoadIndex(outerRoads);
+  return { blocks, lots, lamps, parked, trees, signs, colliders, medians, outerRoads, openLots, courtyards };
 }
 
 export interface Surface {
@@ -367,7 +425,12 @@ export function blockAt(city: City, x: number, z: number): Block | null {
 }
 
 export function surfaceAt(city: City, x: number, z: number): Surface {
-  if (Math.abs(x) > EXTENT + ROAD / 2 || Math.abs(z) > EXTENT + ROAD / 2) return { grip: 0.68, height: 0, dirt: true };
+  if (Math.abs(x) > GRID_EDGE || Math.abs(z) > GRID_EDGE) {
+    // fora da grade: rodovia, estrada de terra batida ou cerrado
+    const r = roadAt(x, z);
+    if (r === 'asphalt') return { grip: 1, height: 0, dirt: false };
+    return { grip: r === 'dirt' ? 0.86 : 0.68, height: 0, dirt: true };
+  }
   if (inBalao(x, z)) return { grip: Math.hypot(x, z) < BALAO.island + 1.5 ? 0.8 : 1, height: 0, dirt: false };
   const b = blockAt(city, x, z);
   if (!b) return { grip: 1, height: 0, dirt: false };
@@ -402,4 +465,185 @@ export function nearestLane(x: number, z: number): { x: number; z: number; headi
     heading = Math.PI / 2;
   }
   return { x: px, z: pz, heading };
+}
+
+// ================= fora da grade =================
+
+/** ponto da curva de Bézier quadrática */
+function bez(a: [number, number], c: [number, number], b: [number, number], t: number): [number, number] {
+  const u = 1 - t;
+  return [u * u * a[0] + 2 * u * t * c[0] + t * t * b[0], u * u * a[1] + 2 * u * t * c[1] + t * t * b[1]];
+}
+
+/** raio do anel de terra num ângulo (quadrado arredondado e torto) */
+function ringR(a: number): number {
+  const c = Math.abs(Math.cos(a)), s = Math.abs(Math.sin(a));
+  const sq = 1 / Math.pow(c ** 4 + s ** 4, 0.25);
+  return (GRID_EDGE + 92) * sq * (1 + 0.05 * Math.sin(3 * a + 0.7) + 0.035 * Math.sin(5 * a + 2.1));
+}
+
+/** raio do anel, entre 45 m da grade e 45 m do muro do fim do mapa */
+function ringClamped(a: number): number {
+  const m = Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a)));
+  return Math.min(Math.max(ringR(a) * m, GRID_EDGE + 45), BORDER - 45) / m;
+}
+
+function buildOuterRoads(rnd: () => number): OuterRoad[] {
+  const roads: OuterRoad[] = [];
+  // anel de terra em volta da cidade
+  const ring: [number, number][] = [];
+  const N = 180;
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2;
+    const r = ringClamped(a);
+    ring.push([Math.cos(a) * r, Math.sin(a) * r]);
+  }
+  roads.push({ pts: ring, w: 9, kind: 'dirt', loop: true });
+  // saídas de terra tortas: do fim de uma rua da grade até o anel
+  const exits: [number, number, number, number][] = [
+    [nodePos(1), 1, 0, 1], [nodePos(3), 1, 0, 1], [nodePos(6), 1, 0, 1],
+    [nodePos(2), -1, 0, -1], [nodePos(5), -1, 0, -1], [nodePos(7), -1, 0, -1],
+    [nodePos(2), 1, 1, 0], [nodePos(6), 1, 1, 0], [nodePos(1), -1, -1, 0], [nodePos(7), -1, -1, 0],
+  ];
+  for (const [p, sgn, dx, dz] of exits) {
+    const start: [number, number] = dz !== 0 ? [p, sgn * GRID_EDGE] : [sgn * GRID_EDGE, p];
+    const a = Math.atan2(start[1] + dz * 60, start[0] + dx * 60);
+    const R = ringClamped(a);
+    const end: [number, number] = [Math.cos(a) * R, Math.sin(a) * R];
+    const mid: [number, number] = [(start[0] + end[0]) / 2, (start[1] + end[1]) / 2];
+    const bend = (rnd() - 0.5) * 50;
+    const ctrl: [number, number] = [mid[0] + dz * bend, mid[1] + dx * bend];
+    const pts: [number, number][] = [];
+    for (let i = 0; i <= 14; i++) pts.push(bez(start, ctrl, end, i / 14));
+    roads.push({ pts, w: 8, kind: 'dirt' });
+  }
+  // rodovia: a avenida segue reto pros dois lados até o fim do mapa, com uma curvinha
+  for (const sgn of [1, -1]) {
+    const pts: [number, number][] = [];
+    for (let i = 0; i <= 20; i++) {
+      const t = i / 20;
+      const x = sgn * (GRID_EDGE + t * (BORDER - 4 - GRID_EDGE));
+      pts.push([x, AVENUE_Z + Math.sin(t * Math.PI) * 14 * sgn]);
+    }
+    roads.push({ pts, w: 16, kind: 'asphalt' });
+  }
+  return roads;
+}
+
+/** distância de um ponto até a estrada mais perto (sem índice, pra montar o mapa) */
+function roadDist(roads: OuterRoad[], x: number, z: number): number {
+  let best = Infinity;
+  for (const r of roads) {
+    const n = r.pts.length, m = r.loop ? n : n - 1;
+    for (let i = 0; i < m; i++) {
+      const a = r.pts[i]!, b = r.pts[(i + 1) % n]!;
+      best = Math.min(best, segDist(x, z, a[0], a[1], b[0], b[1]) - r.w / 2);
+    }
+  }
+  return best;
+}
+
+function segDist(px: number, pz: number, ax: number, az: number, bx: number, bz: number): number {
+  const dx = bx - ax, dz = bz - az;
+  const L = dx * dx + dz * dz;
+  const t = L > 0 ? Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / L)) : 0;
+  return Math.hypot(px - ax - dx * t, pz - az - dz * t);
+}
+
+/** barracos e casinhas ao longo do anel de terra, virados pra estrada (fora do esquadro) */
+function buildOuterLots(roads: OuterRoad[], rnd: () => number, lots: Lot[], colliders: Shape[], lamps: Lamp[]): Lot[] {
+  const out: Lot[] = [];
+  const ring = roads[0]!.pts;
+  const N = ring.length;
+  const others = roads.slice(1);
+  const clusters = 11;
+  for (let c = 0; c < clusters; c++) {
+    let i = Math.floor(((c + rnd() * 0.6) / clusters) * N);
+    const count = 3 + Math.floor(rnd() * 5);
+    const side = rnd() < 0.7 ? 1 : -1; // 1 = do lado de fora do anel
+    for (let k = 0; k < count; k++, i += 2) {
+      const a = ring[i % N]!, b = ring[(i + 1) % N]!;
+      const tx = b[0] - a[0], tz = b[1] - a[1];
+      const tl = Math.hypot(tx, tz) || 1;
+      // normal pra fora do anel
+      let nx = tz / tl, nz = -tx / tl;
+      if (nx * a[0] + nz * a[1] < 0) { nx = -nx; nz = -nz; }
+      nx *= side; nz *= side;
+      const w = range(rnd, 7.5, 10), d = range(rnd, 9, 12);
+      const off = 9 / 2 + 3.5 + d / 2;
+      const x = a[0] + nx * off + (tx / tl) * range(rnd, -1.5, 1.5);
+      const z = a[1] + nz * off + (tz / tl) * range(rnd, -1.5, 1.5);
+      if (Math.abs(x) > BORDER - d || Math.abs(z) > BORDER - d) continue;
+      if (Math.max(Math.abs(x), Math.abs(z)) < GRID_EDGE + d) continue;
+      if (roadDist(others, x, z) < d) continue;
+      if (out.some((l) => Math.hypot(l.x - x, l.z - z) < (l.w + w) / 2 + 1)) continue;
+      const rot = Math.atan2(-nx, -nz) + range(rnd, -0.12, 0.12);
+      const r = rnd();
+      const lot: Lot = {
+        x, z, w, d, rot,
+        floors: rnd() < 0.7 ? 1 : 2,
+        style: r < 0.4 ? 'brick' : r < 0.65 ? 'block' : r < 0.9 ? 'painted' : 'plaster',
+        tint: rnd(),
+        shop: rnd() < 0.12 ? pick(rnd, [0, 7, 1]) : -1,
+        muro: rnd() < 0.3,
+        seed: Math.floor(rnd() * 1e9),
+      };
+      out.push(lot);
+      lots.push(lot);
+      colliders.push(rect(x, z, w / 2, d / 2, rot));
+    }
+  }
+  // postes de madeira ao longo do anel, alternando o lado
+  for (let i = 0; i < N; i += 3) {
+    const a = ring[i]!, b = ring[(i + 1) % N]!;
+    const tx = b[0] - a[0], tz = b[1] - a[1];
+    const tl = Math.hypot(tx, tz) || 1;
+    const side = (i / 3) % 2 === 0 ? 1 : -1;
+    const nx = (tz / tl) * side, nz = (-tx / tl) * side;
+    const x = a[0] + nx * 6.2, z = a[1] + nz * 6.2;
+    if (out.some((l) => Math.hypot(l.x - x, l.z - z) < l.w / 2 + l.d / 2 + 1)) continue;
+    if (roadDist(others, x, z) < 4) continue;
+    const sh = circle(x, z, 0.22);
+    lamps.push({ x, z, dirX: -nx, dirZ: -nz, shape: sh });
+    colliders.push(sh);
+  }
+  return out;
+}
+
+// índice das estradas de fora (grade de 40 m) pro surfaceAt
+const ROAD_CELL = 40;
+let roadIndex = new Map<string, { ax: number; az: number; bx: number; bz: number; w: number; kind: OuterRoad['kind'] }[]>();
+
+function setRoadIndex(roads: OuterRoad[]): void {
+  roadIndex = new Map();
+  for (const r of roads) {
+    const n = r.pts.length, m = r.loop ? n : n - 1;
+    for (let i = 0; i < m; i++) {
+      const a = r.pts[i]!, b = r.pts[(i + 1) % n]!;
+      const seg = { ax: a[0], az: a[1], bx: b[0], bz: b[1], w: r.w, kind: r.kind };
+      const pad = r.w / 2 + 1;
+      for (let cx = Math.floor((Math.min(a[0], b[0]) - pad) / ROAD_CELL); cx <= Math.floor((Math.max(a[0], b[0]) + pad) / ROAD_CELL); cx++) {
+        for (let cz = Math.floor((Math.min(a[1], b[1]) - pad) / ROAD_CELL); cz <= Math.floor((Math.max(a[1], b[1]) + pad) / ROAD_CELL); cz++) {
+          const k = `${cx},${cz}`;
+          const l = roadIndex.get(k);
+          if (l) l.push(seg);
+          else roadIndex.set(k, [seg]);
+        }
+      }
+    }
+  }
+}
+
+/** em cima de qual estrada de fora o ponto está (null = cerrado) */
+export function roadAt(x: number, z: number): OuterRoad['kind'] | null {
+  const l = roadIndex.get(`${Math.floor(x / ROAD_CELL)},${Math.floor(z / ROAD_CELL)}`);
+  if (!l) return null;
+  let best: OuterRoad['kind'] | null = null;
+  for (const s of l) {
+    if (segDist(x, z, s.ax, s.az, s.bx, s.bz) <= s.w / 2) {
+      if (s.kind === 'asphalt') return 'asphalt';
+      best = 'dirt';
+    }
+  }
+  return best;
 }

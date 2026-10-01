@@ -245,11 +245,11 @@ export class Game {
     // asfalto molhado com reflexo de verdade
     this.reflScale = PRESETS[this.preset].reflection || 0.3;
     this.wet = new WetReflection(this.reflScale);
-    for (const name of ['asphalt', 'ground', 'sidewalk', 'marks', 'pools', 'lampPools', 'dirt']) {
+    for (const name of ['asphalt', 'ground', 'sidewalk', 'marks', 'pools', 'lampPools', 'dirt', 'trail', 'highway']) {
       const m = this.meshes.group.getObjectByName(name) as THREE.Mesh | undefined;
       if (!m) continue;
       m.layers.set(NO_REFLECT);
-      if (name === 'asphalt') this.wet.patch(m.material as THREE.MeshStandardMaterial, 1.0, 1.0);
+      if (name === 'asphalt' || name === 'highway') this.wet.patch(m.material as THREE.MeshStandardMaterial, 1.0, 1.0);
       if (name === 'sidewalk') this.wet.patch(m.material as THREE.MeshStandardMaterial, 0.45, 0.25);
       if (name === 'marks') this.wet.patch(m.material as THREE.MeshStandardMaterial, 0.6, 0.0);
     }

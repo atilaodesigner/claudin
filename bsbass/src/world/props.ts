@@ -294,6 +294,27 @@ export function buildProps(city: City, models: Assets['models'], lite = false): 
     if (p.shape && size) breakables.push({ name: 'covered_car', index, shape: p.shape, base: matrix, h: size.y / 2, r: Math.min(size.x, size.z) / 2, spec: { mass: 950, minV: 6 } });
   }
 
+  // ---------- miolo de quadra e terreno baldio: entulho que o carro derruba ----------
+  const rnd4 = mulberry32(4141);
+  const junk: ModelName[] = ['Barrel_02', 'barrel_03', 'trashbag', 'trashbag', 'cardboard_box_01', 'wooden_crate_01', 'metal_trash_can'];
+  for (const c of city.courtyards) {
+    const n = 3 + Math.floor(rnd4() * 4);
+    for (let k = 0; k < n; k++) {
+      // perto das paredes do miolo, longe do meio (caminho entre os becos)
+      const side = Math.floor(rnd4() * 4), t = range(rnd4, -c.half + 2, c.half - 2), e = c.half - range(rnd4, 1, 2.5);
+      const x = c.x + (side === 0 ? t : side === 1 ? -t : side === 2 ? e : -e);
+      const z = c.z + (side === 0 ? e : side === 1 ? -e : side === 2 ? t : -t);
+      loose(pick(rnd4, junk), x, y0, z, rnd4() * 6);
+    }
+  }
+  for (const o of city.openLots) {
+    if (o.kind !== 'vacant') continue;
+    for (let k = 0; k < 2; k++) {
+      const [x, z] = toWorld({ x: o.x, z: o.z, rot: o.rot } as Lot, range(rnd4, -o.w / 2 + 1, o.w / 2 - 1), range(rnd4, -o.d / 2 + 2, o.d / 2 - 4));
+      loose(pick(rnd4, junk), x, y0, z, rnd4() * 6);
+    }
+  }
+
   // ---------- barreiras de concreto nas pontas do canteiro ----------
   for (const m of city.medians) {
     for (const x of [m.x0 - 1.2, m.x1 + 1.2]) {

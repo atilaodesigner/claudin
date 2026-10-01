@@ -3,7 +3,7 @@
 
 import { STATIONS, type Radio } from '../audio/radio';
 import type { Input } from '../input';
-import { BALAO, EXTENT, NODES, ROAD, nodePos, type City } from '../world/city';
+import { BALAO, BORDER, EXTENT, NODES, ROAD, nodePos, type City } from '../world/city';
 import { PRESETS, PRESET_NAMES, type Preset, type PresetChoice, type Settings } from '../settings';
 
 const $ = <T extends HTMLElement = HTMLElement>(root: ParentNode, sel: string) => root.querySelector(sel) as T;
@@ -535,7 +535,7 @@ export class Hud {
     }
     wrap.classList.add('on');
     const cv = this.bigCanvas!, c = cv.getContext('2d')!, W = cv.width;
-    const off = EXTENT + ROAD / 2 + 40, scale = W / (off * 2);
+    const off = BORDER + 10, scale = W / (off * 2);
     c.setTransform(1, 0, 0, 1, 0, 0);
     c.clearRect(0, 0, W, W);
     // norte (+z) pra cima: y da tela = -z
@@ -609,7 +609,7 @@ export class Hud {
     c.rotate(h + Math.PI);
     c.scale(scale, scale);
     c.translate(-s.x, -s.z);
-    const off = EXTENT + ROAD / 2 + 40;
+    const off = BORDER + 10;
     c.drawImage(this.mapBase, -off, -off, off * 2, off * 2);
     if (route) {
       // circuito do capítulo em andamento
@@ -654,7 +654,7 @@ export class Hud {
 }
 
 function renderMapBase(city: City): HTMLCanvasElement {
-  const off = EXTENT + ROAD / 2 + 40;
+  const off = BORDER + 10;
   const S = 1024;
   const k = S / (off * 2);
   const cv = document.createElement('canvas');
@@ -664,11 +664,41 @@ function renderMapBase(city: City): HTMLCanvasElement {
   c.translate(off, off);
   c.fillStyle = '#3a1c10';
   c.fillRect(-off, -off, off * 2, off * 2);
+  // estrada de terra e rodovia fora da grade
+  c.lineJoin = 'round';
+  for (const r of city.outerRoads) {
+    c.strokeStyle = r.kind === 'asphalt' ? '#5b606b' : '#8a5a3a';
+    c.lineWidth = r.w;
+    c.beginPath();
+    r.pts.forEach(([x, z], i) => (i === 0 ? c.moveTo(x, z) : c.lineTo(x, z)));
+    if (r.loop) c.closePath();
+    c.stroke();
+  }
   // quadras
   for (const b of city.blocks) {
     c.fillStyle = b.kind === 'terrao' ? '#7a3418' : b.kind === 'praca' ? '#27463a' : b.kind === 'feira' ? '#4a4038' : b.kind === 'posto' ? '#554a40' : b.kind === 'ferro' ? '#4a3a2c' : '#1c1f26';
     c.fillRect(b.x - 40, b.z - 40, 80, 80);
   }
+  // casas fora da grade
+  c.fillStyle = '#1c1f26';
+  for (const l of city.lots) {
+    if (Math.max(Math.abs(l.x), Math.abs(l.z)) < EXTENT + ROAD) continue;
+    c.save();
+    c.translate(l.x, l.z);
+    c.rotate(-l.rot);
+    c.fillRect(-l.w / 2, -l.d / 2, l.w, l.d);
+    c.restore();
+  }
+  // becos e baldios (abertos)
+  c.fillStyle = '#5a3a26';
+  for (const o of city.openLots) {
+    c.save();
+    c.translate(o.x, o.z);
+    c.rotate(-o.rot);
+    c.fillRect(-o.w / 2, -o.d / 2, o.w, o.d);
+    c.restore();
+  }
+  for (const y of city.courtyards) c.fillRect(y.x - y.half, y.z - y.half, y.half * 2, y.half * 2);
   // ruas
   c.strokeStyle = '#5b606b';
   c.lineWidth = ROAD * 0.8;
