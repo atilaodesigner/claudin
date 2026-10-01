@@ -42,8 +42,36 @@ export function findLights(p: PreparedCar): LightSpots {
     else if (HEAD_RE.test(n)) namedHead.push(m);
   });
   const w = p.halfW, h = p.height;
-  const tails = [1, -1].map((s) => probe(p, -1, s * w * 0.62, h * 0.58));
-  const heads = [1, -1].map((s) => probe(p, 1, s * w * 0.6, h * 0.5));
+  // com farol/lanterna de verdade no modelo, a luz vai no centro dele (de cada lado);
+  // senão chuta pela superfície do carro numa altura fixa
+  p.root.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(p.root.matrixWorld).invert();
+  const fromMeshes = (list: THREE.Mesh[], front: boolean): THREE.Vector3[] | null => {
+    if (!list.length) return null;
+    // pelos vértices (uma peça pode ter os dois faróis): centro de cada lado
+    const acc = [1, -1].map(() => ({ x: 0, y: 0, n: 0, z: front ? -Infinity : Infinity }));
+    const v = new THREE.Vector3();
+    const mtx = new THREE.Matrix4();
+    for (const m of list) {
+      const pos = m.geometry.attributes.position;
+      if (!pos) continue;
+      mtx.multiplyMatrices(inv, m.matrixWorld);
+      const step = Math.max(1, Math.floor(pos.count / 400));
+      for (let i = 0; i < pos.count; i += step) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(mtx);
+        if (Math.abs(v.x) < w * 0.12) continue;
+        const a = acc[v.x > 0 ? 0 : 1]!;
+        a.x += v.x;
+        a.y += v.y;
+        a.n++;
+        a.z = front ? Math.max(a.z, v.z) : Math.min(a.z, v.z);
+      }
+    }
+    if (acc.some((a) => !a.n)) return null;
+    return acc.map((a) => new THREE.Vector3(a.x / a.n, a.y / a.n, a.z));
+  };
+  const tails = fromMeshes(namedTail, false) ?? [1, -1].map((s) => probe(p, -1, s * w * 0.62, h * 0.58));
+  const heads = fromMeshes(namedHead, true) ?? [1, -1].map((s) => probe(p, 1, s * w * 0.6, h * 0.5));
   const exhausts = [1, -1].map((s) => {
     const q = probe(p, -1, s * w * 0.45, h * 0.2);
     q.z -= 0.05;
@@ -150,9 +178,9 @@ export function buildGltfRig(p: PreparedCar, env: THREE.Texture | null, paintCol
   root.add(underglow);
 
   // farol aceso em qualquer qualidade (o BAIXA não tem bloom): brilho nas lentes e mancha de luz no asfalto
-  const glowMat = new THREE.MeshBasicMaterial({ map: soft, color: new THREE.Color(0.8, 0.75, 0.66), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+  const glowMat = new THREE.MeshBasicMaterial({ map: soft, color: new THREE.Color(0.55, 0.52, 0.46), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
   for (const hpos of L.heads) {
-    const g = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.26), glowMat);
+    const g = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.16), glowMat);
     g.position.copy(hpos).setZ(hpos.z + 0.05);
     g.renderOrder = 5;
     root.add(g);
