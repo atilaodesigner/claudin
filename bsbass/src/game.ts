@@ -688,12 +688,95 @@ export class Game {
    * Compila todos os shaders (cena, reflexo, pós) antes de mostrar o jogo,
    * pra não travar no primeiro frame nem quando um carro entra na tela.
    */
+  /**
+   * Prepara na abertura tudo que vai aparecer depois (senão o jogo engasga no
+   * meio da partida): shaders de TODOS os objetos, inclusive os escondidos
+   * (polícia, caminhão e efeitos da missão, carros da garagem que não estão em
+   * uso) e envio de todas as texturas pra placa de vídeo.
+   */
   async warmup(): Promise<void> {
+    const shown: THREE.Object3D[] = [];
+    const added: THREE.Object3D[] = [];
+    const muted: THREE.Light[] = [];
+    for (const c of this.ownCars) {
+      if (!c.rig.root.parent) {
+        this.scene.add(c.rig.root);
+        added.push(c.rig.root);
+        // faróis dos carros que não estão em uso não contam (o número de luzes faz parte do shader)
+        c.rig.root.traverse((o) => {
+          if ((o as THREE.Light).isLight && o.visible) {
+            o.visible = false;
+            muted.push(o as THREE.Light);
+          }
+        });
+      }
+    }
+    // luz escondida continua escondida aqui; as da missão entram numa segunda passada
+    const hiddenLights = (this.campaign?.mission.lights ?? []).filter((l) => !l.visible);
+    this.scene.traverse((o) => {
+      if ((o as THREE.Light).isLight) return;
+      if (!o.visible) {
+        o.visible = true;
+        shown.push(o);
+      }
+    });
+    const textures = new Set<THREE.Texture>();
+    this.scene.traverse((o) => {
+      const m = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+      for (const mat of Array.isArray(m) ? m : m ? [m] : []) {
+        for (const v of Object.values(mat)) if ((v as THREE.Texture)?.isTexture) textures.add(v as THREE.Texture);
+        const u = (mat as THREE.ShaderMaterial).uniforms;
+        if (u) for (const k in u) if ((u[k]!.value as THREE.Texture)?.isTexture) textures.add(u[k]!.value as THREE.Texture);
+      }
+    });
     try {
+      for (const t of textures) this.renderer.initTexture(t);
+      // a cena é desenhada numa imagem intermediária (bloom, cor) e não direto na
+      // tela: o shader muda conforme o destino, então compila mirando ela
+      this.renderer.setRenderTarget(this.composer.readBuffer);
       await this.renderer.compileAsync(this.scene, this.camera);
+      // de novo com as luzes da missão (sirene, caminhão, explosão) ligadas: os
+      // shaders dessa contagem de luzes ficam prontos e começar a missão não engasga
+      if (hiddenLights.length) {
+        for (const l of hiddenLights) l.visible = true;
+        await this.renderer.compileAsync(this.scene, this.camera);
+        for (const l of hiddenLights) l.visible = false;
+      }
+      // um desenho de tudo (sem corte por câmera) numa imagem minúscula: manda
+      // todos os modelos pra placa de vídeo agora, não no primeiro quadro em que aparecem
+      const culled: THREE.Object3D[] = [];
+      this.scene.traverse((o) => {
+        if (o.frustumCulled) {
+          o.frustumCulled = false;
+          culled.push(o);
+        }
+      });
+      // variantes que o AUTO pode precisar (presets mais baixos têm menos luzes de
+      // poste/neon), com e sem as luzes da missão: só dispara a compilação, o
+      // driver termina em segundo plano
+      for (let pr = lowerPreset(this.preset); pr; pr = lowerPreset(pr)) {
+        const q = PRESETS[pr];
+        const off = [...this.lampPool.slice(q.lamps), ...this.neonPool.slice(q.neon)];
+        for (const l of off) l.visible = false;
+        for (const on of [false, true]) {
+          for (const l of hiddenLights) l.visible = on;
+          this.renderer.compile(this.scene, this.camera);
+        }
+        for (const l of hiddenLights) l.visible = false;
+        for (const l of off) l.visible = true;
+      }
+      const tiny = new THREE.WebGLRenderTarget(32, 32, { type: THREE.HalfFloatType });
+      this.renderer.setRenderTarget(tiny);
+      this.renderer.render(this.scene, this.camera);
+      tiny.dispose();
+      for (const o of culled) o.frustumCulled = true;
     } catch {
       /* navegador sem compilação paralela: o primeiro frame compila */
     }
+    this.renderer.setRenderTarget(null);
+    for (const l of muted) l.visible = true;
+    for (const o of shown) o.visible = false;
+    for (const o of added) this.scene.remove(o);
     this.frame(1 / 60);
   }
 

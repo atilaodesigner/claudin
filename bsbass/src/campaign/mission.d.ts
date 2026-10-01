@@ -39,6 +39,7 @@ export interface MissionHost {
 export interface Mission {
   readonly state: 'idle' | 'intro' | 'play' | 'cinematic' | 'result';
   readonly chapterIndex: number;
+  readonly lights: THREE.Light[];
   readonly player: { s: number; x: number; v: number; life: number; maxLife: number; dead: boolean };
   shake: number;
   readonly fovKick: number;

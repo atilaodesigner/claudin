@@ -1871,6 +1871,8 @@ export function createMission(host) {
     get chapterIndex() {
       return G.ch;
     },
+    /** luzes que a missão liga (sirene, caminhão, explosão), pra pré-compilar os shaders */
+    lights: [...sirenLights, truckLight, boomLight],
     get player() {
       return PLAYER;
     },
