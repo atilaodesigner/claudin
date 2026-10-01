@@ -25,6 +25,7 @@ import { makeCloudAtlas, Particles, DustMotes } from './fx/particles';
 import { LightTrail, SkidMarks } from './fx/trails';
 import { WetReflection, NO_REFLECT } from './fx/wet';
 import { GuideLine, offsetRight } from './fx/guide';
+import { Chatter } from './ui/chatter';
 import { worldAt } from './campaign/routes';
 import { prepareCar } from './car/gltfCar';
 import { buildGltfRig, trafficLights } from './car/gltfRig';
@@ -127,6 +128,9 @@ export class Game {
   private rig: MustangRig;
   readonly scorer = new DriftScorer();
   readonly missions: Missions;
+  /** rádio do bonde: conversas em pontos do jogo */
+  private chatter!: Chatter;
+  private chat = { started: false, idle: 45, inYard: false, missionState: '', mid: 0, lowLife: false };
   /** linha guia no chão (missão e racha) */
   private guide = new GuideLine();
   readonly traffic: Traffic;
@@ -372,6 +376,7 @@ export class Game {
     this.audio.carVolume = this.save.vol.car;
     this.audio.musicVolume = this.save.vol.music;
     this.hud = new Hud(hudParent, this.input, this.radio, this.city);
+    this.chatter = new Chatter(this.hud.root);
     this.hud.vol = { ...this.save.vol };
     this.hud.onStart = () => {
       this.audio.start();
@@ -1014,6 +1019,7 @@ export class Game {
       if (e && e.type === 'lost') {
         this.hud.lost(e.points);
         this.audio.lost();
+        this.chatter.say('crash', { cool: 40, chance: 0.5 });
       }
     }
   }
@@ -1090,6 +1096,7 @@ export class Game {
     for (const e of ev) {
       if (e.type === 'bank') {
         this.hud.bank(e.points, e.label);
+        if (e.points > 6000) this.chatter.say('bigDrift', { cool: 30, chance: 0.6 });
         this.audio.bank(e.points > 5000);
         this.refreshObjectives();
         this.persist();
@@ -1107,10 +1114,14 @@ export class Game {
           this.hud.banner(`FITA ${e.total - e.left}/${e.total}`, '+500 · NITRO CHEIO DE GRAVE', 1.8);
           this.refreshObjectives();
           this.persist();
-          if (e.left === 0) this.hud.banner('TODAS AS FITAS!', 'O GRAVE É TEU', 3);
+          if (e.left === 0) {
+            this.hud.banner('TODAS AS FITAS!', 'O GRAVE É TEU', 3);
+            this.chatter.say('fitaAll', { urgent: true });
+          } else this.chatter.say('fita', { cool: 25, chance: 0.7 });
           break;
         case 'rachaStart':
           this.hud.banner(e.racha.name, `${e.racha.checkpoints.length} CHECKPOINTS · ${e.racha.limit}s`, 2.4, 'cyan');
+          this.chatter.say('rachaStart', { urgent: true, cool: 5 });
           break;
         case 'countdown':
           this.hud.popup(String(e.n));
@@ -1127,6 +1138,7 @@ export class Game {
           const bonus = Math.max(1000, Math.round((e.racha.limit - e.time) * 400));
           this.scorer.total += bonus;
           this.hud.banner(e.best ? 'RECORDE!' : 'CHEGOU!', `${e.time.toFixed(2)}s · +${fmt(bonus)}`, 3, 'cyan');
+          this.chatter.say('rachaWin', { urgent: true, cool: 5 });
           this.audio.bank(true);
           this.hud.race(null);
           this.refreshObjectives();
@@ -1135,6 +1147,7 @@ export class Game {
         }
         case 'rachaFail':
           this.hud.banner('TEMPO ESGOTADO', 'VOLTA NO PONTO AZUL E TENTA DE NOVO', 2.6, 'red');
+          this.chatter.say('rachaFail', { urgent: true, cool: 5 });
           this.audio.lost();
           this.hud.race(null);
           break;
@@ -1457,8 +1470,51 @@ export class Game {
     g.hide();
   }
 
+  /** quem fala no rádio do bonde e quando */
+  private updateChatter(dt: number): void {
+    const playing = this.hud.started && !this.hud.paused;
+    this.chatter.enabled = this.settings.chatter;
+    if (!playing) return;
+    const c = this.chat, ch = this.chatter, cm = this.campaign;
+    ch.update(dt);
+    if (!c.started) {
+      c.started = true;
+      ch.say('intro', { urgent: true, cool: 1e9 });
+    }
+    const mission = cm?.missionActive ? cm.mission : null;
+    const st = mission ? mission.state : '';
+    if (st !== c.missionState) {
+      if (st === 'play' && c.missionState !== 'play') {
+        ch.say(`c${mission!.chapterIndex + 1}Start`, { urgent: true, cool: 0 });
+        c.mid = 28;
+        c.lowLife = false;
+      }
+      if (st === 'result') ch.say(cm!.lastWin ? 'missionWin' : 'missionFail', { urgent: true, cool: 0 });
+      c.missionState = st;
+    }
+    if (mission && st === 'play') {
+      if (c.mid > 0 && (c.mid -= dt) <= 0) ch.say(`c${mission.chapterIndex + 1}Mid`, { cool: 0 });
+      const p = mission.player;
+      if (!c.lowLife && p.maxLife > 0 && p.life / p.maxLife < 0.35) {
+        c.lowLife = true;
+        ch.say('lowLife', { urgent: true, cool: 20 });
+      }
+      return;
+    }
+    if (mission) return;
+    // mundo livre: ferro-velho e papo à toa de vez em quando
+    const inYard = !!cm?.inYard;
+    if (inYard && !c.inYard) ch.say('yard', { cool: 150 });
+    c.inYard = inYard;
+    if (!ch.busy && !this.missions.active && (c.idle -= dt) <= 0) {
+      ch.say('idle', { cool: 0 });
+      c.idle = 70 + Math.random() * 50;
+    }
+  }
+
   private updateHudOnly(dt: number): void {
     this.updateGuide(dt);
+    this.updateChatter(dt);
     const car = this.car;
     const cm = this.campaign;
     const target = this.missions.active ? this.missions.target(car.x, car.z) : cm?.target(car.x, car.z, this.input.mapHeld) ?? this.missions.target(car.x, car.z);

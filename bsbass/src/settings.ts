@@ -44,11 +44,13 @@ export interface Settings {
   control: 'buttons' | 'tilt';
   /** girar a câmera com o mouse / arrastando o dedo */
   orbit: boolean;
+  /** rádio do bonde: o pessoal conversando durante o jogo */
+  chatter: boolean;
 }
 
 const KEY = 'bsbass-drift-settings-v1';
 
-export const DEFAULT_SETTINGS: Settings = { preset: 'auto', trails: true, rain: true, shake: true, lens: true, fps: false, control: 'buttons', orbit: true };
+export const DEFAULT_SETTINGS: Settings = { preset: 'auto', trails: true, rain: true, shake: true, lens: true, fps: false, control: 'buttons', orbit: true, chatter: true };
 
 export function loadSettings(): Settings {
   try {

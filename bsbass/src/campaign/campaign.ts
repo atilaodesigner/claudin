@@ -1076,6 +1076,11 @@ export class Campaign {
     this.leave();
   }
 
+  /** resultado da última missão (pro rádio do bonde) */
+  get lastWin(): boolean {
+    return !!this.lastResult?.win;
+  }
+
   get missionActive(): boolean {
     return this.mode === 'mission';
   }

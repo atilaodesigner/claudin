@@ -81,6 +81,7 @@ O build é estático (`base: './'`): dá pra hospedar `dist/` em qualquer lugar.
 - **Nitro**: enche drifando, raspando e pegando fitas.
 - **Fitas K7**: 30 fitas espalhadas (cilindro amarelo). A bússola no topo aponta a mais perto ("SINAL DA FITA").
 - **Rachas**: 5 corridas de checkpoint contra o relógio. Pare no círculo azul e segure a ação pra começar.
+- **Rádio do bonde**: o pessoal (DuckJay, Diey, Bella, Bozó) conversa durante o jogo numa caixinha discreta no canto (foto/bolinha de quem fala e a fala digitando, some sozinha): no começo do rolê, drift grande, batida, fita K7, racha, chegada no ferro-velho, papo à toa de vez em quando no mundo livre, e conversa de começo e meio de cada capítulo, carro muito amassado e resultado da missão. Dá pra desligar nas configurações.
 - **Linha guia**: durante o racha e a missão da campanha uma faixa no chão com setas correndo sai do carro e mostra o caminho (azul no racha, ligando os checkpoints pela mão de direção e arredondando as esquinas; âmbar na missão, seguindo a rota do capítulo). No mundo livre ela some.
 - **Campanha (BSBASS THE GAME no mundo aberto)**: os 5 capítulos ficam em pontos da cidade, cada um com um feixe de luz suave na cor do estado (âmbar = disponível, verde = feito, cinza = trancado), o número no chão e o ícone do capítulo girando no meio (mira, setas, caminhão, sirene, lua). Chegando perto (~25 m) aparece o cartão com nome, resumo e recorde. Pare dentro do círculo e segure a ação ~1 s (um anel enche); nada começa só de encostar. Os capítulos destrancam em ordem e cada um guarda feito, recorde e estrelas. As regras, inimigos, cinemáticas e recompensas são as mesmas do jogo original: a rota do capítulo vira um circuito fechado pelas ruas (com barreiras nas esquinas só durante a missão). Perdeu: **Tentar de novo** ou **Voltar ao mundo aberto** (o carro volta parado, do lado do ponto, virado pra rua). Ganhou: pontos, estrelas e moedas, o feixe fica verde, o próximo acende e um aviso diz a distância. A pausa tem **Abandonar missão**.
 - **Achando o caminho**: a bússola no topo aponta o ponto disponível mais perto (ou o próximo a destrancar); segurando o mapa ela aponta o ferro-velho e o mapa grande abre. Minimapa e mapa usam as mesmas cores.
@@ -123,6 +124,7 @@ src/
   fx/wet.ts             reflexo do asfalto molhado
   fx/rain.ts            chuva e cones de luz dos postes
   fx/guide.ts           linha guia animada no chão (racha e missão)
+  ui/chatter.ts         rádio do bonde (conversas em pontos do jogo) e as falas
   world/neon.ts         neon, LED e outdoors
   world/props.ts        objetos de rua (Poly Haven) instanciados
   world/breakables.ts   postes e objetos derrubáveis (física solta, respawn)

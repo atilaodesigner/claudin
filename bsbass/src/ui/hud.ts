@@ -864,6 +864,7 @@ const TEMPLATE = /* html */ `
       <h4>CÂMERA</h4>
       <div class="seg"><button data-cam="chase">PERTO</button><button data-cam="far">LONGE</button><button data-cam="hood">CAPÔ</button></div>
       <button class="tg" role="switch" data-opt="orbit"><span>Girar a câmera mexendo o mouse / arrastando o dedo</span><i></i></button>
+      <button class="tg" role="switch" data-opt="chatter"><span>Rádio do bonde (o pessoal conversando durante o jogo)</span><i></i></button>
     </section>
     <section class="touch-only">
       <h4>CONTROLE</h4>
