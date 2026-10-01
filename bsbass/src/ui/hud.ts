@@ -391,10 +391,24 @@ export class Hud {
     $(this.root, '#obj-total').textContent = o.total;
   }
 
+  private commTimer = 0;
+
   private typeMessage(): void {
     const el = $(this.root, '#msg');
-    const text = 'Chegou, véi? O trono do grave tá vazio desde que o último Mustang sumiu na poeira. A quebrada tá de olho. Vai lá e toma o que é teu.';
+    const text = 'Aí, piloto, DuckJay na escuta. O trono do grave tá vazio desde que o último carrão sumiu na poeira. A quebrada tá de olho em você. Vai lá e toma o que é teu. Câmbio!';
     let i = 0;
+    // relógio da chamada
+    const t0 = performance.now();
+    window.clearInterval(this.commTimer);
+    this.commTimer = window.setInterval(() => {
+      const brief = $(this.root, '#brief');
+      if (brief.classList.contains('hidden')) {
+        window.clearInterval(this.commTimer);
+        return;
+      }
+      const s = Math.floor((performance.now() - t0) / 1000);
+      $(this.root, '#comm-t').textContent = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+    }, 500);
     el.textContent = '';
     const id = window.setInterval(() => {
       i += 2;
@@ -690,7 +704,6 @@ const TEMPLATE = /* html */ `
 <div id="title" class="screen">
   <div class="title-bg"></div>
   <div class="title-inner">
-    <small class="kicker">CEILÂNDIA · SAMAMBAIA · SOL NASCENTE · DF 61</small>
     <h1 class="game-logo"><img src="./logo-game.webp" alt="BSBASS The Game" width="1200" height="519" /></h1>
     <p>Poeira vermelha, grave no talo e um Mustang azul na madrugada.</p>
     <nav class="main-menu">
@@ -703,13 +716,19 @@ const TEMPLATE = /* html */ `
 
 <div id="brief" class="screen hidden">
   <button id="skip" class="skip">PULAR</button>
-  <div class="card">
+  <div class="card comm">
+    <div class="comm-top">
+      <span class="rec">CHAMADA</span><span class="ch">CANAL 61 · BSBASS</span>
+      <span class="sig" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span class="clock" id="comm-t">00:00</span>
+    </div>
     <div class="who">
-      <div class="avatar"><span>ZÉ</span></div>
-      <div><h2>ZÉ DO GRAVE</h2><small>DONO DO PAREDÃO</small></div>
+      <div class="avatar comm-screen"><img src="./campaign/duckjay.webp" alt="DuckJay" width="320" height="375" /><span class="live">AO VIVO</span></div>
+      <div class="who-txt"><h2>DUCKJAY</h2><small>DO BONDE · NA ESCUTA</small>
+        <div class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      </div>
     </div>
     <div class="msgbox">
-      <small class="dot">NOVA MENSAGEM</small>
+      <small class="dot">TRANSMISSÃO</small>
       <p id="msg"></p>
       <ul class="objectives">
         <li><i>▮</i>FITAS K7 <span id="obj-fitas">0/30</span></li>

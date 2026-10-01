@@ -70,6 +70,32 @@ h1 em { display: inline-block; font-style: normal; font-family: 'Permanent Marke
   background: linear-gradient(160deg, #0c2257, #111 60%), repeating-linear-gradient(45deg, #222 0 4px, #1a1a1a 4px 8px);
   clip-path: polygon(0 0, 100% 0, 100% 86%, 86% 100%, 0 100%); }
 .avatar span { font-family: 'Permanent Marker', cursive; font-size: 44px; color: var(--y); transform: rotate(-8deg); text-shadow: 3px 3px 0 #000; }
+/* comunicador do DuckJay (chamada de rádio) */
+.comm { border-radius: 14px; overflow: hidden; border: 1px solid #2c3038; background: linear-gradient(180deg, #13161c, #0b0d11); box-shadow: 0 0 0 4px #07080a, 0 18px 50px rgba(0, 0, 0, 0.6); }
+.comm-top { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: #07080a; border-bottom: 1px solid #22262e; font-size: 10px; letter-spacing: 0.22em; color: #9aa3ad; }
+.comm-top .rec { color: #ff3b3b; font-weight: 700; }
+.comm-top .rec::before { content: '●'; margin-right: 6px; animation: comm-blink 1s steps(2) infinite; }
+.comm-top .ch { color: #26e0ff; }
+.comm-top .sig { margin-left: auto; display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; }
+.comm-top .sig i { width: 3px; background: #26e0ff; }
+.comm-top .sig i:nth-child(1) { height: 4px; } .comm-top .sig i:nth-child(2) { height: 7px; } .comm-top .sig i:nth-child(3) { height: 10px; } .comm-top .sig i:nth-child(4) { height: 12px; opacity: 0.35; }
+.comm-top .clock { font-family: ui-monospace, Menlo, monospace; color: #e8e8e8; letter-spacing: 0.08em; }
+.comm .who { border-bottom-color: #26e0ff; }
+.comm .who h2 { color: #26e0ff; }
+.comm-screen { position: relative; overflow: hidden; border-color: #26e0ff; border-radius: 8px; clip-path: none; padding: 0;
+  background: radial-gradient(circle at 50% 35%, #183448, #06141c 70%); }
+.comm-screen img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 15%; filter: saturate(0.9) contrast(1.05); }
+.comm-screen::after { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.28) 0 1px, transparent 1px 3px), linear-gradient(180deg, rgba(38, 224, 255, 0.12), transparent 40%); }
+#brief .comm-screen .live { position: absolute; left: 6px; bottom: 6px; z-index: 1; font-size: 8px; letter-spacing: 0.2em; background: #ff3b3b; color: #fff; padding: 2px 5px; border-radius: 3px; transform: none; font-family: inherit; text-shadow: none; }
+.wave { display: flex; align-items: center; gap: 3px; height: 22px; margin-top: 8px; }
+.wave i { width: 3px; height: 4px; border-radius: 2px; background: #26e0ff; opacity: 0.8; }
+#brief:not(.typed) .wave i { animation: comm-wave 0.5s ease-in-out infinite alternate; }
+.wave i:nth-child(3n) { animation-delay: -0.15s !important; } .wave i:nth-child(3n + 1) { animation-delay: -0.3s !important; } .wave i:nth-child(4n) { animation-duration: 0.37s !important; }
+.comm .dot { color: #26e0ff; }
+.comm #msg::before { content: 'DUCKJAY › '; color: #26e0ff; font-weight: 700; }
+@keyframes comm-blink { 50% { opacity: 0; } }
+@keyframes comm-wave { from { height: 3px; } to { height: 20px; } }
 .who h2 { margin: 0; font-family: Anton, sans-serif; font-weight: 400; color: var(--y); font-size: 34px; letter-spacing: 0.06em; }
 .who small { letter-spacing: 0.3em; font-size: 10px; color: #999; }
 .msgbox { padding: 14px; }
@@ -567,6 +593,10 @@ body.yardmenu #hud .controls, body.yardmenu #hud .banner, body.yardmenu #hud .sp
   #brief .who { flex-direction: column; align-items: flex-start; gap: 8px; padding: 10px; border-bottom: 0; border-right: 2px solid var(--y); }
   #brief .avatar { width: 72px; height: 82px; }
   #brief .avatar span { font-size: 30px; }
+  #brief .comm-top { grid-column: 1 / -1; padding: 5px 10px; }
+  #brief .comm .who { border-right-color: #26e0ff; }
+  #brief .comm-screen .live { font-size: 7px; padding: 1px 4px; left: 4px; bottom: 4px; }
+  #brief .wave { height: 14px; margin-top: 4px; }
   #brief .who h2 { font-size: 22px; }
   #brief .who small { font-size: 8px; letter-spacing: 0.2em; }
   #brief .msgbox { padding: 8px 12px 10px; min-width: 0; }
