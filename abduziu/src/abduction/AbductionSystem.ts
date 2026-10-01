@@ -98,6 +98,8 @@ export class AbductionSystem {
     this.world.detach(o);
     const idx = this.pool.acquire(o.model.geometry, o.paint);
     o.dynamicIndex = idx;
+    // crowd characters keep being drawn (and animated) by the crowd renderer
+    if (o.crowd >= 0) this.pool.get(idx).mesh.visible = false;
     o.pos.copy(o.home);
     o.quat.setFromAxisAngle(UP, o.homeRotY);
     o.vel.set(0, 0, 0);

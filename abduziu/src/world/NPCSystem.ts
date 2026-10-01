@@ -5,6 +5,8 @@ import { clamp, dampAngle, TAU } from '../utils/math';
 import { AState, type Abductable } from './Abductable';
 import type { World } from './World';
 import type { NpcKind, NpcSpawn, Persona } from './WorldGenerator';
+import type { CrowdClip, CrowdClipName } from './crowd/CrowdAssets';
+import type { CrowdRenderer } from './crowd/CrowdRenderer';
 
 export const enum NpcState {
   Idle,
@@ -43,6 +45,14 @@ interface Npc {
   seed: number;
   dirty: boolean;
   hidden: boolean;
+  /** Crowd character index (Tripo model), -1 = procedural person. */
+  look: number;
+  clip: CrowdClipName;
+  animTime: number;
+  /** Smoothed swim heading while carried by the beam. */
+  swimYaw: number;
+  lastX: number;
+  lastZ: number;
 }
 
 const _m = new Matrix4();
@@ -50,6 +60,10 @@ const _q = new Quaternion();
 const _p = new Vector3();
 const _s = new Vector3();
 const UP = new Vector3(0, 1, 0);
+const FWD = new Vector3(0, 0, 1);
+const _q2 = new Quaternion();
+const _m2 = new Matrix4();
+const _pivot = new Vector3();
 
 const DEF_FOR: Record<NpcKind, string> = { person: 'pessoa', dog: 'cachorro', chicken: 'galinha', cow: 'vaca' };
 
@@ -71,6 +85,8 @@ export class NPCSystem {
   constructor(
     private readonly world: World,
     spawns: readonly NpcSpawn[],
+    /** Tripo pedestrians; null keeps every person procedural. */
+    private readonly crowd: CrowdRenderer | null = null,
   ) {
     this.personModel = world.lib.get('person');
     this.personUpModel = world.lib.get('person_up');
@@ -115,7 +131,20 @@ export class NPCSystem {
       seed: Math.random(),
       dirty: true,
       hidden: false,
+      look: -1,
+      clip: 'afraid',
+      animTime: Math.random() * 10,
+      swimYaw: s.rotY,
+      lastX: s.x,
+      lastZ: s.z,
     };
+    // people become one of the Tripo characters (drawn by the crowd renderer)
+    const chars = this.crowd?.chars.length ?? 0;
+    if (s.kind === 'person' && chars > 0) {
+      npc.look = Math.floor(Math.random() * chars);
+      obj.crowd = npc.look;
+      this.world.livingBatch.setVisible(batchId, false);
+    }
     this.world.hash.insert(obj.uid, s.x, s.z);
     this.npcs.push(npc);
     return npc;
@@ -140,7 +169,7 @@ export class NPCSystem {
     npc.crouch = 0;
     obj.slot = 'living';
     obj.state = AState.Static;
-    this.world.livingBatch.setVisible(npc.batchId, true);
+    this.world.livingBatch.setVisible(npc.batchId, npc.look < 0);
     npc.hidden = false;
     this.world.hash.insert(obj.uid, npc.x, npc.z);
     npc.dirty = true;
@@ -161,7 +190,7 @@ export class NPCSystem {
       const far = fdx * fdx + fdz * fdz > this.detailDistance * this.detailDistance;
       if (far !== n.hidden) {
         n.hidden = far;
-        batch.setVisible(n.batchId, !far);
+        if (n.look < 0) batch.setVisible(n.batchId, !far);
       }
       if (far && (this.frame + i) % 8 !== 0) continue;
       const step = far ? dt * 6 : dt;
@@ -174,7 +203,8 @@ export class NPCSystem {
       n.obj.pos.copy(n.obj.home);
       n.obj.homeRotY = n.heading;
       this.world.hash.insert(n.obj.uid, n.x, n.z);
-      // render
+      // render (crowd characters are drawn by drawCrowd)
+      if (n.look >= 0) continue;
       const person = n.kind === 'person';
       if (person) batch.setGeometry(n.batchId, n.armsUp ? this.personUpModel : this.personModel);
       const bobY = n.bob;
@@ -376,6 +406,113 @@ export class NPCSystem {
     n.heading = dampAngle(n.heading, Math.atan2(dx, dz), 10, dt);
     const freq = n.kind === 'chicken' ? 18 : n.speed > 3 ? 14 : 8;
     n.bob = Math.abs(Math.sin(this.time * freq + n.seed * 7)) * (n.kind === 'person' ? 0.14 : 0.08) * Math.min(1, n.speed / 2);
+  }
+
+  /**
+   * Feeds the crowd renderer: pedestrians on the ground pick a clip from their state; the ones the
+   * beam carries swim on their back (belly to the sky) around it.
+   * @param rimOf abduction glow of a carried object
+   */
+  drawCrowd(dt: number, camera: Vector3, rimOf: (o: Abductable) => number): void {
+    const cr = this.crowd;
+    if (!cr) return;
+    cr.begin();
+    for (let i = 0; i < this.npcs.length; i++) {
+      const n = this.npcs[i] as Npc;
+      if (n.look < 0) continue;
+      const ch = cr.chars[n.look];
+      if (!ch) continue;
+      const o = n.obj;
+      if (n.state === NpcState.Gone) {
+        if (!o.alive || o.dynamicIndex < 0 || o.state === AState.Absorbed) continue;
+        this.drawCarried(n, ch.clips, ch.height, dt, camera, rimOf(o));
+        continue;
+      }
+      if (n.hidden) continue;
+      let name: CrowdClipName = 'afraid';
+      let rate = 0.3;
+      const run = ch.clips.run;
+      switch (n.state) {
+        case NpcState.Walking:
+          name = 'run';
+          rate = clamp(n.speed / run.speed, 0.55, 1.8);
+          break;
+        case NpcState.Running:
+          name = 'run';
+          rate = clamp(n.speed / run.speed, 0.85, 1.8);
+          break;
+        case NpcState.Panic:
+          name = 'freaky';
+          rate = 1.15;
+          break;
+        case NpcState.Hiding:
+          name = 'afraid';
+          rate = 1.3;
+          break;
+        case NpcState.Curious:
+        case NpcState.LookingUp:
+        case NpcState.Filming:
+          name = 'afraid';
+          rate = 0.8;
+          break;
+        default:
+          name = 'afraid';
+          rate = 0.3;
+      }
+      if (n.speed <= 0 && name === 'run') {
+        name = 'afraid';
+        rate = 0.5;
+      }
+      n.clip = name;
+      n.animTime += dt * rate;
+      _p.set(n.x, n.y, n.z);
+      _q.setFromAxisAngle(UP, n.heading);
+      _s.set(1, 1, 1);
+      _m.compose(_p, _q, _s);
+      const far = (n.x - camera.x) ** 2 + (n.z - camera.z) ** 2 > 30 * 30;
+      cr.add(n.look, _m, ch.clips[name], n.animTime, far);
+    }
+    cr.end();
+  }
+
+  /** Carried by the beam: swimming on its back, facing along its path around the beam. */
+  private drawCarried(n: Npc, clips: Record<CrowdClipName, CrowdClip>, height: number, dt: number, camera: Vector3, rim: number): void {
+    const o = n.obj;
+    const cr = this.crowd as CrowdRenderer;
+    const scale = o.visualScale;
+    const dx = o.pos.x - n.lastX;
+    const dz = o.pos.z - n.lastZ;
+    n.lastX = o.pos.x;
+    n.lastZ = o.pos.z;
+    if (dx * dx + dz * dz > 1e-6) n.swimYaw = dampAngle(n.swimYaw, Math.atan2(dx, dz), 4, dt);
+    const shaking = o.state === AState.Anticipate || o.state === AState.Shaking || o.state === AState.Straining;
+    // dropped and back on the ground: on its feet again, shaking
+    const landed = o.state === AState.Settling;
+    const upright = shaking || landed;
+    const clip = shaking ? clips.freaky : landed ? clips.afraid : clips.swim;
+    n.animTime += dt * (shaking ? 1.4 : landed ? 1.3 : 1);
+    if (upright) {
+      // still on its feet, freaking out under the beam
+      _p.copy(o.pos);
+      _q.setFromAxisAngle(UP, n.heading);
+      _s.setScalar(scale);
+      _m.compose(_p, _q, _s);
+    } else {
+      // belly to the sky (baked that way; older assets get rolled half a turn), head along its path, lazy sway
+      const sway = Math.sin(n.animTime * 2.1 + n.seed * 9) * 0.18;
+      _q.setFromAxisAngle(UP, n.swimYaw);
+      _q2.setFromAxisAngle(FWD, (clip.bellyUp ? 0 : Math.PI) + sway);
+      _q.multiply(_q2);
+      const pv = clip.pivot;
+      _pivot.set(-pv[0], -pv[1], -pv[2]);
+      // centre of the carried object (its pivot sits at the feet)
+      _p.set(o.pos.x, o.pos.y + height * 0.5 * scale, o.pos.z);
+      _s.setScalar(scale);
+      _m.compose(_p, _q, _s);
+      _m.multiply(_m2.makeTranslation(_pivot.x, _pivot.y, _pivot.z));
+    }
+    const far = (o.pos.x - camera.x) ** 2 + (o.pos.z - camera.z) ** 2 > 30 * 30;
+    cr.add(n.look, _m, clip, n.animTime, far, rim);
   }
 
   get activeCount(): number {

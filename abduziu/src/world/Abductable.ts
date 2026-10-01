@@ -50,6 +50,8 @@ export class Abductable {
   slot: SlotKind = 'none';
   batchId = -1;
   dynamicIndex = -1;
+  /** Crowd character drawing this object (Tripo pedestrian), -1 = its own model. */
+  crowd = -1;
   living: LivingLink | null = null;
 
   parent: Abductable | null = null;

@@ -1,0 +1,92 @@
+[
+  {
+    "id": "huehue",
+    "name": "HUEHUE",
+    "source": "source/huehue.glb",
+    "tris": 5000,
+    "file": "work/huehue.glb",
+    "extra": [
+      "work/cabeca_guidao.glb",
+      "work/manoel_gomes.glb"
+    ],
+    "clips": [
+      {
+        "name": "run",
+        "fps": 30
+      },
+      {
+        "name": "afraid",
+        "fps": 15
+      },
+      {
+        "name": "freaky",
+        "fps": 30
+      },
+      {
+        "name": "swim",
+        "fps": 12,
+        "bellyUp": true
+      }
+    ]
+  },
+  {
+    "id": "cabeca_guidao",
+    "name": "CABEÇA DE GUIDÃO",
+    "source": "source/cabeca_guidao.glb",
+    "tris": 5000,
+    "file": "work/cabeca_guidao.glb",
+    "extra": [
+      "work/huehue.glb",
+      "work/manoel_gomes.glb"
+    ],
+    "clips": [
+      {
+        "name": "run",
+        "fps": 30
+      },
+      {
+        "name": "afraid",
+        "fps": 15
+      },
+      {
+        "name": "freaky",
+        "fps": 30
+      },
+      {
+        "name": "swim",
+        "fps": 12,
+        "bellyUp": true
+      }
+    ]
+  },
+  {
+    "id": "manoel_gomes",
+    "name": "MANOEL GOMES",
+    "source": "source/manoel_gomes.glb",
+    "tris": 5000,
+    "file": "work/manoel_gomes.glb",
+    "extra": [
+      "work/huehue.glb",
+      "work/cabeca_guidao.glb"
+    ],
+    "clips": [
+      {
+        "name": "run",
+        "fps": 30
+      },
+      {
+        "name": "afraid",
+        "fps": 15
+      },
+      {
+        "name": "freaky",
+        "fps": 30
+      },
+      {
+        "name": "swim",
+        "fps": 12,
+        "bellyUp": true
+      }
+    ]
+  }
+]

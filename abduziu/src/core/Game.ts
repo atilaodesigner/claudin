@@ -82,6 +82,8 @@ import { GameLoop } from './GameLoop';
 import { RunController } from './RunController';
 import { Time } from './Time';
 import { Rng } from '../utils/rng';
+import { loadCrowd } from '../world/crowd/CrowdAssets';
+import { CrowdRenderer } from '../world/crowd/CrowdRenderer';
 
 export type GameState = 'loading' | 'menu' | 'intro' | 'playing' | 'paused' | 'extracting' | 'dying' | 'results';
 
@@ -136,6 +138,8 @@ export class Game {
   // per-run world
   world!: World;
   npcs!: NPCSystem;
+  /** Tripo pedestrians (GPU crowd); null when the assets did not load. */
+  crowd: CrowdRenderer | null = null;
   traffic!: TrafficSystem;
   abduction!: AbductionSystem;
   enemies!: EnemyManager;
@@ -294,6 +298,8 @@ export class Game {
     worldUniforms.uCloudTex.value = this.noise;
     this.atlas = new TextureAtlas();
     this.lib = new ModelLibrary(this.atlas);
+    // pedestrians download while the procedural models build
+    const crowdLoad = loadCrowd().catch(() => []);
     await loadModelOverrides(this.lib);
     const keys = this.lib.keys();
     for (let i = 0; i < keys.length; i++) {
@@ -330,6 +336,8 @@ export class Game {
     this.scene.add(this.beam.group);
     this.scene.add(this.shield.mesh);
     this.dynPool = new DynamicObjectPool(this.scene, this.atlas.texture, 90);
+    const crowdChars = await crowdLoad;
+    if (crowdChars.length) this.crowd = new CrowdRenderer(this.scene, crowdChars);
     this.run = new RunController(this, this.scene);
     this.post.prePass = () => this.renderWrapCopies();
     this.thumbs = new Thumbnails(this.renderer.gl, this.lib, this.atlas);
@@ -383,7 +391,7 @@ export class Game {
     this.birds.onFlee = (x, z) => this.audio.flutter(x, z);
     const q = this.quality.current;
     const npcSpawns = gen.npcs.filter((_, i) => q.npcDensity >= 1 || i % Math.round(1 / q.npcDensity) === 0);
-    this.npcs = new NPCSystem(this.world, npcSpawns);
+    this.npcs = new NPCSystem(this.world, npcSpawns, this.crowd);
     this.npcs.onReact = (_k, x, z, what) => this.audio.animal(what, x, z);
     this.traffic = new TrafficSystem(this.world, new Rng(seed + 5), Math.round(26 * city.trafficMult * Math.max(0.6, q.npcDensity)));
     this.traffic.onHonk = (x, z) => this.audio.honk(x, z);
@@ -2144,6 +2152,7 @@ export class Game {
     this.chunks.update(rdt, focus);
     this.birds.update(dt, this.ufo.position, this.stats.radius);
     this.npcs.detailDistance = this.chunks.detailDistance * 1.1;
+    this.npcs.drawCrowd(dt, cam.position, (o) => (o.dynamicIndex >= 0 ? this.dynPool.get(o.dynamicIndex).fx.uRim.value : 0));
     const alert = r && this.state !== 'menu' ? r.threat.alert : 0;
     this.lighting.update(rdt, focus, this.cameraCtl.distance, alert, frenzy, this.state === 'extracting');
     this.post.update(rdt);
