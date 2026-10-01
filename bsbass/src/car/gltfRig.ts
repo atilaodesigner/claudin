@@ -6,8 +6,10 @@ import * as THREE from 'three';
 import { makeSoftTexture, type MustangRig } from './mustang';
 import type { PreparedCar } from './gltfCar';
 
-const TAIL_RE = /tail|rear.?light|back.?light|brake|stop|lanterna|taillight|luz.?tras|rearlamp|rear_lamp/i;
-const HEAD_RE = /head.?light|headlamp|front.?light|farol|head_lamp|frontlamp|\bhead\b/i;
+const TAIL_RE = /tail.?light|tail.?lamp|rear.?light|back.?light|brake.?light|stop.?light|lanterna|luz.?tras|rear.?lamp/i;
+const HEAD_RE = /head.?light|headlamp|front.?light|farol|head_lamp|frontlamp|tungsten/i;
+// carcaça, cromado, vidro, pinça de freio...: não acendem (senão o farol inteiro estoura no bloom)
+const NOT_LAMP_RE = /housing|chrome|chome|caliper|calliper|disc|glass|vidro|plastic|paint|shadow|interior|misc|filler/i;
 
 /** ponto da superfície do carro visto de frente (+1) ou de trás (-1) numa altura/lado */
 function probe(p: PreparedCar, dir: 1 | -1, x: number, y: number): THREE.Vector3 {
@@ -34,6 +36,7 @@ export function findLights(p: PreparedCar): LightSpots {
     const mats = Array.isArray(m.material) ? m.material : [m.material];
     if (mats.length !== 1) return; // malha com vários materiais: não troca o material inteiro
     const n = `${m.name} ${mats[0]!.name}`;
+    if (NOT_LAMP_RE.test(n)) return;
     if (TAIL_RE.test(n)) namedTail.push(m);
     else if (HEAD_RE.test(n)) namedHead.push(m);
   });
@@ -75,17 +78,19 @@ export function buildGltfRig(p: PreparedCar, env: THREE.Texture | null, paintCol
       if (!sm.isMeshStandardMaterial) continue;
       sm.envMap = env;
       sm.envMapIntensity = 1.2;
+      // vidro e cromado espelhados viram pontinho estourado com as luzes: tira um pouco do espelho
+      sm.roughness = Math.max(sm.roughness, sm.metalness > 0.5 ? 0.3 : 0.22);
     }
   });
   for (const w of p.wheels) w.steer.traverse((o) => {
     const m = o as THREE.Mesh;
     if (m.isMesh) for (const mat of Array.isArray(m.material) ? m.material : [m.material]) {
       const sm = mat as THREE.MeshStandardMaterial;
-      if (sm.isMeshStandardMaterial) { sm.envMap = env; sm.envMapIntensity = 1.2; }
+      if (sm.isMeshStandardMaterial) { sm.envMap = env; sm.envMapIntensity = 1.2; sm.roughness = Math.max(sm.roughness, sm.metalness > 0.5 ? 0.3 : 0.22); }
     }
   });
   const paint = new THREE.MeshPhysicalMaterial({
-    color: paintColor, metalness: 0.55, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.04, envMap: env, envMapIntensity: 2.2,
+    color: paintColor, metalness: 0.45, roughness: 0.42, clearcoat: 1, clearcoatRoughness: 0.3, envMap: env, envMapIntensity: 1.8,
   });
   for (const pm of p.paintMats) {
     // troca o material da lataria pelo verniz azul do jogo, mantendo normal/AO do modelo
@@ -112,10 +117,10 @@ export function buildGltfRig(p: PreparedCar, env: THREE.Texture | null, paintCol
   });
 
   // ---------- luzes ----------
-  const tailMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(2, 0.07, 0.04) });
+  const tailMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.15, 0.05, 0.03) });
   const brakeMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.5, 0.02, 0.02), blending: THREE.AdditiveBlending, transparent: true, depthWrite: false });
   const reverseMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.15, 0.15, 0.15), blending: THREE.AdditiveBlending, transparent: true, depthWrite: false });
-  const headMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(3.2, 3.1, 2.9) });
+  const headMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.5, 1.45, 1.35) });
   const L = findLights(p);
   for (const m of L.namedTail) m.material = tailMat;
   for (const m of L.namedHead) m.material = headMat;
@@ -165,8 +170,8 @@ export function buildGltfRig(p: PreparedCar, env: THREE.Texture | null, paintCol
 export function trafficLights(p: PreparedCar): THREE.Group {
   const g = new THREE.Group();
   const L = findLights(p);
-  const tail = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.8, 0.08, 0.05) });
-  const head = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 2.25, 1.9) });
+  const tail = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.05, 0.05, 0.03) });
+  const head = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.35, 1.28, 1.1) });
   for (const m of L.namedTail) m.material = tail;
   for (const m of L.namedHead) m.material = head;
   if (!L.namedTail.length) for (const t of L.tails) g.add(card(tail, p.halfW * 0.3, 0.09, t, true));

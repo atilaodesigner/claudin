@@ -14,6 +14,8 @@ export interface CarEntry {
   length: number;
   /** giro extra (graus) pra frente do modelo cair em +Z; o eixo mais comprido já é detectado sozinho */
   yaw?: number;
+  /** a detecção automática de frente/trás errou neste modelo: vira 180° depois dela */
+  flip?: boolean;
   /** regex (sem barras) pros nomes de material da pintura; senão pega o material colorido de maior área */
   paint?: string;
   /** false = mantém a cor original (ônibus com pintura de empresa, por exemplo) */
@@ -171,7 +173,7 @@ export function prepareCar(src: THREE.Object3D, entry: CarEntry): PreparedCar {
   model.position.y -= box.min.y;
   holder.updateMatrixWorld(true);
   box = new THREE.Box3().setFromObject(model);
-  if (entry.yaw === undefined && frontIsBack(model, box)) {
+  if (entry.yaw === undefined && frontIsBack(model, box) !== !!entry.flip) {
     model.rotation.y += Math.PI;
     holder.updateMatrixWorld(true);
     box = new THREE.Box3().setFromObject(model);

@@ -308,9 +308,11 @@ export class Game {
     }
     this.scene.add(this.rig.root);
     // luz de "estúdio" que segue o carro (senão ele vira silhueta contra a luz de sódio)
-    this.heroLight = new THREE.PointLight(0xbfd0ff, 14, 14, 1.4);
+    // carros GLB (verniz e cromado de verdade) estouram com luz forte: metade da do Mustang procedural
+    const heroK = this.ownCars.length ? 0.35 : 1;
+    this.heroLight = new THREE.PointLight(0xbfd0ff, 14 * heroK, 14, 1.4);
     this.scene.add(this.heroLight);
-    this.heroFill = new THREE.PointLight(0xff9a50, 8, 10, 1.4);
+    this.heroFill = new THREE.PointLight(0xff9a50, 8 * heroK, 10, 1.4);
     this.scene.add(this.heroFill);
     const spawn = nearestLane(-260, 5);
     this.car.reset(spawn.x, spawn.z, spawn.heading);
