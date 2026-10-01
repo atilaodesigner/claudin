@@ -14,6 +14,7 @@ import { buildVehicle, PAINTS } from '../traffic/vehicles';
 import { patchTriplanar } from '../fx/triplanar';
 import type { Assets } from '../assets';
 import { isCovered } from './props';
+import { WIRE_TIES, type LampModel } from './lampModel';
 
 const TILE_W = 12; // metros por largura de linha do atlas
 const FLOOR_H = 3;
@@ -51,6 +52,8 @@ export interface CityMeshes {
   beacon: THREE.MeshBasicMaterial; // luz de obstáculo da caixa d'água
   /** postes que dá pra derrubar (instanciados, um por instância) */
   lampInst: LampInstances | null;
+  /** grupos de peças pesadas dos postes (some de longe) */
+  lampDetail: THREE.InstancedMesh[];
   /** fios: cada trecho liga dois postes (pra sumir quando um deles cai) */
   wires: { mesh: THREE.LineSegments; ranges: { a: Lamp; b: Lamp; start: number; end: number }[] };
 }
@@ -59,8 +62,13 @@ export interface LampInstances {
   lamps: Lamp[];
   /** índice em lampLights de cada poste */
   light: number[];
-  /** poste inteiro (corpo + braço + cabeça) e a luz da cabeça, que caem juntos */
-  body: THREE.InstancedMesh[];
+  /** peças de cada variante de poste (corpo + braço + cabeça), que caem juntas */
+  body: THREE.InstancedMesh[][];
+  /** variante de cada poste e a instância dele dentro das peças da variante */
+  variant: number[];
+  slot: number[];
+  /** parte pesada do poste (cruzeta com isoladores), separada por pedaço da cidade */
+  detail: ({ im: THREE.InstancedMesh; slot: number } | null)[];
   /** mancha de luz no chão (some quando o poste cai) */
   pool: THREE.InstancedMesh;
   /** matriz de cada poste em pé */
@@ -68,6 +76,8 @@ export interface LampInstances {
 }
 
 const LAMP_H = 9;
+/** lado (m) dos pedaços da cidade em que as cruzetas dos postes são agrupadas */
+const DETAIL_TILE = 160;
 
 /** poste de braço único, com o braço apontando pra +Z local */
 function lampProto(flat: GeoBuilder, emissive: GeoBuilder): void {
@@ -83,7 +93,7 @@ function lampProto(flat: GeoBuilder, emissive: GeoBuilder): void {
   flat.mat = 0;
 }
 
-export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = {}, hasProps = false, skipTrees = false): CityMeshes {
+export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = {}, hasProps = false, skipTrees = false, skipParked = false, lampModel: LampModel | null = null): CityMeshes {
   const rnd = mulberry32(1961);
   const group = new THREE.Group();
 
@@ -233,9 +243,21 @@ export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = 
     lampLights.push(new THREE.Vector3(l.x + l.dirX * 2.2, LAMP_H - 0.6, l.z + l.dirZ * 2.2));
     lampBase.push(new THREE.Matrix4().makeRotationY(Math.atan2(l.dirX, l.dirZ)).setPosition(l.x, 0, l.z));
   }
+  const medianPoles: THREE.Matrix4[] = [], medianArms: THREE.Matrix4[] = [];
   for (const l of city.lamps) {
     if (l.shape && (l.dirX !== 0 || l.dirZ !== 0)) continue;
     const double = l.dirX === 0 && l.dirZ === 0;
+    if (lampModel) {
+      // poste de verdade (instanciado lá embaixo): aqui só luz e mancha no chão
+      const arms: [number, number][] = double ? [[0, 1], [0, -1]] : [[l.dirX, l.dirZ]];
+      arms.forEach(([dx, dz], k) => {
+        const ax = l.x + dx * 2.2, az = l.z + dz * 2.2;
+        (k === 0 ? medianPoles : medianArms).push(new THREE.Matrix4().makeRotationY(Math.atan2(dx, dz)).setPosition(l.x, 0, l.z));
+        lampLights.push(new THREE.Vector3(ax, LAMP_H - 0.6, az));
+        poolQuad(pools, ax, az, 10.5, hex(0xff9a3c, 0.32));
+      });
+      continue;
+    }
     const arms: [number, number][] = double ? [[0, 1], [0, -1]] : [[l.dirX, l.dirZ]];
     const H = 9;
     flat.setTransform(l.x, 0, l.z, 0);
@@ -278,13 +300,16 @@ export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = 
       if (Math.hypot(a.x - b.x, a.z - b.z) > 40) continue;
       const start = lines.length;
       wireRanges.push({ a, b, start, end: 0 });
-      for (const h of [8.2, 7.6, 7.0]) {
+      // poste de verdade: amarra nos isoladores da cruzeta (que atravessa a calçada)
+      const ties: [number, number][] = lampModel ? WIRE_TIES : [[0, 8.2], [0, 7.6], [0, 7.0]];
+      for (const [off, h] of ties) {
+        const ox = a.dirX * off, oz = a.dirZ * off;
         const seg = 6;
         for (let s = 0; s < seg; s++) {
           const t0 = s / seg, t1 = (s + 1) / seg;
           const sag = (t: number) => h - Math.sin(t * Math.PI) * 0.9;
-          lines.push(a.x + (b.x - a.x) * t0, sag(t0), a.z + (b.z - a.z) * t0);
-          lines.push(a.x + (b.x - a.x) * t1, sag(t1), a.z + (b.z - a.z) * t1);
+          lines.push(a.x + ox + (b.x - a.x) * t0, sag(t0), a.z + oz + (b.z - a.z) * t0);
+          lines.push(a.x + ox + (b.x - a.x) * t1, sag(t1), a.z + oz + (b.z - a.z) * t1);
         }
       }
       wireRanges[wireRanges.length - 1]!.end = lines.length;
@@ -308,7 +333,7 @@ export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = 
   // ================= carros estacionados =================
   const parkedB = new GeoBuilder();
   const parkedGroup: THREE.BufferGeometry[] = [];
-  for (const p of city.parked) {
+  for (const p of skipParked ? [] : city.parked) {
     if (hasProps && isCovered(p)) continue; // esses viram "carro com capa" (props.ts)
     const v = buildVehicle(p.model, PAINTS[p.color % PAINTS.length]!, false);
     const m = new THREE.Matrix4().makeRotationY(p.rot).setPosition(p.x, 0, p.z);
@@ -398,29 +423,75 @@ export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = 
   wires.matrixAutoUpdate = false;
   group.add(wires);
 
-  // postes derrubáveis: mesmo desenho e materiais, uma instância por poste
+  // postes derrubáveis: uma instância por poste (cada variante com as suas peças)
   let lampInst: LampInstances | null = null;
+  const lampDetail: THREE.InstancedMesh[] = [];
+  const instOf = (geo: THREE.BufferGeometry, m: THREE.Material, mats: THREE.Matrix4[], name: string, order = 0) => {
+    const im = new THREE.InstancedMesh(geo, m, Math.max(1, mats.length));
+    im.count = mats.length;
+    mats.forEach((mx, i) => im.setMatrixAt(i, mx));
+    im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    im.computeBoundingSphere();
+    im.name = name;
+    im.renderOrder = order;
+    group.add(im);
+    return im;
+  };
   if (breakLamps.length) {
-    const pf = new GeoBuilder(), pe = new GeoBuilder(), pp = new GeoBuilder();
-    lampProto(pf, pe);
+    const pp = new GeoBuilder();
     poolQuad(pp, 0, 2.2, 10.5, hex(0xff9a3c, 0.32));
-    const inst = (b: GeoBuilder, m: THREE.Material, name: string, order = 0) => {
-      const im = new THREE.InstancedMesh(b.build(), m, breakLamps.length);
-      lampBase.forEach((mx, i) => im.setMatrixAt(i, mx));
-      im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-      im.computeBoundingSphere();
-      im.name = name;
-      im.renderOrder = order;
-      group.add(im);
-      return im;
-    };
-    lampInst = {
-      lamps: breakLamps,
-      light: lampLight,
-      body: [inst(pf, flatMat, 'lampPoles'), inst(pe, emisMat, 'lampHeads')],
-      pool: inst(pp, poolMat, 'lampPools', 2),
-      base: lampBase,
-    };
+    const pool = instOf(pp.build(), poolMat, lampBase, 'lampPools', 2);
+    if (lampModel) {
+      const nv = lampModel.variants.length;
+      // um em cada quatro com transformador (quando tem a segunda variante)
+      const variant = breakLamps.map((_, i) => (nv > 1 && i % 4 === 1 ? 1 : 0));
+      const slot: number[] = [];
+      const per = lampModel.variants.map(() => [] as THREE.Matrix4[]);
+      variant.forEach((v, i) => {
+        slot.push(per[v]!.length);
+        per[v]!.push(lampBase[i]!);
+      });
+      const body = lampModel.variants.map((vt, v) => vt.parts.map((p, k) => instOf(p.geo, p.mat, per[v]!, `lampPole${v}_${k}`)));
+      // cruzetas: um InstancedMesh por pedaço da cidade e variante (dá pra cortar o que está longe/fora da tela)
+      const tileOf = (x: number, z: number) => `${Math.floor((x + EXTENT + ROAD) / DETAIL_TILE)},${Math.floor((z + EXTENT + ROAD) / DETAIL_TILE)}`;
+      const groups = new Map<string, number[]>();
+      breakLamps.forEach((l, i) => {
+        const k = `${variant[i]}|${tileOf(l.x, l.z)}`;
+        const g = groups.get(k);
+        if (g) g.push(i);
+        else groups.set(k, [i]);
+      });
+      const detail: ({ im: THREE.InstancedMesh; slot: number } | null)[] = breakLamps.map(() => null);
+      for (const [k, list] of groups) {
+        const v = Number(k.split('|')[0]);
+        const d = lampModel.variants[v]!.detail;
+        if (!d) continue;
+        const im = instOf(d.geo, d.mat, list.map((i) => lampBase[i]!), `lampDetail${k}`);
+        lampDetail.push(im);
+        list.forEach((i, slot) => (detail[i] = { im, slot }));
+      }
+      lampInst = { lamps: breakLamps, light: lampLight, body, variant, slot, detail, pool, base: lampBase };
+    } else {
+      const pf = new GeoBuilder(), pe = new GeoBuilder();
+      lampProto(pf, pe);
+      lampInst = {
+        lamps: breakLamps,
+        light: lampLight,
+        body: [[instOf(pf.build(), flatMat, lampBase, 'lampPoles'), instOf(pe.build(), emisMat, lampBase, 'lampHeads')]],
+        variant: breakLamps.map(() => 0),
+        slot: breakLamps.map((_, i) => i),
+        detail: breakLamps.map(() => null),
+        pool,
+        base: lampBase,
+      };
+    }
+  }
+  // postes do canteiro (braço duplo): o poste uma vez, o braço de cada lado
+  if (lampModel && medianPoles.length) {
+    const v0 = lampModel.variants[0]!;
+    v0.parts.forEach((p, k) => instOf(p.geo, p.mat, medianPoles, `medianPole${k}`));
+    if (v0.detail) lampDetail.push(instOf(v0.detail.geo, v0.detail.mat, medianPoles, 'lampDetailMedian'));
+    if (medianArms.length) lampModel.arm.forEach((p, k) => instOf(p.geo, p.mat, medianArms, `medianArm${k}`));
   }
 
   // chão: asfalto + terra do cerrado em volta
@@ -471,7 +542,7 @@ export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = 
 
   group.add(buildHorizon(tx));
 
-  return { group, lampLights, paredaoLeds, beacon, lampInst, wires: { mesh: wires, ranges: wireRanges } };
+  return { group, lampLights, paredaoLeds, beacon, lampInst, lampDetail, wires: { mesh: wires, ranges: wireRanges } };
 }
 
 // ------------------------------------------------------------------

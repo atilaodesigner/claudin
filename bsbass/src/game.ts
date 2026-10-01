@@ -13,6 +13,8 @@ import { SpatialGrid, collide, rect, resolve, type Shape } from './physics/colli
 import { DriftScorer } from './score/drift';
 import { buildCity, nearestLane, surfaceAt, type City } from './world/city';
 import { buildCityMeshes, type CityMeshes } from './world/cityMesh';
+import { buildParked } from './world/parked';
+import { buildLampModel } from './world/lampModel';
 import { makeTextures } from './world/textures';
 import { buildSky } from './world/sky';
 import { Missions } from './world/missions';
@@ -30,7 +32,7 @@ import { CONE_VERTS, Rain, buildLightCones } from './fx/rain';
 import { Breakables } from './world/breakables';
 import { PRESETS, autoPreset, loadSettings, lowerPreset, saveSettings, type Preset, type Settings } from './settings';
 import { buildNeon } from './world/neon';
-import { buildProps } from './world/props';
+import { buildProps, isCovered } from './world/props';
 import { buildTrees } from './world/trees';
 import type { Assets } from './assets';
 import { AudioSystem } from './audio/audio';
@@ -51,6 +53,9 @@ const ownOrder = (id: string) => {
 };
 import { MODELS as CAMPAIGN_MODELS, REAL as REAL_MODELS } from './campaign/models';
 import type { SiteRig } from './campaign/siteRig';
+
+/** até onde (m) os postes mostram cruzeta, isoladores e transformador */
+const LAMP_DETAIL_DIST = 230;
 
 const THEME_LABEL = '<b>ABERTURA</b> Um Grave Romance — tribo da periferia';
 const STEP = 1 / 120;
@@ -221,8 +226,13 @@ export class Game {
     for (const c of this.city.colliders) this.grid.insert(c);
     const hasProps = Object.keys(assets.models).length > 0;
     const realTrees = !!(assets.tex.bark && assets.tex.leaves);
-    this.meshes = buildCityMeshes(this.city, tx, assets.tex, hasProps, realTrees);
+    // estacionados: os carros GLB do tráfego (os de desenho só sem eles)
+    const parked = buildParked(this.city.parked.filter((p) => !hasProps || !isCovered(p)), assets.cars);
+    // postes de madeira de verdade (Poly Haven); sem eles, os de desenho
+    const lampModel = buildLampModel([assets.models.utility_pole_a, assets.models.utility_pole_b]);
+    this.meshes = buildCityMeshes(this.city, tx, assets.tex, hasProps, realTrees, !!parked, lampModel);
     this.scene.add(this.meshes.group);
+    if (parked) this.scene.add(parked);
     if (realTrees) this.scene.add(buildTrees(this.city, assets.tex.bark!, assets.tex.leaves!));
     const props = hasProps ? buildProps(this.city, assets.models, this.preset === 'baixa') : null;
     if (props) {
@@ -753,6 +763,12 @@ export class Game {
     this.updateVisuals(dt, playing || !!this.autopilot);
     this.updateCamera(dt);
     this.updateLamps(dt);
+    // cruzetas dos postes: só os pedaços da cidade perto da câmera (de longe nem aparecem)
+    const cp = this.camera.position;
+    for (const im of this.meshes.lampDetail) {
+      const bs = im.boundingSphere;
+      im.visible = !bs || bs.center.distanceTo(cp) - bs.radius < LAMP_DETAIL_DIST;
+    }
     // ligou a rádio pelo player com a abertura tocando: a abertura dá lugar
     if (this.theme && this.hud.started && this.radio.on) this.endTheme(true);
 

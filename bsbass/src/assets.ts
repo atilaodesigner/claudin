@@ -12,6 +12,7 @@ export const MODEL_NAMES = [
   'barrel_03', 'Barrel_02', 'old_tyre', 'covered_car', 'exterior_aircon_unit', 'fire_hydrant',
   'metal_trash_can', 'utility_box_01', 'concrete_road_barrier', 'cement_bag', 'cardboard_box_01', 'boombox',
   'plastic_monobloc_chair_01', 'plastic_crate_02', 'propane_tank', 'trashbag', 'wooden_crate_01',
+  'utility_pole_a', 'utility_pole_b',
 ] as const;
 export type ModelName = (typeof MODEL_NAMES)[number];
 

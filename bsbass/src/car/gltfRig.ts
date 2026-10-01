@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { makeSoftTexture, type MustangRig } from './mustang';
 import type { PreparedCar } from './gltfCar';
 
-const TAIL_RE = /tail.?light|tail.?lamp|rear.?light|back.?light|brake.?light|stop.?light|lanterna|luz.?tras|rear.?lamp/i;
+const TAIL_RE = /tail.?light|tail.?lamp|rear.?light|back.?light|brake.?light|stop.?light|lanterna|luz.?tras|rear.?lamp|farol.?tras|tras(eir|er)/i;
 const HEAD_RE = /head.?light|headlamp|front.?light|farol|head_lamp|frontlamp|tungsten/i;
 // carcaça, cromado, vidro, pinça de freio...: não acendem (senão o farol inteiro estoura no bloom)
 const NOT_LAMP_RE = /housing|chrome|chome|caliper|calliper|disc|glass|vidro|plastic|paint|shadow|interior|misc|filler/i;
@@ -37,6 +37,7 @@ export function findLights(p: PreparedCar): LightSpots {
     if (mats.length !== 1) return; // malha com vários materiais: não troca o material inteiro
     const n = `${m.name} ${mats[0]!.name}`;
     if (NOT_LAMP_RE.test(n)) return;
+    // "farol traseiro" é lanterna: testa a traseira antes do farol
     if (TAIL_RE.test(n)) namedTail.push(m);
     else if (HEAD_RE.test(n)) namedHead.push(m);
   });
@@ -147,6 +148,23 @@ export function buildGltfRig(p: PreparedCar, env: THREE.Texture | null, paintCol
   underglow.position.y = 0.03;
   underglow.renderOrder = 3;
   root.add(underglow);
+
+  // farol aceso em qualquer qualidade (o BAIXA não tem bloom): brilho nas lentes e mancha de luz no asfalto
+  const glowMat = new THREE.MeshBasicMaterial({ map: soft, color: new THREE.Color(1.2, 1.12, 0.98), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+  for (const hpos of L.heads) {
+    const g = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.26), glowMat);
+    g.position.copy(hpos).setZ(hpos.z + 0.05);
+    g.renderOrder = 5;
+    root.add(g);
+  }
+  const roadLight = new THREE.Mesh(
+    new THREE.PlaneGeometry(p.halfW * 2 + 1.8, 13),
+    new THREE.MeshBasicMaterial({ map: soft, color: new THREE.Color(0.75, 0.7, 0.58), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }),
+  );
+  roadLight.rotation.x = -Math.PI / 2;
+  roadLight.position.set(0, 0.035, p.halfL + 8.5);
+  roadLight.renderOrder = 3;
+  root.add(roadLight);
 
   const heads: THREE.SpotLight[] = [];
   for (const hpos of L.heads) {

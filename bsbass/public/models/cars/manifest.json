@@ -72,7 +72,6 @@
     "role": "traffic",
     "name": "Comil Svelto (ônibus)",
     "length": 12,
-    "flip": true,
     "weight": 1,
     "bus": true,
     "recolor": false,

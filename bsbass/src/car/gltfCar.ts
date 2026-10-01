@@ -81,8 +81,8 @@ function frontIsBack(model: THREE.Object3D, box: THREE.Box3): boolean {
     const m = o as THREE.Mesh;
     if (!m.isMesh) return;
     const n = `${m.name} ${(Array.isArray(m.material) ? m.material : [m.material]).map((x) => x.name).join(' ')}`;
-    const isHead = /head.?light|headlamp|farol|front.?light/i.test(n);
-    const isTail = /tail.?light|taillamp|rear.?light|lanterna|brake.?light/i.test(n);
+    const isTail = /tail.?light|taillamp|rear.?light|lanterna|brake.?light|tras(eir|er)/i.test(n);
+    const isHead = !isTail && /head.?light|headlamp|farol|front.?light/i.test(n);
     if (!isHead && !isTail) return;
     tb.setFromObject(m);
     const z = tb.getCenter(v).z;
@@ -140,6 +140,25 @@ function splitBySide(m: THREE.Mesh, holder: THREE.Object3D): THREE.Mesh[] | null
   return out;
 }
 
+const GLASS_RE = /glass|window|windshield|windscreen|vidro|janela|parabrisa/i;
+const NOT_GLASS_RE = /light|lamp|farol|lanterna|red|orange|amber|mirror|espelho/i;
+
+/** vidro com película preta: opaco (não dá pra ver o interior), escuro e espelhado */
+function tintGlass(mat: THREE.MeshPhysicalMaterial): void {
+  if (!mat.isMeshStandardMaterial || NOT_GLASS_RE.test(mat.name)) return;
+  const seeThrough = mat.transparent && mat.opacity < 0.9 || (mat.transmission ?? 0) > 0;
+  if (!GLASS_RE.test(mat.name) && !seeThrough) return;
+  mat.color.setHex(0x050608);
+  mat.map = null;
+  mat.transparent = false;
+  mat.opacity = 1;
+  mat.depthWrite = true;
+  if (mat.isMeshPhysicalMaterial) mat.transmission = 0;
+  mat.metalness = 0.2;
+  mat.roughness = 0.08;
+  mat.needsUpdate = true;
+}
+
 export function prepareCar(src: THREE.Object3D, entry: CarEntry): PreparedCar {
   const model = src.clone(true);
   // materiais próprios por cópia (a pintura de cada carro é independente)
@@ -148,6 +167,7 @@ export function prepareCar(src: THREE.Object3D, entry: CarEntry): PreparedCar {
     if (!m.isMesh) return;
     m.material = Array.isArray(m.material) ? m.material.map((x) => x.clone()) : m.material.clone();
     m.castShadow = m.receiveShadow = false;
+    for (const mat of meshMaterials(m)) tintGlass(mat as THREE.MeshPhysicalMaterial);
   });
 
   // ---------- orientação e escala ----------

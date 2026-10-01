@@ -22,6 +22,8 @@ export interface PropPart {
   im: THREE.InstancedMesh;
   /** matriz da malha dentro do modelo */
   local: THREE.Matrix4;
+  /** instância própria dessa peça (senão a do objeto) */
+  index?: number;
 }
 
 export interface BreakFx {
@@ -111,9 +113,13 @@ export class Breakables {
     this.wireOrig = (this.wireAttr.array as Float32Array).slice();
     if (!li) return;
     this.lampInst = li;
-    const parts = li.body.map((im) => ({ im, local: new THREE.Matrix4() }));
+    const parts = li.body.map((v) => v.map((im) => ({ im, local: new THREE.Matrix4() })));
     li.lamps.forEach((l, i) => {
-      if (l.shape) this.make(i, l.shape, { mass: 380, minV: 4 }, parts, i, li.base[i]!, 4.5, 0.15);
+      if (!l.shape) return;
+      // cruzeta/isoladores ficam em grupos por pedaço da cidade, com instância própria
+      const own = parts[li.variant[i]!]!;
+      const d = li.detail[i];
+      this.make(i, l.shape, { mass: 380, minV: 4 }, d ? [...own, { im: d.im, local: new THREE.Matrix4(), index: d.slot }] : own, li.slot[i]!, li.base[i]!, 4.5, 0.15);
     });
   }
 
@@ -226,7 +232,7 @@ export class Breakables {
   private write(it: Item, hidden = false): void {
     if (hidden) {
       for (const p of it.parts) {
-        p.im.setMatrixAt(it.index, ZERO);
+        p.im.setMatrixAt(p.index ?? it.index, ZERO);
         this.dirty.add(p.im);
       }
       return;
@@ -236,7 +242,7 @@ export class Breakables {
     _m2.makeTranslation(0, -it.h / it.scale, 0);
     _m.multiply(_m2);
     for (const p of it.parts) {
-      p.im.setMatrixAt(it.index, _m2.multiplyMatrices(_m, p.local));
+      p.im.setMatrixAt(p.index ?? it.index, _m2.multiplyMatrices(_m, p.local));
       this.dirty.add(p.im);
     }
   }
