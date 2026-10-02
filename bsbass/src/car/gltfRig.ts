@@ -9,6 +9,8 @@ import type { PreparedCar } from './gltfCar';
 const TAIL_RE = /tail.?light|tail.?lamp|rear.?light|back.?light|brake.?light|stop.?light|lanterna|luz.?tras|rear.?lamp|farol.?tras/i;
 const HEAD_RE = /head.?light|headlamp|front.?light|farol|head_lamp|frontlamp|tungsten/i;
 // carcaça, cromado, vidro, pinça de freio...: não acendem (senão o farol inteiro estoura no bloom)
+/** peças de dentro do carro (painel, botões, mostradores) */
+const INTERIOR_RE = /interior|int_|dash|gauge|display|button|digital|selfillum/i;
 const NOT_LAMP_RE = /housing|chrome|chome|caliper|calliper|disc|glass|vidro|plastic|paint|shadow|interior|misc|filler|pneu|tire|tyre|wheel|aro_|rim/i;
 
 /** ponto da superfície do carro visto de frente (+1) ou de trás (-1) numa altura/lado */
@@ -106,20 +108,26 @@ export function buildGltfRig(p: PreparedCar, env: THREE.Texture | null, paintCol
       const sm = mat as THREE.MeshStandardMaterial;
       if (!sm.isMeshStandardMaterial) continue;
       sm.envMap = env;
-      sm.envMapIntensity = 1.2;
+      // painel/botões acesos de branco brilham pelo para-brisa como um ponto no capô
+      if (sm.emissive && sm.emissive.getHex() && INTERIOR_RE.test(`${m.name} ${sm.name}`)) sm.emissiveIntensity = Math.min(sm.emissiveIntensity, 0.08);
+      // seta (pisca) acesa de branco o tempo todo vira ponto no retrovisor: apagada; luz diurna mais fraca
+      if (sm.emissive && sm.emissive.getHex() && /indicator|turn.?light|blinker|pisca/i.test(`${m.name} ${sm.name}`)) sm.emissiveIntensity = 0;
+      if (sm.emissive && sm.emissive.getHex() && /day.?light|drl/i.test(`${m.name} ${sm.name}`)) sm.emissiveIntensity = Math.min(sm.emissiveIntensity, 0.5);
+      // espelho/cromado refletindo o céu vira ponto estourado: reflexo mais fraco neles
+      sm.envMapIntensity = sm.metalness > 0.5 ? 0.6 : 1.2;
       // vidro e cromado espelhados viram pontinho estourado com as luzes: tira um pouco do espelho
-      sm.roughness = Math.max(sm.roughness, sm.metalness > 0.5 ? 0.3 : 0.22);
+      sm.roughness = Math.max(sm.roughness, sm.metalness > 0.5 ? 0.45 : 0.38);
     }
   });
   for (const w of p.wheels) w.steer.traverse((o) => {
     const m = o as THREE.Mesh;
     if (m.isMesh) for (const mat of Array.isArray(m.material) ? m.material : [m.material]) {
       const sm = mat as THREE.MeshStandardMaterial;
-      if (sm.isMeshStandardMaterial) { sm.envMap = env; sm.envMapIntensity = 1.2; sm.roughness = Math.max(sm.roughness, sm.metalness > 0.5 ? 0.3 : 0.22); }
+      if (sm.isMeshStandardMaterial) { sm.envMap = env; sm.envMapIntensity = 1.2; sm.roughness = Math.max(sm.roughness, sm.metalness > 0.5 ? 0.45 : 0.38); }
     }
   });
   const paint = new THREE.MeshPhysicalMaterial({
-    color: paintColor, metalness: 0.45, roughness: 0.42, clearcoat: 1, clearcoatRoughness: 0.3, envMap: env, envMapIntensity: 1.8,
+    color: paintColor, metalness: 0.4, roughness: 0.55, clearcoat: 0.6, clearcoatRoughness: 0.6, envMap: env, envMapIntensity: 1.6,
   });
   for (const pm of p.paintMats) {
     // troca o material da lataria pelo verniz azul do jogo, mantendo normal/AO do modelo
@@ -142,14 +150,14 @@ export function buildGltfRig(p: PreparedCar, env: THREE.Texture | null, paintCol
   let paintRef = paint;
   holder.traverse((o) => {
     const m = o as THREE.Mesh;
-    if (m.isMesh && !Array.isArray(m.material) && (m.material as THREE.MeshPhysicalMaterial).clearcoat === 1) paintRef = m.material as THREE.MeshPhysicalMaterial;
+    if (m.isMesh && !Array.isArray(m.material) && (m.material as THREE.MeshPhysicalMaterial).clearcoat === 0.6) paintRef = m.material as THREE.MeshPhysicalMaterial;
   });
 
   // ---------- luzes ----------
   const tailMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.15, 0.05, 0.03) });
   const brakeMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.5, 0.02, 0.02), blending: THREE.AdditiveBlending, transparent: true, depthWrite: false });
   const reverseMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.15, 0.15, 0.15), blending: THREE.AdditiveBlending, transparent: true, depthWrite: false });
-  const headMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.5, 1.45, 1.35) });
+  const headMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.85, 0.83, 0.78) });
   const L = findLights(p);
   for (const m of L.namedTail) m.material = tailMat;
   for (const m of L.namedHead) m.material = headMat;
@@ -177,17 +185,10 @@ export function buildGltfRig(p: PreparedCar, env: THREE.Texture | null, paintCol
   underglow.renderOrder = 3;
   root.add(underglow);
 
-  // farol aceso em qualquer qualidade (o BAIXA não tem bloom): brilho nas lentes e mancha de luz no asfalto
-  const glowMat = new THREE.MeshBasicMaterial({ map: soft, color: new THREE.Color(0.55, 0.52, 0.46), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
-  for (const hpos of L.heads) {
-    const g = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.16), glowMat);
-    g.position.copy(hpos).setZ(hpos.z + 0.05);
-    g.renderOrder = 5;
-    root.add(g);
-  }
+  // farol aceso: a lente já é emissiva; só a mancha de luz no asfalto (plaquinha de brilho virava ponto estourado)
   const roadLight = new THREE.Mesh(
     new THREE.PlaneGeometry(p.halfW * 2 + 1.8, 13),
-    new THREE.MeshBasicMaterial({ map: soft, color: new THREE.Color(0.75, 0.7, 0.58), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }),
+    new THREE.MeshBasicMaterial({ map: soft, color: new THREE.Color(0.42, 0.39, 0.32), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }),
   );
   roadLight.rotation.x = -Math.PI / 2;
   roadLight.position.set(0, 0.035, p.halfL + 8.5);
@@ -197,7 +198,8 @@ export function buildGltfRig(p: PreparedCar, env: THREE.Texture | null, paintCol
   const heads: THREE.SpotLight[] = [];
   for (const hpos of L.heads) {
     const l = new THREE.SpotLight(0xf2f0ff, 45, 70, 0.44, 0.6, 1.4);
-    l.position.copy(hpos).add(new THREE.Vector3(0, 0, -0.1));
+    // fora da lataria: luz forte colada na peça acendia o capô/para-choque num ponto estourado
+    l.position.set(hpos.x, hpos.y, Math.max(hpos.z, p.halfL) + 0.35);
     l.target.position.set(hpos.x * 1.5, 0, 22);
     root.add(l, l.target);
     heads.push(l);
@@ -217,7 +219,7 @@ export function trafficLights(p: PreparedCar): THREE.Group {
   const g = new THREE.Group();
   const L = findLights(p);
   const tail = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.05, 0.05, 0.03) });
-  const head = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.35, 1.28, 1.1) });
+  const head = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.85, 0.8, 0.7) });
   for (const m of L.namedTail) m.material = tail;
   for (const m of L.namedHead) m.material = head;
   if (!L.namedTail.length) for (const t of L.tails) g.add(card(tail, p.halfW * 0.3, 0.09, t, true));
