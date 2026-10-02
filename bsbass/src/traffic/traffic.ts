@@ -6,7 +6,8 @@ import * as THREE from 'three';
 import { BALAO, EXTENT, LANE, NODES, ROAD, nodePos } from '../world/city';
 import { rect, type Rect } from '../physics/collide';
 import { buildVehicle, PAINTS } from './vehicles';
-import { prepareCar, repaint, type CarEntry } from '../car/gltfCar';
+import { prepareCar, repaint, type CarEntry, type PreparedCar } from '../car/gltfCar';
+import { mergeByMaterial, type MergedPart } from '../utils/mergeModel';
 import { trafficLights } from '../car/gltfRig';
 
 const DIRS: [number, number][] = [[1, 0], [0, 1], [-1, 0], [0, -1]]; // +X +Z -X -Z
@@ -74,9 +75,20 @@ export class Traffic {
       const pick = models.length ? this.pickModel(models, model === 4) : null;
       if (pick) {
         // carro brasileiro de verdade (GLB)
-        const p = prepareCar(pick.scene, pick.entry);
-        if (pick.entry.recolor !== false && !pick.entry.bus) repaint(p, paint, null, 0.35);
-        g.add(p.root, trafficLights(p));
+        // peças juntadas por material (um draw call por material, não por parafuso),
+        // feitas uma vez por modelo; cada carro só ganha a própria pintura
+        const t = this.mergedModel(pick);
+        const p = t.p;
+        for (const part of t.parts) {
+          let mat = part.mat;
+          if (part.flag) {
+            mat = part.mat.clone();
+            (mat as THREE.MeshStandardMaterial).color.set(paint);
+          }
+          const mesh = new THREE.Mesh(part.geo, mat);
+          mesh.matrixAutoUpdate = false;
+          g.add(mesh);
+        }
         const bus = !!pick.entry.bus;
         model = bus ? 4 : model === 4 ? 0 : model;
         const vol = p.halfW * p.halfL * p.height;
@@ -104,6 +116,23 @@ export class Traffic {
       this.spawn(car, null);
       this.cars.push(car);
     }
+  }
+
+  private merged = new Map<string, { p: PreparedCar; parts: MergedPart[] }>();
+
+  private mergedModel(pick: { entry: CarEntry; scene: THREE.Group }): { p: PreparedCar; parts: MergedPart[] } {
+    let t = this.merged.get(pick.entry.id);
+    if (!t) {
+      const p = prepareCar(pick.scene, pick.entry);
+      const recolor = pick.entry.recolor !== false && !pick.entry.bus;
+      if (recolor) repaint(p, 0xffffff, null, 0.35);
+      const lights = trafficLights(p);
+      p.root.add(lights);
+      const paint = new Set<THREE.Material>(recolor ? p.paintMats : []);
+      t = { p, parts: mergeByMaterial(p.root, (m) => paint.has(m)) };
+      this.merged.set(pick.entry.id, t);
+    }
+    return t;
   }
 
   /** sorteia um modelo GLB pelo peso; ônibus só na vaga de ônibus */

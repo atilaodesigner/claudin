@@ -127,9 +127,9 @@ export class Breakables {
     });
   }
 
-  addProps(list: { index: number; shape: Shape; base: THREE.Matrix4; h: number; r: number; spec: BreakSpec; name: string }[], parts: Map<string, PropPart[]>): void {
+  addProps(list: { index: number; shape: Shape; base: THREE.Matrix4; h: number; r: number; spec: BreakSpec; name: string }[], parts: Map<string, PropPart[][]>): void {
     for (const b of list) {
-      const p = parts.get(b.name);
+      const p = parts.get(b.name)?.[b.index];
       if (p) this.make(-1, b.shape, b.spec, p, b.index, b.base, b.h, b.r);
     }
   }

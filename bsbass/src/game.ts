@@ -14,6 +14,7 @@ import { DriftScorer } from './score/drift';
 import { buildCity, nearestLane, surfaceAt, type City } from './world/city';
 import { buildCityMeshes, type CityMeshes } from './world/cityMesh';
 import { buildParked } from './world/parked';
+import { ChunkCuller } from './world/chunks';
 import { buildLampModel } from './world/lampModel';
 import { buildPosto } from './world/posto';
 import { makeTextures } from './world/textures';
@@ -151,6 +152,8 @@ export class Game {
   private rain: Rain;
   private reflScale: number;
   private heroLight: THREE.PointLight;
+  /** pedaços de objetos/estacionados: some o que está longe da câmera */
+  private culler = new ChunkCuller();
   private heroFill: THREE.PointLight;
   private lampTimer = 0;
   private lampTargets: { p: THREE.Vector3; w: number }[] = [];
@@ -230,7 +233,7 @@ export class Game {
     const hasProps = Object.keys(assets.models).length > 0;
     const realTrees = !!(assets.tex.bark && assets.tex.leaves);
     // estacionados: os carros GLB do tráfego (os de desenho só sem eles)
-    const parked = buildParked(this.city.parked.filter((p) => !hasProps || !isCovered(p)), assets.cars);
+    const parked = buildParked(this.city.parked.filter((p) => !hasProps || !isCovered(p)), assets.cars, this.culler);
     // postes de madeira de verdade (Poly Haven); sem eles, os de desenho
     const lampModel = buildLampModel([assets.models.utility_pole_a, assets.models.utility_pole_b]);
     this.meshes = buildCityMeshes(this.city, tx, assets.tex, hasProps, realTrees, !!parked, lampModel);
@@ -240,7 +243,7 @@ export class Game {
     const posto = this.city.blocks.find((b) => b.kind === 'posto');
     if (posto) this.scene.add(buildPosto(posto, assets.models));
     if (realTrees) this.scene.add(buildTrees(this.city, assets.tex.bark!, assets.tex.leaves!));
-    const props = hasProps ? buildProps(this.city, assets.models, this.preset === 'baixa') : null;
+    const props = hasProps ? buildProps(this.city, assets.models, this.preset === 'baixa', this.culler) : null;
     if (props) {
       this.scene.add(props.group);
       for (const c of props.colliders) this.grid.insert(c);
@@ -879,6 +882,7 @@ export class Game {
     this.grade.uniforms.uAberr!.value = this.settings.lens ? 0.0012 + (this.car.nitroActive ? 0.004 : 0) + Math.min(0.004, this.shake * 0.01) : 0;
     if (!render) return;
     this.rain.update(this.time, this.camera.position, this.car.vx, this.car.vz);
+    this.culler.update(this.camera.position);
     this.wet.render(this.renderer, this.scene, this.camera);
     this.composer.render(dt);
     this.adaptQuality(dt);

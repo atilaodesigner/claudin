@@ -11,6 +11,8 @@ import type { Assets, ModelName } from '../assets';
 import { circle, rect, type Shape } from '../physics/collide';
 import type { BreakSpec, PropPart } from './breakables';
 import { mulberry32, pick, range } from '../utils/rng';
+import { ChunkCuller, groupByCell } from './chunks';
+import { NO_REFLECT } from '../fx/wet';
 import { AVENUE_Z, BALAO, CURB_H, EXTENT, NODES, PITCH, ROAD, inBalao, nodePos, type City, type Lot } from './city';
 
 /** carro estacionado que vira "carro com capa" (o resto continua procedural) */
@@ -53,29 +55,46 @@ class Placer {
     return { index: list.length - 1, matrix };
   }
 
-  build(models: Assets['models'], dynamic: Set<ModelName>): { group: THREE.Group; parts: Map<ModelName, PropPart[]> } {
+  /**
+   * Um InstancedMesh por peça do modelo e por pedaço do mapa (dá pra cortar o
+   * que está longe/fora da tela). `parts[name][i]` = peças da instância i.
+   */
+  build(models: Assets['models'], dynamic: Set<ModelName>, culler: ChunkCuller): { group: THREE.Group; parts: Map<ModelName, PropPart[][]> } {
     const out = new THREE.Group();
     out.name = 'props';
-    const parts = new Map<ModelName, PropPart[]>();
+    const parts = new Map<ModelName, PropPart[][]>();
+    const box = new THREE.Box3();
+    const tmp = new THREE.Matrix4();
     for (const [name, mats] of this.list) {
       const src = models[name];
       if (!src || !mats.length) continue;
       const obj = prepare(src, name);
       obj.updateMatrixWorld(true);
-      const list: PropPart[] = [];
+      // miudeza (cadeira, saco de lixo, caixa) some antes e não entra no reflexo do asfalto
+      const small = box.setFromObject(obj).getSize(new THREE.Vector3()).length() < 2.4;
+      const list: PropPart[][] = mats.map(() => []);
       parts.set(name, list);
+      const cells = groupByCell(mats);
       obj.traverse((o) => {
         const mesh = o as THREE.Mesh;
         if (!mesh.isMesh) return;
-        const im = new THREE.InstancedMesh(mesh.geometry, mesh.material, mats.length);
-        const tmp = new THREE.Matrix4();
-        mats.forEach((m, i) => im.setMatrixAt(i, tmp.multiplyMatrices(m, mesh.matrixWorld)));
-        if (dynamic.has(name)) im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-        im.instanceMatrix.needsUpdate = true;
-        im.computeBoundingSphere();
-        im.name = name;
-        out.add(im);
-        list.push({ im, local: mesh.matrixWorld.clone() });
+        const local = mesh.matrixWorld.clone();
+        for (const idx of cells) {
+          const im = new THREE.InstancedMesh(mesh.geometry, mesh.material, idx.length);
+          idx.forEach((i, k) => {
+            im.setMatrixAt(k, tmp.multiplyMatrices(mats[i]!, local));
+            list[i]!.push({ im, local, index: k });
+          });
+          if (dynamic.has(name)) im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+          im.instanceMatrix.needsUpdate = true;
+          im.computeBoundingSphere();
+          // folga pro objeto derrubado não sumir na beira da tela
+          if (dynamic.has(name)) im.boundingSphere!.radius += 8;
+          im.name = name;
+          if (small) im.layers.set(NO_REFLECT);
+          culler.add(im, small ? 150 : 300);
+          out.add(im);
+        }
       });
     }
     return { group: out, parts };
@@ -121,11 +140,11 @@ export interface Props {
   group: THREE.Group;
   colliders: Shape[];
   breakables: BreakProp[];
-  parts: Map<ModelName, PropPart[]>;
+  parts: Map<ModelName, PropPart[][]>;
 }
 
 /** lite: preset BAIXA, pula as pilhas decorativas (engradado é a malha mais pesada) */
-export function buildProps(city: City, models: Assets['models'], lite = false): Props {
+export function buildProps(city: City, models: Assets['models'], lite: boolean, culler: ChunkCuller): Props {
   const rnd = mulberry32(3131);
   // semente separada pros objetos novos, pra não mexer onde os antigos caem
   const rnd2 = mulberry32(6161);
@@ -356,6 +375,6 @@ export function buildProps(city: City, models: Assets['models'], lite = false): 
   }
 
   void pick;
-  const built = P.build(models, new Set(breakables.map((b) => b.name)));
+  const built = P.build(models, new Set(breakables.map((b) => b.name)), culler);
   return { group: built.group, colliders, breakables, parts: built.parts };
 }

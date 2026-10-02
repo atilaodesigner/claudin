@@ -127,6 +127,7 @@ src/
   ui/chatter.ts         rádio do bonde (conversas em pontos do jogo) e as falas
   world/neon.ts         neon, LED e outdoors
   world/props.ts        objetos de rua (Poly Haven) instanciados
+  world/chunks.ts       instâncias repartidas em pedaços de 160 m (some o que está longe/fora da tela)
   world/breakables.ts   postes e objetos derrubáveis (física solta, respawn)
   world/lampModel.ts    poste de madeira de verdade + braço e luminária
   world/parked.ts       carros estacionados (GLB do tráfego, instanciados)
