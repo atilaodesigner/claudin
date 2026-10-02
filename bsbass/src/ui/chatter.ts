@@ -6,11 +6,11 @@
 export type Who = 'duckjay' | 'diey' | 'bella' | 'bozo';
 export type Line = [Who, string];
 
-const PEOPLE: Record<Who, { name: string; color: string; img?: string }> = {
+export const PEOPLE: Record<Who, { name: string; color: string; img?: string }> = {
   duckjay: { name: 'DuckJay', color: '#E6B84A', img: './campaign/duckjay.webp' },
-  diey: { name: 'Diey', color: '#9A6A45' },
-  bella: { name: 'Bella', color: '#D8323C' },
-  bozo: { name: 'Bozó', color: '#B8B8C4' },
+  diey: { name: 'Diey', color: '#9A6A45', img: './campaign/diey.webp' },
+  bella: { name: 'Bella', color: '#D8323C', img: './campaign/bella.webp' },
+  bozo: { name: 'Bozó', color: '#B8B8C4', img: './campaign/bozo.webp' },
 };
 
 /** falas por situação; cada item é uma fala solta ou uma conversa (várias falas em sequência) */
@@ -79,6 +79,15 @@ export const LINES: Record<string, (Line | Line[])[]> = {
     [['duckjay', 'Não deu dessa vez. Respira e volta.'], ['diey', 'Já viu onde errou. Agora vai.']],
     [['bella', 'Calma, ninguém nasceu sabendo.']],
   ],
+  // cruzou com alguém do bonde rodando pelo mapa / bateu no carro dele
+  near_duckjay: [['duckjay', 'Ó eu aqui! Cola na traseira que eu te mostro o traçado.'], ['duckjay', 'Bora de dupla? Segue o dourado.']],
+  near_diey: [['diey', 'Tô dando um giro pra esfriar a cabeça. Vem junto.'], ['diey', 'Repara na saída de curva. Paciência no pedal.']],
+  near_bella: [['bella', 'Achou que ia me passar? Tenta aí!'], ['bella', 'Vem, vem! Quero ver de lado comigo.']],
+  near_bozo: [['bozo', 'Olha o ângulo dessa! Tira foto!'], ['bozo', 'Tô treinando o balão. Bora?']],
+  hit_duckjay: [['duckjay', 'Ô, ô! O carro é emprestado, hein!']],
+  hit_diey: [['diey', 'Sério isso? Respira, piloto.']],
+  hit_bella: [['bella', 'Me deu um totó?! Vou lembrar disso.']],
+  hit_bozo: [['bozo', 'Aí não, mano! Acabei de lavar!']],
   // conversa de cada capítulo: começo e meio
   c1Start: [[['duckjay', 'Movimentação estranha no bairro. Faz a volta e sente o carro.'], ['bella', 'Tô colada atrás de você.']]],
   c1Mid: [['diey', 'Isso, entra de lado e sai acelerando.']],

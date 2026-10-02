@@ -30,7 +30,7 @@ export interface MapMarker {
   x: number;
   z: number;
   c: string;
-  shape?: 'dot' | 'yard' | 'beam';
+  shape?: 'dot' | 'yard' | 'beam' | 'crew';
   label?: string;
 }
 
@@ -559,7 +559,7 @@ export class Hud {
     c.stroke();
     // legenda
     c.setTransform(1, 0, 0, 1, 0, 0);
-    const items: [string, string][] = [['#f20d24', 'Ferro-velho (base)'], ['#ffb14a', 'Missão'], ['#33e0ff', 'Racha'], ['#ffd21a', 'Fita K7'], ['#1f6fe0', 'Você']];
+    const items: [string, string][] = [['#f20d24', 'Ferro-velho (base)'], ['#ffb14a', 'Missão'], ['#33e0ff', 'Racha'], ['#ffd21a', 'Fita K7'], ['#9a6a45', 'Bonde rodando'], ['#1f6fe0', 'Você']];
     const x0 = 28, y0 = W - 28 - items.length * 30;
     c.font = "italic 600 22px 'Chakra Petch', sans-serif";
     c.textBaseline = 'middle';
@@ -588,6 +588,12 @@ export class Hud {
     else c.arc(m.x, m.z, r, 0, Math.PI * 2);
     c.fill();
     c.stroke();
+    if (m.shape === 'crew') {
+      c.fillStyle = '#1a1a1a';
+      c.font = `italic 700 ${14 / scale}px 'Chakra Petch', sans-serif`;
+      c.fillText(m.label ?? '', m.x + r * 1.5, m.z + r * 0.5);
+      return;
+    }
     if (m.label) {
       c.fillStyle = '#1a1a1a';
       c.font = `bold ${15 / scale}px 'Chakra Petch', sans-serif`;
@@ -617,6 +623,12 @@ export class Hud {
     c.beginPath();
     c.arc(m.x, m.z, m.shape === 'beam' ? r * 1.35 : r, 0, Math.PI * 2);
     c.fill();
+    if (m.shape === 'crew') {
+      c.strokeStyle = '#fff';
+      c.lineWidth = r * 0.35;
+      c.stroke();
+      return;
+    }
     if (m.shape === 'beam' && m.label) {
       c.save();
       c.translate(m.x, m.z);

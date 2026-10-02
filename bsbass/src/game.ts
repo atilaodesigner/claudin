@@ -26,7 +26,7 @@ import { makeCloudAtlas, Particles, DustMotes } from './fx/particles';
 import { LightTrail, SkidMarks } from './fx/trails';
 import { WetReflection, NO_REFLECT } from './fx/wet';
 import { GuideLine, offsetRight } from './fx/guide';
-import { Chatter } from './ui/chatter';
+import { Chatter, PEOPLE } from './ui/chatter';
 import { worldAt } from './campaign/routes';
 import { prepareCar } from './car/gltfCar';
 import { buildGltfRig, trafficLights } from './car/gltfRig';
@@ -347,6 +347,17 @@ export class Game {
     this.scene.add(this.guide.mesh);
     this.traffic = new Traffic(touch ? 22 : 30, 7, assets.cars.filter((c) => c.entry.role === 'traffic'));
     this.scene.add(this.traffic.group);
+    // o bonde rodando sozinho pela quebrada, cada um num carro na própria cor
+    if (this.ownCars.length) {
+      const pick = (id: string, i: number) => this.ownCars.find((c) => c.id === id) ?? this.ownCars[i % this.ownCars.length]!;
+      const CREW_CAR: Record<string, string> = { duckjay: 'corvette', diey: 'camaro', bella: 'porsche', bozo: 'corvette' };
+      this.traffic.addCrew(
+        (Object.keys(PEOPLE) as (keyof typeof PEOPLE)[]).map((id, i) => {
+          const car = pick(CREW_CAR[id] ?? '', i);
+          return { id, name: PEOPLE[id].name, color: PEOPLE[id].color, model: car.id, rig: car.rig };
+        }),
+      );
+    }
     // fumaça de pneu, poeira e batida: nuvens "brócolis" de desenho
     this.smoke = new Particles(900, makeCloudAtlas(), false, true);
     this.sparks = new Particles(400, tx.glow, true);
@@ -848,8 +859,10 @@ export class Game {
         }
       } else {
         this.gameplay(dt);
+        this.traffic.crewSkip = this.campaign?.pilot ?? '';
         this.traffic.update(dt, this.car, this.camera.position);
         this.trafficCollisions();
+        this.crewFx(dt);
       }
       cm?.update(dt);
     }
@@ -1029,6 +1042,39 @@ export class Game {
     }
   }
 
+  /** fumaça e marca de pneu do bonde drifando (só perto da câmera) */
+  private crewFx(dt: number): void {
+    let ci = 0;
+    for (const t of this.traffic.cars) {
+      const c = t.crew;
+      if (!c) continue;
+      ci++;
+      if (!t.group.visible || c.smoke <= 0 || t.knocked) {
+        for (const s of [0, 1]) this.skids.add(40 + ci * 2 + s, 0, 0, 0, 0, false);
+        continue;
+      }
+      const near = Math.hypot(t.x - this.camera.position.x, t.z - this.camera.position.z) < 140;
+      const h = t.heading + c.slip;
+      const fx = Math.sin(h), fz = Math.cos(h), rx = -fz, rz = fx;
+      for (const s of [0, 1]) {
+        const side = s ? 1 : -1;
+        const x = t.x - fx * t.halfL * 0.62 + rx * side * t.halfW * 0.82;
+        const z = t.z - fz * t.halfL * 0.62 + rz * side * t.halfW * 0.82;
+        this.skids.add(40 + ci * 2 + s, x, 0, z, near ? c.smoke : 0, false);
+        if (!near) continue;
+        const n = c.smoke * 1.4 * dt * 60;
+        for (let k = 0; k < n; k++) {
+          if (Math.random() > n - k) break;
+          this.smoke.emit({
+            x: x + (Math.random() - 0.5) * 0.4, y: 0.25, z: z + (Math.random() - 0.5) * 0.4,
+            vx: t.vx * 0.15 + (Math.random() - 0.5) * 2, vy: 0.5 + Math.random() * 0.8, vz: t.vz * 0.15 + (Math.random() - 0.5) * 2,
+            life: 0.9 + Math.random(), size: 0.8, grow: 2, r: 0.7, g: 0.66, b: 0.66, a: 0.18 * c.smoke, drag: 1.3,
+          });
+        }
+      }
+    }
+  }
+
   private trafficCollisions(): void {
     const out = { jx: 0, jz: 0 };
     for (const t of this.traffic.cars) {
@@ -1050,6 +1096,7 @@ export class Game {
         this.car.yawRate = body.yawRate;
         if (impact > 0) {
           this.traffic.knock(t, out.jx, out.jz, c.px, c.pz);
+          if (t.crew) this.chatter.say(`hit_${t.crew.id}`, { cool: 25, urgent: true });
           this.onImpact(impact, c.px, c.pz);
         }
         continue;
@@ -1511,6 +1558,11 @@ export class Game {
     const inYard = !!cm?.inYard;
     if (inYard && !c.inYard) ch.say('yard', { cool: 150 });
     c.inYard = inYard;
+    // cruzou com alguém do bonde rodando: ele chama no rádio
+    for (const t of this.traffic.cars) {
+      if (!t.crew || !t.group.visible) continue;
+      if (Math.hypot(t.x - this.car.x, t.z - this.car.z) < 28) ch.say(`near_${t.crew.id}`, { cool: 120 });
+    }
     if (!ch.busy && !this.missions.active && (c.idle -= dt) <= 0) {
       ch.say('idle', { cool: 0 });
       c.idle = 70 + Math.random() * 50;
@@ -1557,6 +1609,8 @@ export class Game {
     if (this.campaign?.missionActive) return this.markers;
     if (this.campaign) this.markers.push(...this.campaign.markers());
     for (const f of this.missions.fitas) if (!f.got) this.markers.push({ x: f.x, z: f.z, c: '#ffd21a' });
+    // o bonde rodando (bolinha na cor de cada um)
+    for (const t of this.traffic.cars) if (t.crew && t.group.visible) this.markers.push({ x: t.x, z: t.z, c: t.crew.color, shape: 'crew', label: t.crew.name });
     const m = this.missions;
     if (m.active) {
       const cp = m.active.checkpoints[m.cp];

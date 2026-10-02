@@ -1081,6 +1081,11 @@ export class Campaign {
     return !!this.lastResult?.win;
   }
 
+  /** quem está pilotando (o resto do bonde roda sozinho pelo mapa) */
+  get pilot(): string {
+    return this.save.data.pilot;
+  }
+
   get missionActive(): boolean {
     return this.mode === 'mission';
   }

@@ -11,7 +11,11 @@ const HEAD_RE = /head.?light|headlamp|front.?light|farol|head_lamp|frontlamp|tun
 // carcaça, cromado, vidro, pinça de freio...: não acendem (senão o farol inteiro estoura no bloom)
 /** peças de dentro do carro (painel, botões, mostradores) */
 const INTERIOR_RE = /interior|int_|dash|gauge|display|button|digital|selfillum/i;
-const NOT_LAMP_RE = /housing|chrome|chome|caliper|calliper|disc|glass|vidro|plastic|paint|shadow|interior|misc|filler|pneu|tire|tyre|wheel|aro_|rim/i;
+// ("aro_"/"rim" só como palavra: "Camaro_" e "trim" não são roda)
+const NOT_LAMP_RE = /housing|chrome|chome|caliper|calliper|disc|glass|vidro|plastic|paint|shadow|interior|misc|filler|pneu|tire|tyre|wheel|(?<![a-z])aro_|(?<![a-z])rim(?![a-z])/i;
+/** lente de vidro da lanterna/farol: serve quando o modelo não tem a peça acesa com nome claro */
+const LENS_RE = /glass|vidro|lens|lente/i;
+const REVERSE_RE = /reverse|backup.?light|luz.?de.?re/i;
 
 /** ponto da superfície do carro visto de frente (+1) ou de trás (-1) numa altura/lado */
 function probe(p: PreparedCar, dir: 1 | -1, x: number, y: number): THREE.Vector3 {
@@ -27,27 +31,56 @@ export interface LightSpots {
   /** o modelo tinha material de lanterna/farol com nome reconhecível */
   namedTail: THREE.Mesh[];
   namedHead: THREE.Mesh[];
+  /** luz de ré do modelo (acende dando ré) */
+  namedReverse: THREE.Mesh[];
 }
 
 export function findLights(p: PreparedCar): LightSpots {
   const namedTail: THREE.Mesh[] = [];
   const namedHead: THREE.Mesh[] = [];
+  const namedReverse: THREE.Mesh[] = [];
+  const lensTail: THREE.Mesh[] = [];
+  const lensHead: THREE.Mesh[] = [];
+  const redRear: THREE.Mesh[] = [];
+  p.root.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(p.root.matrixWorld).invert();
+  const box = new THREE.Box3();
   p.root.traverse((o) => {
     const m = o as THREE.Mesh;
     if (!m.isMesh) return;
     const mats = Array.isArray(m.material) ? m.material : [m.material];
     if (mats.length !== 1) return; // malha com vários materiais: não troca o material inteiro
     const n = `${m.name} ${mats[0]!.name}`;
-    if (NOT_LAMP_RE.test(n)) return;
+    if (REVERSE_RE.test(n) && !NOT_LAMP_RE.test(n)) {
+      namedReverse.push(m);
+      return;
+    }
+    if (NOT_LAMP_RE.test(n)) {
+      // sem peça acesa com nome claro, a lente de vidro da lanterna/farol serve
+      if (LENS_RE.test(n) && !/chrome|chome|housing/i.test(n)) {
+        if (TAIL_RE.test(n)) lensTail.push(m);
+        else if (HEAD_RE.test(n)) lensHead.push(m);
+        else {
+          // vidro vermelho na traseira (lanterna sem nome)
+          const c = (mats[0] as THREE.MeshStandardMaterial).color;
+          if (c && (c.r > 0.4 && c.g < 0.12 && c.b < 0.12) || /red|verm/i.test(n)) {
+            if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
+            box.copy(m.geometry.boundingBox!).applyMatrix4(m.matrixWorld).applyMatrix4(inv);
+            if ((box.min.z + box.max.z) / 2 < -p.halfL * 0.55) redRear.push(m);
+          }
+        }
+      }
+      return;
+    }
     // "farol traseiro" é lanterna: testa a traseira antes do farol
     if (TAIL_RE.test(n)) namedTail.push(m);
     else if (HEAD_RE.test(n)) namedHead.push(m);
   });
+  if (!namedTail.length) namedTail.push(...(lensTail.length ? lensTail : redRear));
+  if (!namedHead.length) namedHead.push(...lensHead);
   const w = p.halfW, h = p.height;
   // com farol/lanterna de verdade no modelo, a luz vai no centro dele (de cada lado);
   // senão chuta pela superfície do carro numa altura fixa
-  p.root.updateMatrixWorld(true);
-  const inv = new THREE.Matrix4().copy(p.root.matrixWorld).invert();
   const fromMeshes = (list: THREE.Mesh[], front: boolean): THREE.Vector3[] | null => {
     if (!list.length) return null;
     // pelos vértices (uma peça pode ter os dois faróis): centro de cada lado
@@ -79,7 +112,7 @@ export function findLights(p: PreparedCar): LightSpots {
     q.z -= 0.05;
     return q;
   });
-  return { tails, heads, exhausts, namedTail, namedHead };
+  return { tails, heads, exhausts, namedTail, namedHead, namedReverse };
 }
 
 function card(mat: THREE.Material, w: number, h: number, pos: THREE.Vector3, back: boolean): THREE.Mesh {
@@ -156,18 +189,19 @@ export function buildGltfRig(p: PreparedCar, env: THREE.Texture | null, paintCol
   // ---------- luzes ----------
   const tailMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.15, 0.05, 0.03) });
   const brakeMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.5, 0.02, 0.02), blending: THREE.AdditiveBlending, transparent: true, depthWrite: false });
-  const reverseMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.15, 0.15, 0.15), blending: THREE.AdditiveBlending, transparent: true, depthWrite: false });
+  // luz de ré: a peça do próprio modelo (apagada até dar ré)
+  const reverseMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.15, 0.15, 0.15) });
   const headMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.85, 0.83, 0.78) });
   const L = findLights(p);
+  // lanterna, freio e farol acendem na peça do próprio modelo (freio = a lanterna mais forte);
+  // placa colada por fora só se o modelo não tiver lanterna nenhuma, e dentro da largura da lataria
   for (const m of L.namedTail) m.material = tailMat;
   for (const m of L.namedHead) m.material = headMat;
-  const lw = p.halfW * 0.34;
-  for (const t of L.tails) {
-    if (!L.namedTail.length) holder.add(card(tailMat, lw, 0.07, t, true));
-    holder.add(card(brakeMat, lw * 1.1, 0.12, t.clone().setY(t.y - 0.02), true));
-    holder.add(card(reverseMat, 0.1, 0.05, t.clone().setX(t.x * 0.55).setY(t.y - 0.1), true));
-  }
-  if (!L.namedHead.length) for (const hpos of L.heads) holder.add(card(headMat, p.halfW * 0.3, 0.06, hpos, false));
+  for (const m of L.namedReverse) m.material = reverseMat;
+  const bodyW = Math.min(p.halfW, bodyHalfWidth(p));
+  const lw = bodyW * 0.3;
+  if (!L.namedTail.length) for (const t of L.tails) holder.add(card(tailMat, lw, 0.07, t.clone().setX(Math.sign(t.x) * Math.min(Math.abs(t.x), bodyW - lw / 2 - 0.05)), true));
+  if (!L.namedHead.length) for (const hpos of L.heads) holder.add(card(headMat, lw, 0.06, hpos.clone().setX(Math.sign(hpos.x) * Math.min(Math.abs(hpos.x), bodyW - lw / 2 - 0.05)), false));
 
   // ---------- sombra de contato + neon por baixo ----------
   const soft = makeSoftTexture();
@@ -222,7 +256,30 @@ export function trafficLights(p: PreparedCar): THREE.Group {
   const head = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.85, 0.8, 0.7) });
   for (const m of L.namedTail) m.material = tail;
   for (const m of L.namedHead) m.material = head;
-  if (!L.namedTail.length) for (const t of L.tails) g.add(card(tail, p.halfW * 0.3, 0.09, t, true));
-  if (!L.namedHead.length) for (const h of L.heads) g.add(card(head, p.halfW * 0.28, 0.08, h, false));
+  const bw = Math.min(p.halfW, bodyHalfWidth(p)), lw = bw * 0.3;
+  const inside = (v: THREE.Vector3) => v.clone().setX(Math.sign(v.x) * Math.min(Math.abs(v.x), bw - lw / 2 - 0.05));
+  if (!L.namedTail.length) for (const t of L.tails) g.add(card(tail, lw, 0.09, inside(t), true));
+  if (!L.namedHead.length) for (const h of L.heads) g.add(card(head, lw, 0.08, inside(h), false));
   return g;
+}
+
+/** meia largura da lataria na altura das lanternas (sem retrovisor) */
+function bodyHalfWidth(p: PreparedCar): number {
+  p.root.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(p.root.matrixWorld).invert();
+  const v = new THREE.Vector3(), mtx = new THREE.Matrix4();
+  let w = 0;
+  p.root.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh || !m.geometry.attributes.position) return;
+    mtx.multiplyMatrices(inv, m.matrixWorld);
+    const pos = m.geometry.attributes.position;
+    const step = Math.max(1, Math.floor(pos.count / 300));
+    for (let i = 0; i < pos.count; i += step) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(mtx);
+      // só a traseira/dianteira (onde ficam as luzes), longe dos retrovisores
+      if (Math.abs(v.z) > p.halfL * 0.7 && v.y > p.height * 0.3) w = Math.max(w, Math.abs(v.x));
+    }
+  });
+  return w || p.halfW;
 }

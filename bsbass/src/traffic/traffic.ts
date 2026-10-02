@@ -53,6 +53,32 @@ export interface TrafficCar {
   nearMissCd: number;
   honkCd: number;
   rect: Rect;
+  /** alguém do bonde rodando pelo mapa (drift nas curvas) */
+  crew?: CrewInfo;
+}
+
+export interface CrewInfo {
+  id: string;
+  name: string;
+  color: string;
+  /** ângulo da carroceria em relação ao rumo (drift) */
+  slip: number;
+  /** quanto o pneu está fritando agora (0 = nada): fumaça e marca no chão */
+  smoke: number;
+  body: THREE.Object3D;
+  spins: THREE.Object3D[];
+  steers: THREE.Object3D[];
+  wheelR: number;
+}
+
+/** carro do jogador (rig GLB) que vira carro do bonde rodando sozinho */
+export interface CrewSource {
+  id: string;
+  name: string;
+  color: string;
+  /** chave do modelo (as malhas juntadas são feitas uma vez por modelo) */
+  model: string;
+  rig: { root: THREE.Object3D; body: THREE.Object3D; wheels: { steer: THREE.Object3D; spin: THREE.Object3D }[]; paint: THREE.Material; tailMat: THREE.Material; brakeMat: THREE.Material; reverseMat: THREE.Material; headMat: THREE.Material; underglow?: THREE.Mesh };
 }
 
 export class Traffic {
@@ -133,6 +159,84 @@ export class Traffic {
       this.merged.set(pick.entry.id, t);
     }
     return t;
+  }
+
+  private crewMerged = new Map<string, MergedPart[]>();
+  /** quem está pilotando agora não roda sozinho pelo mapa */
+  crewSkip = '';
+
+  /**
+   * O bonde rodando pelo mapa: cada um num carro com a própria cor, andando a
+   * esmo pela quebrada e cruzando as esquinas e o balão de lado, com fumaça.
+   */
+  addCrew(list: CrewSource[]): void {
+    for (const m of list) {
+      const root = m.rig.root.clone(true);
+      // mesmos nós no original e na cópia (pela ordem da árvore): acha rodas e carroceria
+      const orig: THREE.Object3D[] = [], copy: THREE.Object3D[] = [];
+      m.rig.root.traverse((o) => orig.push(o));
+      root.traverse((o) => copy.push(o));
+      const map = new Map(orig.map((o, i) => [o, copy[i]!]));
+      // sem farol de verdade (luz dinâmica) e sem os materiais que o jogo pisca pro jogador
+      const lights: THREE.Object3D[] = [];
+      root.traverse((o) => { if ((o as THREE.Light).isLight) lights.push(o); });
+      for (const l of lights) l.parent?.remove(l);
+      const paint = (m.rig.paint as THREE.MeshStandardMaterial).clone();
+      paint.color.set(m.color);
+      const tail = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 0.06, 0.04) });
+      const head = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.85, 0.8, 0.7) });
+      const dim = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.08, 0.02, 0.02), transparent: true, opacity: 0.4, depthWrite: false });
+      const swap = (x: THREE.Material): THREE.Material =>
+        x === m.rig.paint ? paint : x === m.rig.tailMat ? tail : x === m.rig.headMat ? head : x === m.rig.brakeMat || x === m.rig.reverseMat ? dim : x;
+      // carroceria juntada por material (feita uma vez por modelo; cada um só troca a pintura)
+      const body = map.get(m.rig.body)!;
+      let parts = this.crewMerged.get(m.model);
+      if (!parts) {
+        // pintura: o material do rig ou qualquer cópia dele (verniz igual ao da pintura do jogo)
+        const isPaint = (x: THREE.Material) => x === m.rig.paint || ((x as THREE.MeshPhysicalMaterial).isMeshPhysicalMaterial && (x as THREE.MeshPhysicalMaterial).clearcoat === (m.rig.paint as THREE.MeshPhysicalMaterial).clearcoat && (x as THREE.MeshPhysicalMaterial).color.equals((m.rig.paint as THREE.MeshPhysicalMaterial).color));
+        parts = mergeByMaterial(m.rig.body, isPaint);
+        this.crewMerged.set(m.model, parts);
+      }
+      body.clear();
+      for (const part of parts) {
+        const mesh = new THREE.Mesh(part.geo, part.flag ? paint : swap(part.mat));
+        body.add(mesh);
+      }
+      root.traverse((o) => {
+        const ms = o as THREE.Mesh;
+        if (!ms.isMesh) return;
+        ms.material = Array.isArray(ms.material) ? ms.material.map(swap) : swap(ms.material);
+      });
+      // neon por baixo na cor de cada um
+      const ug = m.rig.underglow ? (map.get(m.rig.underglow) as THREE.Mesh | undefined) : undefined;
+      if (ug) {
+        const um = (ug.material as THREE.MeshBasicMaterial).clone();
+        um.color.set(m.color).multiplyScalar(1.4);
+        ug.material = um;
+      }
+      root.position.set(0, 0, 0);
+      root.rotation.set(0, 0, 0);
+      const g = new THREE.Group();
+      g.add(root);
+      this.group.add(g);
+      const bb = new THREE.Box3().setFromObject(m.rig.body);
+      const halfW = Math.min(1.1, (bb.max.x - bb.min.x) / 2), halfL = Math.min(2.6, (bb.max.z - bb.min.z) / 2);
+      const car: TrafficCar = {
+        group: g, lightsMat: tail, model: 0, halfW, halfL, mass: 1500,
+        x: 0, z: 0, heading: 0, speed: 0, cruise: 20 + this.rnd() * 4,
+        path: [], seg: 0, segT: 0, i: 0, j: 0, dir: 0,
+        knocked: false, vx: 0, vz: 0, yawRate: 0, still: 0, nearMissCd: 0, honkCd: 0,
+        rect: rect(0, 0, halfW, halfL),
+        crew: {
+          id: m.id, name: m.name, color: m.color, slip: 0, smoke: 0, body: root,
+          spins: m.rig.wheels.map((w) => map.get(w.spin)!).filter(Boolean),
+          steers: m.rig.wheels.slice(0, 2).map((w) => map.get(w.steer)!).filter(Boolean),
+          wheelR: 0.34,
+        },
+      };
+      this.spawn(car, null);
+      this.cars.push(car);
+    }
   }
 
   /** sorteia um modelo GLB pelo peso; ônibus só na vaga de ônibus */
@@ -298,10 +402,10 @@ export class Traffic {
             car.honkCd = 4 + Math.random() * 4;
           }
         }
-        // desacelera nas curvas
+        // desacelera nas curvas (o bonde entra mais rápido, de lado)
         const turning = car.path.length > 4;
-        if (turning && car.seg < car.path.length / 2 - 2) target = Math.min(target, car.model === 4 ? 6 : 8);
-        car.speed += Math.max(-9 * dt, Math.min(3 * dt, target - car.speed));
+        if (turning && car.seg < car.path.length / 2 - 2) target = Math.min(target, car.crew ? 13 : car.model === 4 ? 6 : 8);
+        car.speed += Math.max(-9 * dt, Math.min((car.crew ? 6 : 3) * dt, target - car.speed));
 
         // anda pelo caminho
         let move = car.speed * dt;
@@ -338,6 +442,7 @@ export class Traffic {
         }
         car.vx = fx * car.speed;
         car.vz = fz * car.speed;
+        if (car.crew) this.crewDrift(car, dt);
       }
       car.rect.x = car.x;
       car.rect.z = car.z;
@@ -346,7 +451,41 @@ export class Traffic {
       car.group.rotation.y = car.heading;
       // saiu do mapa de algum jeito
       if (Math.abs(car.x) > EXTENT + 60 || Math.abs(car.z) > EXTENT + 60) this.spawn(car, player);
+      if (car.crew) {
+        // quem está pilotando não aparece rodando
+        const off = car.crew.id === this.crewSkip;
+        car.group.visible = !off;
+        if (off) car.rect.x = car.rect.z = 1e5;
+      }
     }
+  }
+
+  /**
+   * Drift do bonde: olha a curva lá na frente pelo caminho e vira a carroceria
+   * pra dentro dela (traseira saindo), segura de lado e endireita na saída;
+   * roda gira, volante contra-esterça e o pneu frita.
+   */
+  private crewDrift(car: TrafficCar, dt: number): void {
+    const c = car.crew!;
+    const k = car.seg * 2, P = car.path;
+    let want = 0;
+    if (k + 3 < P.length) {
+      const h0 = Math.atan2(P[k + 2]! - P[k]!, P[k + 3]! - P[k + 1]!);
+      const kk = Math.min(P.length - 4, k + 8);
+      const h1 = Math.atan2(P[kk + 2]! - P[kk]!, P[kk + 3]! - P[kk + 1]!);
+      let d = h1 - h0;
+      while (d > Math.PI) d -= Math.PI * 2;
+      while (d < -Math.PI) d += Math.PI * 2;
+      if (car.speed > 7) want = Math.max(-0.72, Math.min(0.72, d * 1.4));
+    }
+    // entra rápido no ângulo, sai devagar (o drift "segura" na saída da curva)
+    const rate = Math.abs(want) > Math.abs(c.slip) ? 4.5 : 1.4;
+    c.slip += (want - c.slip) * Math.min(1, dt * rate);
+    c.body.rotation.y = c.slip;
+    c.body.rotation.z = -c.slip * 0.05;
+    for (const s of c.spins) s.rotation.x += (car.speed / c.wheelR) * dt * (Math.abs(c.slip) > 0.2 ? 1.6 : 1);
+    for (const s of c.steers) s.rotation.y = -c.slip * 0.85;
+    c.smoke = Math.abs(c.slip) > 0.22 && car.speed > 6 ? Math.min(1, Math.abs(c.slip) * 1.3) : 0;
   }
 
   knock(car: TrafficCar, jx: number, jz: number, px: number, pz: number): void {
