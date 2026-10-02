@@ -1,4 +1,6 @@
-# Publica o site BSBASS (bsbass/site) no Cloudflare Pages, projeto "bsbass", domínio bsbass.fun.
+# Publica o BSBASS no Cloudflare Pages, projeto "bsbass", domínio bsbass.fun:
+#   bsbass.fun/           o jogo novo (BSBass Drift Game, bsbass/ buildado com Vite)
+#   bsbass.fun/classico/  o BSBASS THE GAME original (bsbass/site, como foi entregue)
 # Usa os mesmos segredos do deploy do ABDUZIU (Settings → Secrets and variables → Actions):
 #   CLOUDFLARE_API_TOKEN   Account › Cloudflare Pages › Edit  (+ Zone › DNS › Edit e Zone › Single Redirect › Edit na zona bsbass.fun
 #                          para o DNS e o redirecionamento www → apex; sem elas o passo avisa e segue)
@@ -7,7 +9,7 @@ name: Deploy BSBASS
 
 on:
   push:
-    branches: [main, claude/lucid-wright-vi454a]
+    branches: [main, claude/bsbass-drift-game-foq4oe]
     paths: ['bsbass/**', '.github/workflows/deploy-bsbass.yml']
   workflow_dispatch:
 
@@ -30,6 +32,25 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: bsbass/package-lock.json
+
+      - name: Instalar, testar e buildar o jogo
+        working-directory: bsbass
+        run: |
+          npm ci
+          npm test
+          npm run build
+
+      - name: Juntar o jogo original em /classico
+        working-directory: bsbass
+        run: |
+          mkdir -p dist/classico
+          cp -r site/index.html site/assets site/vendor dist/classico/
+          du -sh dist
+          find dist -type f | wc -l
+          # o Pages recusa arquivo acima de 25 MiB
+          if find dist -type f -size +25M | grep .; then echo "::error::arquivo acima de 25 MiB"; exit 1; fi
 
       - name: Criar o projeto no Cloudflare Pages (se ainda não existir)
         env:
@@ -37,8 +58,8 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx --yes wrangler@4 pages project create "$PROJECT" --production-branch=main || echo "projeto já existe"
 
-      - name: Publicar o site (produção)
-        working-directory: bsbass/site
+      - name: Publicar (produção)
+        working-directory: bsbass/dist
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -118,9 +139,10 @@ jobs:
           api "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/pages/projects/$PROJECT/domains" | jq -c '.result[]? | {domain: .name, status, verification: .verification_data.status, validation: .validation_data.status, error: (.verification_data.error_message // .validation_data.error_message)}'
           show() { echo "== $1"; curl -sS -o /dev/null -D - --max-time 20 "$1" | grep -iE '^(HTTP/|cache-control|location|content-type)' || echo "(sem resposta)"; }
           show "https://$PROJECT.pages.dev/"
-          show "https://$PROJECT.pages.dev/assets/bsbass.webp"
-          show "https://$PROJECT.pages.dev/vendor/three.min.js"
-          show "https://$PROJECT.pages.dev/index.html"
+          show "https://$PROJECT.pages.dev/logo-game.webp"
+          show "https://$PROJECT.pages.dev/campaign/models/jCrane.glb"
+          show "https://$PROJECT.pages.dev/classico/"
+          show "https://$PROJECT.pages.dev/classico/vendor/three.min.js"
           show "https://$DOMAIN/"
-          show "https://$DOMAIN/assets/bsbass.webp"
-          show "https://www.$DOMAIN/assets/bsbass.webp?x=1"
+          show "https://$DOMAIN/classico"
+          show "https://www.$DOMAIN/logo-game.webp?x=1"

@@ -1,0 +1,95 @@
+[
+  {
+    "id": "corvette",
+    "role": "player",
+    "name": "Chevrolet Corvette C8 Stingray",
+    "length": 4.63,
+    "paint": "^Body_Color$",
+    "credit": "Hari Prasath R (Haris3D)",
+    "license": "CC-BY 4.0",
+    "file": "corvette.glb",
+    "url": "https://sketchfab.com/3d-models/790c40ccff6843eab0b7b4bd18421ff8"
+  },
+  {
+    "id": "camaro",
+    "role": "player",
+    "name": "Chevrolet Camaro ZL1",
+    "length": 4.83,
+    "paint": "carpaint",
+    "credit": "Ddiaz Design",
+    "license": "CC-BY 4.0",
+    "file": "camaro.glb",
+    "url": "https://sketchfab.com/3d-models/9b5681a56be3415282ac985153f04ad8"
+  },
+  {
+    "id": "porsche",
+    "role": "player",
+    "name": "Porsche 911 GT3 (992.2)",
+    "length": 4.57,
+    "paint": "Paint_Material",
+    "credit": "Ddiaz Design",
+    "license": "CC-BY-NC-SA 4.0",
+    "file": "porsche.glb",
+    "url": "https://sketchfab.com/3d-models/1503f8d08f154ec7ab52f95a99c55134"
+  },
+  {
+    "id": "uno",
+    "role": "traffic",
+    "name": "Fiat Uno",
+    "length": 3.69,
+    "weight": 2.5,
+    "credit": "subishi",
+    "license": "CC-BY 4.0",
+    "file": "uno.glb",
+    "url": "https://sketchfab.com/3d-models/f5e38b26c0af4ef2ab2f4c4b2e5aad5c",
+    "restyle": true,
+    "paint": "^carpaint$"
+  },
+  {
+    "id": "uno-escada",
+    "role": "traffic",
+    "name": "Fiat Uno com escada",
+    "length": 3.69,
+    "weight": 1,
+    "recolor": false,
+    "credit": "ClrModels",
+    "license": "CC-BY 4.0",
+    "file": "uno-escada.glb",
+    "url": "https://sketchfab.com/3d-models/36a3b33ef596443c9a780f3844f62fa1"
+  },
+  {
+    "id": "kombi",
+    "role": "traffic",
+    "name": "VW Kombi",
+    "length": 4.28,
+    "flip": true,
+    "weight": 1.5,
+    "credit": "scudmorello",
+    "license": "CC-BY 4.0",
+    "file": "kombi.glb",
+    "url": "https://sketchfab.com/3d-models/f6a7b54ec6d24d8e95992f68be6c930c"
+  },
+  {
+    "id": "onibus",
+    "role": "traffic",
+    "name": "Comil Svelto (ônibus)",
+    "length": 12,
+    "weight": 1,
+    "bus": true,
+    "recolor": false,
+    "credit": "guilhermescosta",
+    "license": "CC-BY 4.0",
+    "file": "onibus.glb",
+    "url": "https://sketchfab.com/3d-models/a3338cc1406549708e805b20253320d9"
+  },
+  {
+    "id": "scania",
+    "role": "truck",
+    "name": "Scania com carreta",
+    "length": 17,
+    "credit": "jsa201077",
+    "license": "CC-BY 4.0",
+    "file": "scania.glb",
+    "url": "https://sketchfab.com/3d-models/65cad482b2194a64a87c0535baac9313"
+  }
+]
