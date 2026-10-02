@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCity, nearestLane, surfaceAt, BALAO } from '../src/world/city';
+import { buildCity, nearestLane, surfaceAt, roadAt, BALAO, BORDER, OLD_BORDER } from '../src/world/city';
 import { collide, rect } from '../src/physics/collide';
 import { CAR } from '../src/physics/car';
 
@@ -38,5 +38,25 @@ describe('cidade', () => {
 
   it('nenhuma casa invade o balão', () => {
     for (const l of city.lots) expect(Math.hypot(l.x - BALAO.x, l.z - BALAO.z)).toBeGreaterThan(BALAO.ring);
+  });
+
+  it('Estrutural, serra e bairros novos: respawn na estrada, livre', () => {
+    for (const [x, z] of [[-900, -900], [800, 800], [820, -820], [0, -760], [700, 0], [-1000, -1050]] as const) {
+      const p = nearestLane(x, z);
+      expect(roadAt(p.x, p.z), `respawn em ${x},${z}`).toBe('asphalt');
+      const car = rect(p.x, p.z, CAR.halfWidth, CAR.halfLength, p.heading);
+      const hits = city.colliders.filter((c) => collide(car, c));
+      expect(hits, `respawn em ${x},${z}`).toHaveLength(0);
+    }
+  });
+
+  it('casas novas fora das estradas e dentro do muro', () => {
+    const outer = city.lots.filter((l) => Math.max(Math.abs(l.x), Math.abs(l.z)) > OLD_BORDER);
+    expect(outer.length).toBeGreaterThan(200);
+    for (const l of outer) {
+      expect(roadAt(l.x, l.z), `casa em ${l.x},${l.z}`).toBeNull();
+      expect(Math.max(Math.abs(l.x), Math.abs(l.z))).toBeLessThan(BORDER);
+    }
+    expect(city.region.mounds.length).toBeGreaterThan(40);
   });
 });

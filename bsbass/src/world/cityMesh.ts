@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { GeoBuilder, hex, type RGB, type UVRect } from '../utils/geo';
 import { mulberry32, pick, range } from '../utils/rng';
 import {
-  AVENUE_Z, BALAO, BLOCK_HALF, BORDER, CURB_H, EXTENT, GRID_EDGE, NODES, PITCH, ROAD, SHOP_NAMES, SIDEWALK,
+  AVENUE_Z, BALAO, BLOCK_HALF, BORDER, CURB_H, EXTENT, GRID_EDGE, NODES, OLD_BORDER, PITCH, ROAD, SHOP_NAMES, SIDEWALK,
   inBalao, nodePos, type City, type Lamp, type Lot,
 } from './city';
 import { ATLAS_ROWS, GRAFF_MURALS, GRAFF_TAGS, ROW, SIGN_ROW, type Textures } from './textures';
@@ -129,7 +129,18 @@ export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = 
   const lampLights: THREE.Vector3[] = [];
 
   // ================= casas =================
-  for (const lot of city.lots) buildLot(lot, walls, glow, signs, flat, emissive, lines);
+  // bairros novos (fora do muro antigo) em malhas próprias: a câmera descarta o bairro que não está na tela
+  const districts = new Map<string, { walls: GeoBuilder; glow: GeoBuilder; signs: GeoBuilder; flat: GeoBuilder; emissive: GeoBuilder }>();
+  for (const lot of city.lots) {
+    if (Math.max(Math.abs(lot.x), Math.abs(lot.z)) < OLD_BORDER) {
+      buildLot(lot, walls, glow, signs, flat, emissive, lines);
+      continue;
+    }
+    const key = `${Math.sign(lot.x)},${Math.sign(lot.z)}`;
+    let d = districts.get(key);
+    if (!d) districts.set(key, (d = { walls: new GeoBuilder(), glow: new GeoBuilder(), signs: new GeoBuilder(), flat: new GeoBuilder(), emissive: new GeoBuilder() }));
+    buildLot(lot, d.walls, d.glow, d.signs, d.flat, d.emissive, lines);
+  }
 
   // ================= calçadas =================
   for (const b of city.blocks) {
@@ -195,16 +206,50 @@ export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = 
     poolQuad(pools, c.x + 3, c.z - 1.2, 11, hex(0xff9a3c, 0.4), CURB_H + 0.03);
   }
 
-  // ================= fora da grade: estrada de terra e rodovia =================
+  // ================= fora da grade: estrada de terra, rodovias, Estrutural, Serra, bairros =================
   const trail = new GeoBuilder();
   const highway = new GeoBuilder();
+  const asphaltRoads = city.outerRoads.filter((r) => r.kind === 'asphalt' && !r.disc);
   for (const r of city.outerRoads) {
-    if (r.kind === 'dirt') ribbon(trail, r.pts, r.w, 0.02, !!r.loop, 0, r.w / 6, 6, hex(0xffffff));
-    else {
-      ribbon(highway, r.pts, r.w, 0.025, false, 0, r.w / 7, 7, hex(0xffffff));
-      // bordas brancas e faixa amarela tracejada no meio
-      for (const off of [-(r.w / 2 - 0.5), r.w / 2 - 0.5]) ribbon(marks, r.pts, 0.15, 0.03, false, off, 1, 1, hex(0xdedede, 0.8));
-      ribbon(marks, r.pts, 0.16, 0.03, false, 0, 1, 1, hex(0xe8b21e, 0.9), 4);
+    if (r.kind === 'dirt') {
+      ribbon(trail, r.pts, r.w, 0.02, !!r.loop, 0, r.w / 6, 6, hex(0xffffff));
+      continue;
+    }
+    if (r.disc) {
+      // praça redonda (mirante)
+      const [c0, c1] = r.pts;
+      const cx = (c0![0] + c1![0]) / 2, cz = (c0![1] + c1![1]) / 2, R = r.w / 2;
+      const ring: [number, number][] = [];
+      for (let k = 0; k < 48; k++) ring.push([cx + Math.cos((k / 48) * Math.PI * 2) * R, cz + Math.sin((k / 48) * Math.PI * 2) * R]);
+      for (let k = 0; k < 48; k++) {
+        const p = ring[k]!, q = ring[(k + 1) % 48]!;
+        // fatia de pizza (centro repetido no 3º e 4º vértice: a normal sai de dois lados distintos)
+        const A: [number, number, number] = [p[0], 0.04, p[1]], B: [number, number, number] = [q[0], 0.04, q[1]], O: [number, number, number] = [cx, 0.04, cz];
+        const up = (B[2] - A[2]) * (O[0] - A[0]) - (B[0] - A[0]) * (O[2] - A[2]) > 0;
+        highway.quad(A, up ? B : O, O, up ? O : B, [p[0] / 7, p[1] / 7, q[0] / 7, q[1] / 7], hex(0xffffff));
+      }
+      ribbon(marks, ring, 0.18, 0.046, true, -0.8, 1, 1, hex(0xdedede, 0.8));
+      continue;
+    }
+    // a rua que chega numa maior para na beira dela (sem duas camadas de asfalto brigando)
+    const pts = r.loop ? r.pts : trimInto(r.pts, asphaltRoads.filter((o) => o !== r && o.w >= r.w));
+    if (pts.length < 2) continue;
+    // a maior por cima: Estrutural > anel de bairro > ligações > ruas do miolo
+    const rank = r.name === 'VIA ESTRUTURAL' ? 3 : r.loop ? 2 : r.w >= 14 ? 1 : 0;
+    const y = 0.022 + rank * 0.008;
+    ribbon(highway, pts, r.w, y, !!r.loop, 0, r.w / 7, 7, hex(0xffffff));
+    const my = y + 0.005;
+    // bordas brancas
+    for (const off of [-(r.w / 2 - 0.5), r.w / 2 - 0.5]) ribbon(marks, pts, 0.15, my, !!r.loop, off, 1, 1, hex(0xdedede, 0.8));
+    if (r.w >= 20) {
+      // via expressa: faixa dupla amarela no meio e faixas brancas tracejadas
+      for (const off of [-0.18, 0.18]) ribbon(marks, pts, 0.12, my, !!r.loop, off, 1, 1, hex(0xe8b21e, 0.9));
+      for (const off of [-r.w / 4, r.w / 4]) ribbon(marks, dashPts(pts, 3, 6, !!r.loop), 0.13, my, false, off, 1, 1, hex(0xdedede, 0.75), 1);
+    } else if (r.name === 'ESTRADA DA SERRA') {
+      // serra: faixa dupla contínua (proibido ultrapassar... no papel)
+      for (const off of [-0.16, 0.16]) ribbon(marks, pts, 0.11, my, false, off, 1, 1, hex(0xe8b21e, 0.9));
+    } else {
+      ribbon(marks, dashPts(pts, 4, 8, !!r.loop), 0.16, my, false, 0, 1, 1, hex(0xe8b21e, 0.9), 1);
     }
   }
 
@@ -479,6 +524,21 @@ export function buildCityMeshes(city: City, tx: Textures, real: Assets['tex'] = 
   hwTex.wrapS = hwTex.wrapT = THREE.RepeatWrapping;
   hwTex.needsUpdate = true;
   add(highway, new THREE.MeshStandardMaterial({ map: hwTex, roughness: 0.8, color: real.asphalt ? 0xb8b0a8 : 0xa8a29c }), 'highway');
+  for (const [key, d] of districts) {
+    add(d.walls, wallMat, `walls ${key}`);
+    add(d.flat, flatMat, `flat ${key}`);
+    add(d.glow, glowMat, `glow ${key}`);
+    add(d.signs, signMat, `signs ${key}`);
+    add(d.emissive, emisMat, `emissive ${key}`);
+  }
+  // morros da serra
+  if (city.region.mounds.length) {
+    const hillMat = new THREE.MeshStandardMaterial({ map: dirtMat.map, normalMap: dirtMat.normalMap, vertexColors: true, roughness: 1, flatShading: true });
+    const hills = new THREE.Mesh(buildHills(city.region.mounds), hillMat);
+    hills.name = 'hills';
+    hills.matrixAutoUpdate = false;
+    group.add(hills);
+  }
 
   // carros estacionados (um draw call)
   if (parkedGroup.length) {
@@ -1144,3 +1204,97 @@ function buildHorizon(tx: Textures): THREE.Group {
 }
 
 export { PITCH };
+
+/** tira do fim (e do começo) da polilinha o trecho que entra numa estrada maior */
+function trimInto(pts: [number, number][], others: { pts: [number, number][]; w: number; loop?: boolean }[]): [number, number][] {
+  // amostra mais fina pra cortar perto da beira
+  const fine: [number, number][] = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i]!, b = pts[i + 1]!;
+    const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 1.5));
+    for (let k = 0; k < n; k++) fine.push([a[0] + ((b[0] - a[0]) * k) / n, a[1] + ((b[1] - a[1]) * k) / n]);
+  }
+  fine.push(pts[pts.length - 1]!);
+  const inside = (p: [number, number]) => others.some((o) => {
+    const n = o.pts.length, m = o.loop ? n : n - 1;
+    for (let i = 0; i < m; i++) {
+      const a = o.pts[i]!, b = o.pts[(i + 1) % n]!;
+      if (Math.abs(a[0] - p[0]) > 60 && Math.abs(b[0] - p[0]) > 60) continue;
+      if (segDist2(p[0], p[1], a[0], a[1], b[0], b[1]) < o.w / 2 - 1) return true;
+    }
+    return false;
+  });
+  let s = 0, e = fine.length;
+  while (s < e - 2 && inside(fine[s]!)) s++;
+  while (e > s + 2 && inside(fine[e - 1]!)) e--;
+  return fine.slice(Math.max(0, s - 1), Math.min(fine.length, e + 1));
+}
+
+function segDist2(px: number, pz: number, ax: number, az: number, bx: number, bz: number): number {
+  const dx = bx - ax, dz = bz - az;
+  const L = dx * dx + dz * dz;
+  const t = L > 0 ? Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / L)) : 0;
+  return Math.hypot(px - ax - dx * t, pz - az - dz * t);
+}
+
+/** polilinha reamostrada em pares (traço, vão) pro ribbon com dash: [a0, a1, b0, b1, ...] */
+function dashPts(pts: [number, number][], on: number, period: number, loop: boolean): [number, number][] {
+  const src = loop ? [...pts, pts[0]!] : pts;
+  const out: [number, number][] = [];
+  let s = 0;
+  let next = 0;
+  for (let i = 0; i < src.length - 1; i++) {
+    const a = src[i]!, b = src[i + 1]!;
+    const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (l < 1e-6) continue;
+    while (next <= s + l) {
+      const t = (next - s) / l;
+      out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+      next += out.length % 2 === 1 ? on : period - on;
+    }
+    s += l;
+  }
+  if (out.length % 2 === 1) out.pop();
+  return out;
+}
+
+/** morros: domo torto de terra, capim seco no meio e pedra no topo (um BufferGeometry só) */
+function buildHills(mounds: { x: number; z: number; r: number; h: number; seed: number }[]): THREE.BufferGeometry {
+  const pos: number[] = [], col: number[] = [], uv: number[] = [];
+  const SEG = 16, RINGS = 6;
+  const earth = [0.62, 0.34, 0.22], grass = [0.5, 0.44, 0.26], rock = [0.46, 0.42, 0.38];
+  for (const m of mounds) {
+    const rnd = mulberry32(m.seed);
+    const jit: number[] = [];
+    for (let k = 0; k < SEG; k++) jit.push(0.82 + rnd() * 0.3);
+    const vert = (ring: number, k: number): [number, number, number] => {
+      const u = ring / RINGS; // 0 na base, 1 no topo
+      const a = (k / SEG) * Math.PI * 2 + m.seed % 7;
+      const r = m.r * (1 - u) * jit[k % SEG]! * (ring === RINGS ? 0 : 1);
+      const y = ring === 0 ? -0.6 : m.h * Math.pow(Math.sin((u * Math.PI) / 2), 1.4) * (0.9 + ((m.seed >> (k % 8)) & 3) * 0.04);
+      return [m.x + Math.cos(a) * r, y, m.z + Math.sin(a) * r];
+    };
+    const color = (y: number): number[] => {
+      const t = Math.max(0, Math.min(1, y / Math.max(1, m.h)));
+      const c = t < 0.5 ? earth.map((v, i) => v + (grass[i]! - v) * (t / 0.5)) : grass.map((v, i) => v + (rock[i]! - v) * ((t - 0.5) / 0.5));
+      return c;
+    };
+    for (let ring = 0; ring < RINGS; ring++) {
+      for (let k = 0; k < SEG; k++) {
+        const a = vert(ring, k), b = vert(ring, k + 1), c = vert(ring + 1, k + 1), d = vert(ring + 1, k);
+        // virado pra fora (vista de cima, sentido anti-horário)
+        for (const p of ring === RINGS - 1 ? [a, c, b] : [a, c, b, a, d, c]) {
+          pos.push(p[0], p[1], p[2]);
+          col.push(...color(p[1]));
+          uv.push(p[0] / 14, p[2] / 14);
+        }
+      }
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.computeVertexNormals();
+  return g;
+}

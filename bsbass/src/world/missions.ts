@@ -126,6 +126,14 @@ export class Missions {
       if (spots.some((s) => Math.hypot(s.x - x, s.z - z) < 70)) continue;
       spots.push({ x, z });
     }
+    // fitas novas no fim da lista (as salvas continuam com o mesmo índice): serra, mirante, bairros, Estrutural
+    const R = city.region;
+    const road = (name: string) => city.outerRoads.find((r) => r.name === name)?.pts ?? [];
+    for (const [pts, f] of [[R.serra, 0.45], [R.ring, 0.1], [R.ring, 0.62], [road('SETOR NOVO'), 0.3], [road('POLO DE GALPÕES'), 0.7]] as const) {
+      const q = pts[Math.floor(pts.length * f)];
+      if (q) spots.push({ x: q[0], z: q[1] });
+    }
+    spots.push({ x: R.mirante.x, z: R.mirante.z });
     spots.forEach((s, i) => {
       const g = new THREE.Group();
       g.position.set(s.x, 0.15, s.z);
@@ -185,6 +193,52 @@ export class Missions {
       this.group.add(m);
       this.startMarkers.push(m);
     });
+
+    // ---------- rachas fora da grade (no fim da lista: o save dos antigos não muda) ----------
+    const sample = (pts: [number, number][], every: number, loop: boolean) => {
+      const src = loop ? [...pts, pts[0]!] : pts;
+      const out: { x: number; z: number }[] = [];
+      let acc = 0, len = 0;
+      for (let i = 1; i < src.length; i++) {
+        const d = Math.hypot(src[i]![0] - src[i - 1]![0], src[i]![1] - src[i - 1]![1]);
+        acc += d;
+        len += d;
+        if (acc >= every || i === src.length - 1) {
+          out.push({ x: src[i]![0], z: src[i]![1] });
+          acc = 0;
+        }
+      }
+      return { cps: out, len };
+    };
+    const extra: [string, { x: number; z: number }, { x: number; z: number }[], number][] = [];
+    {
+      // subida da serra: do pé (saída da Estrutural) até o mirante; curva fechada = menos velocidade média
+      const pts = R.serra.slice(6);
+      const { cps, len } = sample(pts, 26, false);
+      cps.push({ x: R.mirante.x, z: R.mirante.z });
+      extra.push(['SUBIDA DA SERRA', { x: pts[0]![0], z: pts[0]![1] }, cps, Math.round(len / 15 + 8)]);
+    }
+    {
+      // volta inteira na Estrutural, saindo do trevo da avenida
+      const i0 = 8;
+      const pts = [...R.ring.slice(i0), ...R.ring.slice(0, i0 + 1)];
+      const { cps, len } = sample(pts, 150, false);
+      extra.push(['VOLTA NA ESTRUTURAL', { x: pts[0]![0], z: pts[0]![1] }, cps, Math.round(len / 31 + 6)]);
+    }
+    for (const [name, start, cps, limit] of extra) {
+      const r = this.rachas.length;
+      this.rachas.push({ name, start, checkpoints: cps, limit, best: saved.rachas[r] ?? null, done: saved.rachas[r] != null });
+      const m = new THREE.Group();
+      m.position.set(start.x, 0.15, start.z);
+      const big = new THREE.Mesh(beamGeo, cyan);
+      big.scale.set(2.2, 1.4, 2.2);
+      m.add(big);
+      const rr = new THREE.Mesh(ringGeo, cyan);
+      rr.scale.setScalar(2.2);
+      m.add(rr);
+      this.group.add(m);
+      this.startMarkers.push(m);
+    }
 
     // portal do checkpoint atual
     this.gate = new THREE.Group();

@@ -86,7 +86,7 @@ export class Hud {
   activePreset: Preset = 'alta';
   camMode = 'chase';
 
-  constructor(parent: HTMLElement, private input: Input, private radio: Radio, city: City) {
+  constructor(parent: HTMLElement, private input: Input, private radio: Radio, private city: City) {
     const root = document.createElement('div');
     root.id = 'hud';
     root.innerHTML = TEMPLATE;
@@ -518,7 +518,8 @@ export class Hud {
   }
 
   private bigCanvas: HTMLCanvasElement | null = null;
-  /** mapa inteiro, norte pra cima (segurando o botão do mapa) */
+  private bigBase: HTMLCanvasElement | null = null;
+  /** mapa inteiro estilo guia de rua (papel claro, ruas em traço, legenda), norte pra cima */
   private drawBigMap(on: boolean, s: HudState, markers: MapMarker[]): void {
     let wrap = document.getElementById('bigmap');
     if (!on) {
@@ -529,32 +530,72 @@ export class Hud {
       wrap = document.createElement('div');
       wrap.id = 'bigmap';
       this.bigCanvas = document.createElement('canvas');
-      this.bigCanvas.width = this.bigCanvas.height = 720;
+      this.bigCanvas.width = this.bigCanvas.height = 1024;
       wrap.appendChild(this.bigCanvas);
       document.body.appendChild(wrap);
     }
     wrap.classList.add('on');
     const cv = this.bigCanvas!, c = cv.getContext('2d')!, W = cv.width;
+    this.bigBase ??= renderGuideMap(this.city, W);
     const off = BORDER + 10, scale = W / (off * 2);
     c.setTransform(1, 0, 0, 1, 0, 0);
-    c.clearRect(0, 0, W, W);
-    // norte (+z) pra cima: y da tela = -z
-    c.setTransform(scale, 0, 0, -scale, W / 2, W / 2);
-    c.drawImage(this.mapBase, -off, -off, off * 2, off * 2);
-    for (const m of markers) this.drawMarker(c, m, scale, true);
-    c.setTransform(1, 0, 0, 1, W / 2 + s.x * scale, W / 2 - s.z * scale);
+    c.drawImage(this.bigBase, 0, 0);
+    // mundo -> tela sem espelhar: x pra direita, z pra baixo (norte = -z pra cima, igual à bússola do minimapa)
+    c.setTransform(scale, 0, 0, scale, W / 2, W / 2);
+    for (const m of markers) this.drawGuideMarker(c, m, scale);
+    // você: seta na direção do carro (frente = (sin h, cos h) no mundo = na tela)
+    c.setTransform(1, 0, 0, 1, W / 2 + s.x * scale, W / 2 + s.z * scale);
     c.rotate(Math.PI - s.carHeading);
-    c.fillStyle = '#4da3ff';
+    c.fillStyle = '#1f6fe0';
     c.strokeStyle = '#fff';
-    c.lineWidth = 2;
+    c.lineWidth = 2.5;
     c.beginPath();
-    c.moveTo(0, -11);
-    c.lineTo(8, 9);
-    c.lineTo(0, 4);
-    c.lineTo(-8, 9);
+    c.moveTo(0, -14);
+    c.lineTo(10, 11);
+    c.lineTo(0, 5);
+    c.lineTo(-10, 11);
     c.closePath();
     c.fill();
     c.stroke();
+    // legenda
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    const items: [string, string][] = [['#f20d24', 'Ferro-velho (base)'], ['#ffb14a', 'Missão'], ['#33e0ff', 'Racha'], ['#ffd21a', 'Fita K7'], ['#1f6fe0', 'Você']];
+    const x0 = 28, y0 = W - 28 - items.length * 30;
+    c.font = "italic 600 22px 'Chakra Petch', sans-serif";
+    c.textBaseline = 'middle';
+    items.forEach(([col, label], i) => {
+      const y = y0 + i * 30;
+      c.fillStyle = col;
+      c.strokeStyle = '#1a1a1a';
+      c.lineWidth = 1.5;
+      c.beginPath();
+      c.arc(x0, y, 9, 0, Math.PI * 2);
+      c.fill();
+      c.stroke();
+      c.fillStyle = '#1a1a1a';
+      c.fillText(label, x0 + 20, y + 1);
+    });
+  }
+
+  /** marcador do mapa grande: bolinha com contorno escuro (número no capítulo) */
+  private drawGuideMarker(c: CanvasRenderingContext2D, m: MapMarker, scale: number): void {
+    const r = (m.shape === 'beam' ? 13 : m.shape === 'yard' ? 13 : 8) / scale;
+    c.fillStyle = m.c;
+    c.strokeStyle = '#1a1a1a';
+    c.lineWidth = 2 / scale;
+    c.beginPath();
+    if (m.shape === 'yard') c.rect(m.x - r, m.z - r, r * 2, r * 2);
+    else c.arc(m.x, m.z, r, 0, Math.PI * 2);
+    c.fill();
+    c.stroke();
+    if (m.label) {
+      c.fillStyle = '#1a1a1a';
+      c.font = `bold ${15 / scale}px 'Chakra Petch', sans-serif`;
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText(m.label, m.x, m.z + 1 / scale);
+      c.textAlign = 'start';
+    }
   }
 
   /** marcador no mapa: ponto, feixe de capítulo (com número) ou ícone do ferro-velho */
@@ -653,9 +694,89 @@ export class Hud {
   }
 }
 
+/** fundo do mapa grande: papel claro, ruas em traço preto (mais grosso nas vias grandes), nomes dos lugares */
+function renderGuideMap(city: City, S: number): HTMLCanvasElement {
+  const off = BORDER + 10;
+  const k = S / (off * 2);
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = S;
+  const c = cv.getContext('2d')!;
+  c.fillStyle = '#f1ede4';
+  c.fillRect(0, 0, S, S);
+  c.setTransform(k, 0, 0, k, S / 2, S / 2);
+  c.lineJoin = 'round';
+  c.lineCap = 'round';
+  const px = (n: number) => n / k; // espessura em pixels da tela
+  // morros: manchas bege
+  c.fillStyle = '#ddd2bd';
+  for (const m of city.region.mounds) {
+    c.beginPath();
+    c.arc(m.x, m.z, m.r * 0.95, 0, Math.PI * 2);
+    c.fill();
+  }
+  // quadras: cinza bem claro
+  c.fillStyle = '#e2ddd2';
+  for (const b of city.blocks) c.fillRect(b.x - 40, b.z - 40, 80, 80);
+  // estradas de terra: tracejado marrom
+  c.strokeStyle = '#a58a70';
+  c.lineWidth = px(1.6);
+  c.setLineDash([px(5), px(4)]);
+  for (const r of city.outerRoads) {
+    if (r.kind !== 'dirt') continue;
+    c.beginPath();
+    r.pts.forEach(([x, z], i) => (i === 0 ? c.moveTo(x, z) : c.lineTo(x, z)));
+    if (r.loop) c.closePath();
+    c.stroke();
+  }
+  c.setLineDash([]);
+  // asfalto: contorno preto + miolo branco nas vias grandes (estilo guia), traço simples nas ruas
+  const line = (pts: [number, number][], loop: boolean | undefined, w: number, col: string) => {
+    c.strokeStyle = col;
+    c.lineWidth = w;
+    c.beginPath();
+    pts.forEach(([x, z], i) => (i === 0 ? c.moveTo(x, z) : c.lineTo(x, z)));
+    if (loop) c.closePath();
+    c.stroke();
+  };
+  for (let n = 0; n < NODES; n++) {
+    const p = nodePos(n);
+    line([[p, -EXTENT - ROAD / 2], [p, EXTENT + ROAD / 2]], false, px(2.2), '#1a1a1a');
+    line([[-EXTENT - ROAD / 2, p], [EXTENT + ROAD / 2, p]], false, px(p === 0 ? 4 : 2.2), '#1a1a1a');
+  }
+  c.fillStyle = '#1a1a1a';
+  c.beginPath();
+  c.arc(BALAO.x, BALAO.z, BALAO.ring * 0.7, 0, Math.PI * 2);
+  c.fill();
+  c.fillStyle = '#f1ede4';
+  c.beginPath();
+  c.arc(BALAO.x, BALAO.z, BALAO.ring * 0.7 - px(2.6), 0, Math.PI * 2);
+  c.fill();
+  const asphalt = city.outerRoads.filter((r) => r.kind === 'asphalt' && !r.disc);
+  const big = (r: (typeof asphalt)[number]) => r.w >= 16;
+  for (const r of asphalt) if (big(r)) line(r.pts, r.loop, px(r.w >= 20 ? 7 : 5), '#1a1a1a');
+  for (const r of asphalt) if (big(r)) line(r.pts, r.loop, px(r.w >= 20 ? 3 : 1.8), '#f1ede4');
+  for (const r of asphalt) if (!big(r)) line(r.pts, r.loop, px(2.4), '#1a1a1a');
+  for (const r of city.outerRoads) {
+    if (!r.disc) continue;
+    c.fillStyle = '#1a1a1a';
+    c.beginPath();
+    c.arc((r.pts[0]![0] + r.pts[1]![0]) / 2, r.pts[0]![1], r.w / 2 + px(2), 0, Math.PI * 2);
+    c.fill();
+  }
+  // nomes
+  c.fillStyle = '#6b6458';
+  c.font = `italic 700 ${px(17)}px 'Chakra Petch', sans-serif`;
+  c.textAlign = 'center';
+  c.textBaseline = 'middle';
+  c.fillText('QUEBRADA', 0, -EXTENT - px(26));
+  for (const l of city.region.labels) c.fillText(l.text, l.x, l.z);
+  c.fillText('MIRANTE', city.region.mirante.x + px(40), city.region.mirante.z + px(30));
+  return cv;
+}
+
 function renderMapBase(city: City): HTMLCanvasElement {
   const off = BORDER + 10;
-  const S = 1024;
+  const S = 2048;
   const k = S / (off * 2);
   const cv = document.createElement('canvas');
   cv.width = cv.height = S;
@@ -664,9 +785,23 @@ function renderMapBase(city: City): HTMLCanvasElement {
   c.translate(off, off);
   c.fillStyle = '#3a1c10';
   c.fillRect(-off, -off, off * 2, off * 2);
+  // morros da serra
+  c.fillStyle = '#2a140b';
+  for (const m of city.region.mounds) {
+    c.beginPath();
+    c.arc(m.x, m.z, m.r * 0.9, 0, Math.PI * 2);
+    c.fill();
+  }
   // estrada de terra e rodovia fora da grade
   c.lineJoin = 'round';
   for (const r of city.outerRoads) {
+    if (r.disc) {
+      c.fillStyle = '#5b606b';
+      c.beginPath();
+      c.arc((r.pts[0]![0] + r.pts[1]![0]) / 2, r.pts[0]![1], r.w / 2, 0, Math.PI * 2);
+      c.fill();
+      continue;
+    }
     c.strokeStyle = r.kind === 'asphalt' ? '#5b606b' : '#8a5a3a';
     c.lineWidth = r.w;
     c.beginPath();

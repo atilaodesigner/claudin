@@ -173,6 +173,7 @@ export class Game {
   private camLook = new THREE.Vector3();
   private shake = 0;
   private carY = 0;
+  private camDir = new THREE.Vector3();
   private roll = 0;
   private pitch = 0;
   private save: Save;
@@ -1522,6 +1523,7 @@ export class Game {
     const car = this.car;
     const cm = this.campaign;
     const target = this.missions.active ? this.missions.target(car.x, car.z) : cm?.target(car.x, car.z, this.input.mapHeld) ?? this.missions.target(car.x, car.z);
+    this.camera.getWorldDirection(this.camDir);
     this.hud.update(dt, {
       speedKmh: car.speed * 3.6,
       gear: car.reversing ? 'R' : String(car.gear),
@@ -1538,7 +1540,8 @@ export class Game {
       angle: this.scorer.angle,
       drifting: this.scorer.drifting,
       grace: this.scorer.grace / 1.8,
-      heading: this.camYaw,
+      // minimapa e bússola giram com a câmera de verdade (olhando em volta, câmera de capô...)
+      heading: Math.atan2(this.camDir.x, this.camDir.z),
       x: car.x,
       z: car.z,
       carHeading: car.heading,
