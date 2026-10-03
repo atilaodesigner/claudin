@@ -129,6 +129,7 @@ export class EnemyManager {
     this.reset();
     this.bullets.dispose();
     this.missiles.dispose();
+    this.assets.dispose();
   }
 
   count(kind: EnemyKind): number {

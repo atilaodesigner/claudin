@@ -1756,12 +1756,33 @@ export class Game {
     this.time.tick(rawDt);
     const dt = this.time.delta;
     const rdt = this.time.realDelta;
-    this.quality.sample(rdt, this.state === 'menu' || this.state === 'results' || this.state === 'loading');
+    this.quality.sample(rawDt, this.state === 'menu' || this.state === 'results' || this.state === 'loading', this.state === 'playing');
     if (this.state === 'loading') {
       return;
     }
     this.input.update(now);
 
+    // a failing system must not freeze the picture: simulation errors are caught here,
+    // the frame still renders (GameLoop catches anything else and keeps scheduling)
+    try {
+      this.updateState(dt, rdt, now);
+    } catch (err) {
+      this.frameError(err);
+    }
+    this.renderFrame(dt, rdt);
+    if (this.debugPanel) this.updateDebug(rdt);
+    if (this.save.get().settings.showFps) this.fpsMeter.textContent = `${this.quality.fps.toFixed(0)} FPS · ${this.quality.current.name}`;
+  }
+
+  private readonly frameErrors = new Set<string>();
+  private frameError(err: unknown): void {
+    const key = err instanceof Error ? err.message : String(err);
+    if (this.frameErrors.has(key)) return;
+    this.frameErrors.add(key);
+    console.error('[frame] update error (game keeps running):', err);
+  }
+
+  private updateState(dt: number, rdt: number, now: number): void {
     switch (this.state) {
       case 'menu':
         this.updateMenu(dt);
@@ -1788,9 +1809,6 @@ export class Game {
     }
     this.evoDock.update(this.run.progression.pendingLevelUps - 1);
     this.world.update(now / 1000);
-    this.renderFrame(dt, rdt);
-    if (this.debugPanel) this.updateDebug(rdt);
-    if (this.save.get().settings.showFps) this.fpsMeter.textContent = `${this.quality.fps.toFixed(0)} FPS · ${this.quality.current.name}`;
   }
 
   /** Wears the equipped look (or the given preview ids). */

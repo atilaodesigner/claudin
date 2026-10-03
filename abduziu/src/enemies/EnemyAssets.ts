@@ -58,6 +58,14 @@ export class EnemyAssets {
     return m;
   }
 
+  /** Frees what this set owns (the model geometries belong to the shared library). */
+  dispose(): void {
+    this.rotorMat.map?.dispose();
+    for (const m of [this.rotorMat, this.glowRed, this.glowBlue, this.glowOrange, this.shadowMat]) m.dispose();
+    this.disc.dispose();
+    this.sphere.dispose();
+  }
+
   fakeShadow(w: number, l: number): Mesh {
     const m = new Mesh(this.disc, this.shadowMat);
     m.rotation.x = -Math.PI / 2;

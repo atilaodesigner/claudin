@@ -71,6 +71,7 @@ export class World {
   readonly city: CityDef;
   private readonly water: Mesh | null = null;
   private readonly waterMat: MeshStandardMaterial | null = null;
+  private readonly calcadaMat: MeshStandardMaterial;
   aliveCount = 0;
   private readonly restampScratch: number[] = [];
   private readonly queryScratch: number[] = [];
@@ -125,8 +126,8 @@ export class World {
     const ground = new Mesh(gen.ground, this.groundMaterial);
     ground.receiveShadow = true;
     ground.name = 'ground';
-    const calcadaMat = createWorldMaterial({ map: createCalcadaTexture(), roughness: 0.85, name: 'calcada' });
-    const calcada = new Mesh(gen.calcada, calcadaMat);
+    this.calcadaMat = createWorldMaterial({ map: createCalcadaTexture(), roughness: 0.85, name: 'calcada' });
+    const calcada = new Mesh(gen.calcada, this.calcadaMat);
     calcada.receiveShadow = true;
 
     const wireData = gen.wires.map(([a, b]) => {
@@ -352,7 +353,11 @@ export class World {
       const m = o as { isMesh?: boolean; isLineSegments?: boolean; geometry?: { dispose(): void } };
       if ((m.isMesh || m.isLineSegments) && m.geometry && o !== this.staticBatch.mesh && o !== this.livingBatch.mesh && !o.userData.shared) m.geometry.dispose();
     });
-    this.waterMat?.dispose();
+    // both textures are made per city, unlike the shared atlas
+    for (const m of [this.calcadaMat, this.waterMat]) {
+      m?.map?.dispose();
+      m?.dispose();
+    }
     this.hash.clear();
   }
 

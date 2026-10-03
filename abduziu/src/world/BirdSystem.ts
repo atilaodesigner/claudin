@@ -104,5 +104,7 @@ export class BirdSystem {
   dispose(): void {
     this.mesh.removeFromParent();
     this.mesh.geometry.dispose();
+    (this.mesh.material as MeshLambertMaterial).dispose();
+    this.mesh.dispose();
   }
 }

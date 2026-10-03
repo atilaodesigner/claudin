@@ -46,7 +46,9 @@ export function detectDevice(multiDraw: boolean, software = false): DeviceProfil
 /**
  * Watches frame time and adapts resolution, effects, shadows, particles and draw
  * distance. Resolution moves in small steps (not noticeable); expensive toggles
- * (shadows → shader recompile) are deferred to a pause moment (level-up screen).
+ * (shadows → shader recompile) wait for a calm moment (menu, results)... unless the
+ * device is clearly drowning mid-run (far below the target or hitching again and again):
+ * then the level drops right away, one recompile instead of a whole stage of stutter.
  */
 export class AdaptiveQualityManager {
   level: number;
@@ -55,6 +57,11 @@ export class AdaptiveQualityManager {
   private overBudget = 0;
   private underBudget = 0;
   private sinceChange = 0;
+  /** Long frames (≥100 ms) recently, decaying: repeated hitches count as overload. */
+  private hitches = 0;
+  /** Time spent far over budget (below ~2/3 of the target fps). */
+  private drowning = 0;
+  private sinceEmergency = 99;
   preset: QualityPreset = 'auto';
   targetFps = 60;
   /** Level change waiting for a hitch-safe moment. */
@@ -96,9 +103,27 @@ export class AdaptiveQualityManager {
     }
   }
 
-  /** Call every frame with the real frame delta. */
-  sample(realDt: number, canChangeLevel: boolean): void {
-    if (realDt <= 0 || realDt > 0.25) return;
+  /** Seconds of uninterrupted play: hitches right after a run starts are warm-up, not overload. */
+  private playTime = 0;
+
+  /**
+   * Call every frame with the raw (unclamped) frame delta. `canChangeLevel`: a calm moment
+   * for expensive switches; `inPlay`: the player is in control, so overload hurts right now.
+   */
+  sample(rawDt: number, canChangeLevel: boolean, inPlay = false): void {
+    if (rawDt <= 0) return;
+    const realDt = Math.min(rawDt, 0.25);
+    this.sinceEmergency += realDt;
+    this.playTime = inPlay ? this.playTime + realDt : 0;
+    this.hitches = Math.max(0, this.hitches - realDt * 0.25);
+    // a long frame is a hitch (a gap of seconds is a hidden tab or a breakpoint, not the GPU);
+    // a stall, or a run's warm-up (first draws compile shaders), says nothing about the steady
+    // cost, so it doesn't feed the average either
+    if (rawDt > 0.1) {
+      const warmingUp = inPlay && this.playTime <= 4;
+      if (rawDt < 2 && !warmingUp && inPlay) this.hitches += 1;
+      if (rawDt > 0.25 || warmingUp) return;
+    }
     this.avgFrame += (realDt - this.avgFrame) * 0.05;
     this.fps = 1 / this.avgFrame;
     this.sinceChange += realDt;
@@ -111,6 +136,28 @@ export class AdaptiveQualityManager {
     }
     if (this.preset !== 'auto') return;
     const budget = 1 / this.targetFps;
+    // drowning: well below the target for seconds, or hitching over and over
+    if (inPlay && this.playTime > 4 && this.avgFrame > budget * 1.6) this.drowning += realDt;
+    else this.drowning = Math.max(0, this.drowning - realDt * 2);
+    if (inPlay && (this.drowning > 2.5 || this.hitches >= 4) && this.sinceEmergency > 8) {
+      this.drowning = 0;
+      this.hitches = 0;
+      this.sinceEmergency = 0;
+      this.sinceChange = 0;
+      const q = this.current;
+      const effective = this.cap === null ? this.level : Math.min(this.level, this.cap);
+      if (this.scale > q.minScale + 0.001) {
+        // big step down in resolution first: free and instant
+        this.scale = Math.max(q.minScale, this.scale - 0.15);
+        this.onApply?.(q, this.scale, false);
+      } else if (effective > 0) {
+        this.pendingLevel = null;
+        this.level = effective - 1;
+        this.scale = Math.min(this.scale, this.current.maxScale);
+        this.onApply?.(this.current, this.scale, true);
+      }
+      return;
+    }
     if (this.avgFrame > budget * 1.18) {
       this.overBudget += realDt;
       this.underBudget = 0;
