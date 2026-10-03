@@ -244,6 +244,7 @@ export class Game {
     this.save = new SaveService(LocalStorageBackend.isAvailable() ? new LocalStorageBackend() : new MemoryBackend());
     this.meta = new MetaProgression(this.save);
     this.damage = new DamageSystem(this.shield, this.bus);
+    this.damage.rescue = () => this.rescueFromDeath();
     const device = detectDevice(this.renderer.supportsMultiDraw, this.renderer.isSoftware);
     this.quality = new AdaptiveQualityManager(device);
     this.quality.onApply = (q, scale, changed) => this.applyQuality(q, scale, changed);
@@ -1048,6 +1049,8 @@ export class Game {
     this.damage.god = this.godMode || !MODES[mode].damage;
     this.ufo.dashTimer = 0;
     this.dashCooldown = 0;
+    this.phoenixUsed = false;
+    this.lastStandUsed = false;
     this.ufoVisuals.setLevel(1);
     this.levelUpDelay = -1;
     this.evoDock.close();
@@ -1289,6 +1292,26 @@ export class Game {
   // ───────────────────────────────────────────── gameplay helpers
 
   private dashCooldown = 0;
+  private phoenixUsed = false;
+  private lastStandUsed = false;
+
+  /** A lethal hit: FÊNIX brings the saucer back at half hull, Último Suspiro leaves 1. */
+  private rescueFromDeath(): number {
+    if (this.stats.phoenix && !this.phoenixUsed) {
+      this.phoenixUsed = true;
+      this.hud.showBanner('FÊNIX ALIENÍGENA', 'A NAVE RENASCEU', 'var(--gold)');
+      this.vfx.levelUp(this.ufo.position, this.stats.radius);
+      this.time.slowMo(0.35, 0.7);
+      return this.damage.maxHull * 0.5;
+    }
+    if (this.stats.lastStand && !this.lastStandUsed) {
+      this.lastStandUsed = true;
+      this.hud.toast('ÚLTIMO SUSPIRO', 'A nave aguentou por um fio', 'gold', 2.4);
+      this.time.slowMo(0.4, 0.5);
+      return 1;
+    }
+    return 0;
+  }
 
   computeStats(_dt: number): void {
     const r = this.run;
@@ -1856,6 +1879,10 @@ export class Game {
     const cine = this.memeHunt.cinematic;
     this.damage.god = this.godMode || !MODES[r.mode].damage || cine;
     this.damage.update(dt);
+    // NANORREPARO / Auto-reparo; combo window and frenzy length from the evolutions
+    if (playing && !this.damage.dead && this.stats.hullRegen > 0) this.damage.heal(this.stats.hullRegen * dt);
+    r.combo.extraWindow = this.stats.comboWindowBonus;
+    r.combo.frenzyMult = this.stats.frenzyDurationMult;
 
     // input actions
     if (this.input.consume('pause')) this.pause();
@@ -1866,7 +1893,7 @@ export class Game {
     this.dashCooldown = Math.max(0, this.dashCooldown - dt);
     if (playing && !cine && this.input.consume('dash') && this.stats.dashUnlocked && this.dashCooldown <= 0) {
       if (this.ufo.dash(this.input.move)) {
-        this.dashCooldown = this.stats.dashCooldown;
+        this.dashCooldown = this.stats.dashCooldown * (this.upgrades.has('fantasma') ? 0.5 : 1);
         this.audio.dash();
         this.vfx.dash(this.ufo.position, this.stats.radius);
         this.bus.emit('player:dash', {});

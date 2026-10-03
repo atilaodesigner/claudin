@@ -11,6 +11,8 @@ export class DamageSystem {
   god = false;
   dead = false;
   totalTaken = 0;
+  /** Called on a lethal hit: returns the hull to survive with (0 = the ship goes down). */
+  rescue: (() => number) | null = null;
 
   constructor(
     private readonly shield: ShieldSystem,
@@ -51,6 +53,12 @@ export class DamageSystem {
     if (!wasBroken && this.shield.broken) this.bus.emit('shield:break', {});
     this.bus.emit('player:damage', { amount, hull: this.hull, shield: this.shield.value, source: hitPoint });
     if (this.hull <= 0) {
+      const saved = this.rescue?.() ?? 0;
+      if (saved > 0) {
+        this.hull = Math.min(this.maxHull, saved);
+        this.invuln = Math.max(this.invuln, 2);
+        return result;
+      }
       this.hull = 0;
       this.dead = true;
       this.bus.emit('player:death', {});

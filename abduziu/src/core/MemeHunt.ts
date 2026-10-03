@@ -1,3 +1,4 @@
+import { META_VALUES } from '../config/meta';
 import { AdditiveBlending, CylinderGeometry, Mesh, MeshBasicMaterial, type PerspectiveCamera, type Scene } from 'three';
 import { getObjectDef, RARITY_INFO, type ObjectDef } from '../config/objects';
 import type { GameMode } from '../config/modes';
@@ -83,10 +84,11 @@ export class MemeHunt {
     this.g.npcs.clearMemes();
     this.time = 0;
     this.enabled = mode === 'campanha' && this.g.npcs.memeLooks.length > 0;
-    if (!this.enabled || Math.random() >= FIRST_CHANCE) return;
+    const radar = 1 + (this.g.save.get().meta.eco_meme ?? 0) * META_VALUES.memeChancePerLevel;
+    if (!this.enabled || Math.random() >= Math.min(0.95, FIRST_CHANCE * radar)) return;
     const t1 = 35 + Math.random() * 75;
     this.schedule.push(t1);
-    if (Math.random() < SECOND_CHANCE) this.schedule.push(t1 + 60 + Math.random() * 60);
+    if (Math.random() < SECOND_CHANCE * radar) this.schedule.push(t1 + 60 + Math.random() * 60);
   }
 
   /** Run over (or quit): no meme, no cinematic, nothing held. */

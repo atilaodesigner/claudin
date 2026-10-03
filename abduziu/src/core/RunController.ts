@@ -252,6 +252,17 @@ export class RunController {
 
     let matter = matterForTier(tier, def.matterMult ?? 1) * g.stats.matterMult * district.matterMult * (1 + (rarity.mult - 1) * 0.5);
     if (frenzy) matter *= 1.25;
+    // CATALOGADOR: things missing from the Coleção are worth more
+    if (g.stats.newDexBonus > 0 && !g.save.get().dex[def.id]) matter *= 1 + g.stats.newDexBonus;
+    // JACKPOT CÓSMICO
+    const jackpot = g.stats.jackpotChance > 0 && Math.random() < g.stats.jackpotChance;
+    if (jackpot) {
+      matter *= UPGRADE_VALUES.jackpot.multiplier;
+      g.hud.floatText(_v.copy(g.ufo.position).setY(g.ufo.position.y + g.stats.radius * 1.3), `JACKPOT ×${UPGRADE_VALUES.jackpot.multiplier}`, 'var(--gold)', 24, 1.1);
+      if (g.upgrades.has('febre_ouro')) this.stats.bonusCores += 3;
+    }
+    // CASCO VIVO
+    if (g.stats.hullPerAbduction > 0) g.damage.heal(g.stats.hullPerAbduction);
     const res = this.combo.register(tier);
     let score = objectScore({
       massKg: def.massKg,
@@ -401,6 +412,7 @@ export class RunController {
     const g = this.game;
     // casual: nobody is coming
     if (!MODES[this.mode].enemies) return;
+    amount *= g.stats.threatMult;
     const mult = DISTRICTS[g.world.districtAt(g.ufo.position.x, g.ufo.position.z)].threatMult;
     const lvl = this.threat.add(amount * (mult > 1.5 ? 1.2 : 1) * this.city.threatMult, this.time);
     if (lvl !== null) this.onAlertUp(lvl);
@@ -433,6 +445,8 @@ export class RunController {
     g.vfx.frenzy(g.ufo.position, g.stats.radius);
     g.hud.showBanner('ABDUCTION FRENZY', `COMBO x${this.combo.count}`, 'var(--frenzy-violet)');
     g.bus.emit('combo:frenzy', { active: true });
+    // TEMPO-BALA: every frenzy recharges the EMP
+    if (g.upgrades.has('tempo_bala')) g.emp.cooldown = 0;
     this.highlights.record({ kind: 'frenzy', label: `FRENZY x${this.combo.count}`, score: this.combo.count * 500, time: this.time });
   }
 

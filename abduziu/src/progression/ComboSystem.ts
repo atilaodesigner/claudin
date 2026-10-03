@@ -21,6 +21,8 @@ export class ComboSystem {
   window: number = C.baseWindow;
   frenzyTimer = 0;
   extraWindow = 0;
+  /** Frenzy duration multiplier (FRENESI PROLONGADO, TEMPO-BALA, Frenesi Estendido). */
+  frenzyMult = 1;
   private nextFrenzyAt: number = C.frenzyAt;
   private readonly updateResult: ComboUpdateResult = { endedWith: 0, frenzyEnded: false };
 
@@ -64,17 +66,17 @@ export class ComboSystem {
     if (this.count >= this.nextFrenzyAt) {
       this.nextFrenzyAt = this.count + C.frenzyEvery;
       frenzyStarted = !this.frenzy;
-      this.frenzyTimer = C.frenzyDuration;
+      this.frenzyTimer = C.frenzyDuration * this.frenzyMult;
     }
     return { count: this.count, milestone, frenzyStarted };
   }
 
   extendFrenzy(seconds: number): void {
-    if (this.frenzy) this.frenzyTimer = Math.min(C.frenzyDuration * 1.5, this.frenzyTimer + seconds);
+    if (this.frenzy) this.frenzyTimer = Math.min(C.frenzyDuration * this.frenzyMult * 1.5, this.frenzyTimer + seconds);
   }
 
   forceFrenzy(): void {
-    this.frenzyTimer = C.frenzyDuration;
+    this.frenzyTimer = C.frenzyDuration * this.frenzyMult;
   }
 
   update(dt: number): ComboUpdateResult {
