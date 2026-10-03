@@ -1,9 +1,10 @@
-import { BEAMS, SKINS, TIER_INFO, type BeamStyle, type Skin } from '../config/cosmetics';
+import { BEAMS, SKINS, TIER_INFO, TOPPER_NAMES, type BeamStyle, type Skin } from '../config/cosmetics';
 import type { SaveData } from '../save/SaveService';
+import { patternSwatch } from '../ufo/SkinArt';
 import { formatInt } from '../utils/math';
 import { h, onTap, Screen } from './dom';
 
-type Tab = 'skins' | 'feixes' | 'super';
+type Tab = 'skins' | 'memes' | 'feixes' | 'super';
 type Item = { kind: 'skin'; item: Skin } | { kind: 'beam'; item: BeamStyle };
 
 const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
@@ -46,8 +47,8 @@ export class ShopScreen extends Screen {
     top.append(title, right);
 
     const tabs = h('div', 'shop-tabs');
-    for (const [id, label] of [['skins', 'SKINS'], ['feixes', 'FEIXES'], ['super', 'SUPER CLASSES']] as Array<[Tab, string]>) {
-      const b = h('button', `shop-tab${id === 'super' ? ' super' : ''}`, label);
+    for (const [id, label] of [['skins', 'SKINS'], ['memes', 'MEMES'], ['feixes', 'FEIXES'], ['super', 'SUPER CLASSES']] as Array<[Tab, string]>) {
+      const b = h('button', `shop-tab${id === 'super' || id === 'memes' ? ` ${id}` : ''}`, label);
       onTap(b, () => {
         this.tab = id;
         this.selected = null;
@@ -95,8 +96,11 @@ export class ShopScreen extends Screen {
 
   private items(): Item[] {
     if (this.tab === 'feixes') return BEAMS.map((b) => ({ kind: 'beam', item: b }) as Item);
-    const supers = this.tab === 'super';
-    return SKINS.filter((s) => (s.tier === 'super') === supers).map((s) => ({ kind: 'skin', item: s }) as Item);
+    const pick =
+      this.tab === 'memes' ? (s: Skin) => !!s.meme : this.tab === 'super' ? (s: Skin) => s.tier === 'super' : (s: Skin) => !s.meme && s.tier !== 'super';
+    return SKINS.filter(pick)
+      .sort((a, b) => a.price - b.price)
+      .map((s) => ({ kind: 'skin', item: s }) as Item);
   }
 
   render(): void {
@@ -121,17 +125,24 @@ export class ShopScreen extends Screen {
         sw.style.setProperty('--dome', hex(s.dome));
         sw.style.setProperty('--acc', hex(s.accent));
         sw.classList.add('saucer', `fx-${s.fx}`);
+        if (s.pattern) {
+          sw.classList.add('painted');
+          sw.style.setProperty('--paint', `url(${patternSwatch(s.pattern, s.patternColors ?? [s.hull])})`);
+        }
         sw.append(h('i', 'dome'), h('i', 'hull'), h('i', 'lights'));
       } else {
         const b = item as BeamStyle;
         sw.classList.add('beam');
-        if (b.color === 'rainbow') sw.classList.add('rainbow');
-        else sw.style.setProperty('--beam', hex(b.color));
+        if (typeof b.color === 'number') sw.style.setProperty('--beam', hex(b.color));
+        else sw.classList.add(b.color);
         sw.append(h('i', 'cone'));
       }
       card.appendChild(sw);
-      card.appendChild(h('div', 'tier', tier.label));
+      const meme = kind === 'skin' && (item as Skin).meme;
+      card.appendChild(h('div', 'tier', meme && this.tab === 'memes' && item.tier !== 'super' ? `MEME · ${tier.label}` : tier.label));
       card.appendChild(h('div', 'nm', item.name));
+      const topper = kind === 'skin' ? (item as Skin).topper : undefined;
+      if (topper) card.appendChild(h('div', 'acc', `+ ${TOPPER_NAMES[topper]}`));
       const price = h('div', 'pr');
       if (eq) price.textContent = 'EQUIPADO';
       else if (own) price.textContent = 'SEU · TOQUE PRA USAR';
@@ -166,7 +177,7 @@ export class ShopScreen extends Screen {
     const eq = this.equipped(kind, item.id);
     const minScore = kind === 'skin' ? (item as Skin).minScore : undefined;
     this.barName.textContent = item.name;
-    this.barInfo.textContent = kind === 'skin' ? (item as Skin).description : 'Cor do feixe trator e do brilho da nave.';
+    this.barInfo.textContent = kind === 'skin' ? (item as Skin).description : typeof (item as BeamStyle).color === 'number' ? 'Cor do feixe trator e do brilho da nave.' : 'Feixe animado: a cor muda o tempo todo enquanto você abduz.';
     this.barBtn.disabled = false;
     this.barBtn.className = 'btn primary';
     if (eq) {

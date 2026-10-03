@@ -9,6 +9,7 @@ import {
   DoubleSide,
   Group,
   LatheGeometry,
+  type Object3D,
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
@@ -21,6 +22,7 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { damp } from '../utils/math';
+import { patternTexture, topperFor } from './SkinArt';
 
 interface Stage {
   level: number;
@@ -61,6 +63,10 @@ export class UFOVisuals {
   private corona: Mesh | null = null;
   private horizon: Mesh | null = null;
   private skinFx: SkinFx = 'none';
+  /** Hat/extra on the dome for the dressed-up skins. */
+  private topper: Group | null = null;
+  private topperId = '';
+  private topperSpin: Object3D | null = null;
   private hullGlow = new Color(0x000000);
   private forceRings = false;
   private readonly accentColor = new Color(0x5dffa0);
@@ -216,13 +222,26 @@ export class UFOVisuals {
 
   /** Cosmetic look from the shop (materials + the super-class extras). */
   applySkin(skin: Skin): void {
-    this.hullMat.color.setHex(skin.hull);
+    // painted hulls: the paint carries the colour, so the material goes white under it
+    const map = skin.pattern ? patternTexture(skin.pattern, skin.patternColors ?? [skin.hull]) : null;
+    if (this.hullMat.map !== map) {
+      this.hullMat.map = map;
+      this.hullMat.needsUpdate = true;
+    }
+    this.hullMat.color.setHex(map ? 0xffffff : skin.hull);
     this.hullMat.metalness = skin.metalness;
     this.hullMat.roughness = skin.roughness;
     this.hullGlow.setHex(skin.hullGlow ?? 0x000000);
     this.trimMat.color.setHex(skin.trim);
     this.finMat.color.setHex(skin.trim);
     this.ringMat.color.setHex(skin.trim);
+    if ((skin.topper ?? '') !== this.topperId) {
+      if (this.topper) this.body.remove(this.topper);
+      this.topper = skin.topper ? topperFor(skin.topper) : null;
+      this.topperId = skin.topper ?? '';
+      this.topperSpin = this.topper?.getObjectByName('spin') ?? null;
+      if (this.topper) this.body.add(this.topper);
+    }
     this.domeMat.color.setHex(skin.dome);
     this.domeMat.emissive.setHex(skin.domeGlow);
     this.underglowMat.color.setHex(skin.accent);
@@ -332,6 +351,13 @@ export class UFOVisuals {
     const breathe = fx === 'pulse' || fx === 'nova' || fx === 'void' ? 0.55 + 0.45 * Math.sin(this.time * (fx === 'nova' ? 5 : 2.2)) : 1;
     this.hullMat.emissive.setRGB(this.hullGlow.r * breathe + this.damageFlash * 1.5, this.hullGlow.g * breathe + this.damageFlash * 0.2, this.hullGlow.b * breathe + this.damageFlash * 0.1);
     if (this.crown?.visible) this.crown.rotation.y += dt * 0.8;
+    if (this.topperSpin) this.topperSpin.rotation.y += dt * (6 + this.energy * 14);
+    if (fx === 'rainbow') {
+      // trim, rings and fins cycle through the rainbow
+      this.trimMat.color.setHSL((this.time * 0.15) % 1, 0.85, 0.6);
+      this.ringMat.color.copy(this.trimMat.color);
+      this.finMat.color.copy(this.trimMat.color);
+    }
     if (this.corona?.visible) {
       this.corona.scale.setScalar(1 + Math.sin(this.time * 5) * 0.08);
       (this.corona.material as MeshBasicMaterial).opacity = 0.16 + 0.1 * breathe;

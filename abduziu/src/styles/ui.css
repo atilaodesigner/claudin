@@ -3018,6 +3018,14 @@ svg.brazil .pin.sel .dot {
   background: linear-gradient(90deg, #ff5ad1, #ffcf3f, #5affea);
   color: #14040f;
 }
+.shop-tab.memes {
+  border-color: rgba(255, 154, 61, 0.6);
+  color: #ffc27a;
+}
+.shop-tab.memes.on {
+  background: linear-gradient(90deg, #1fd36a, #ffd23f 50%, #3d7bff);
+  color: #071407;
+}
 .shop-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(calc(150px * var(--ui-scale)), 1fr));
@@ -3099,6 +3107,13 @@ svg.brazil .pin.sel .dot {
   transform: rotate(45deg);
   display: inline-block;
 }
+.shop-card .acc {
+  font-family: var(--font-hud);
+  font-size: calc(9.5px * var(--ui-scale));
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #ffc27a;
+}
 .shop-card .req {
   font-family: var(--font-hud);
   font-size: calc(10px * var(--ui-scale));
@@ -3138,6 +3153,9 @@ svg.brazil .pin.sel .dot {
   background: radial-gradient(ellipse at 50% 20%, #fff 0%, var(--hull) 30%, color-mix(in srgb, var(--hull) 45%, #000) 100%);
   border-bottom: 3px solid var(--trim);
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+}
+.sw.saucer.painted .hull {
+  background: radial-gradient(ellipse at 50% 18%, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0) 38%), radial-gradient(ellipse at 50% 100%, rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0) 70%), var(--paint) center / 100% 100%;
 }
 .sw.saucer .lights {
   position: absolute;
@@ -3202,6 +3220,26 @@ svg.brazil .pin.sel .dot {
 .sw.beam.rainbow .cone {
   background: linear-gradient(90deg, #ff4d5e, #ffcf3f, #5dffa0, #4dc9ff, #c28bff);
   animation: shopHue 2.4s linear infinite;
+}
+.sw.beam.brasil .cone {
+  background: linear-gradient(90deg, #1fd36a, #ffd23f 50%, #3d7bff);
+  filter: drop-shadow(0 0 10px #ffd23f);
+}
+.sw.beam.fogo .cone {
+  background: linear-gradient(180deg, #fff2a8, #ff7a1a 45%, rgba(255, 40, 20, 0.35));
+  filter: drop-shadow(0 0 12px #ff5a1f);
+  animation: shopPulse 0.35s ease-in-out infinite;
+}
+.sw.beam.vapor .cone {
+  background: linear-gradient(180deg, #ff5ad1, #5affea);
+  filter: drop-shadow(0 0 12px #ff5ad1);
+}
+.sw.fx-rainbow .lights {
+  background: linear-gradient(90deg, #ff4d5e, #ffcf3f, #5dffa0, #4dc9ff, #c28bff, #ff4d5e);
+  animation: shopHue 2s linear infinite;
+}
+.sw.fx-rainbow .hull {
+  border-bottom-color: #ff5ad1;
 }
 @keyframes shopHue {
   to {
