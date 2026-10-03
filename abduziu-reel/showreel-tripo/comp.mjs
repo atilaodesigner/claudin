@@ -30,6 +30,7 @@ const browser = await chromium.launch({ executablePath: process.env.CHROME || '/
 const page = await browser.newPage({ viewport: { width: 1080, height: 1920 }, deviceScaleFactor: scale });
 page.on('pageerror', (e) => console.log('pageerror', e.message));
 page.on('console', (m) => m.type() === 'error' && console.log('console', m.text()));
+if (process.env.CREW) await page.addInitScript(() => { window.CREW = true; });
 await page.goto(pathToFileURL(join(here, process.env.PAGE || 'comp.html')).href);
 await page.evaluate(async () => {
   const faces = ['900 italic 40px BC', '800 italic 40px BC', '900 40px BC', '700 40px BC', '700 40px CP', '600 40px CP', '900 40px UB', '700 40px UB', '500 40px UB', '700 40px SM', '400 40px SM', '800 40px AR', '700 40px AR', '600 40px AR'];

@@ -7,7 +7,10 @@
 (() => {
   const W = 1080;
   const H = 1920;
-  const DUR = 60;
+  // CREW: the end card gets a second offer (TRIPOCREW) before the comment CTA (+6 s)
+  const CREW = !!window.CREW;
+  const CREW_SHIFT = CREW ? 4.75 : 0;
+  const DUR = CREW ? 66 : 60;
 
   // ─── math
   const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
@@ -709,7 +712,7 @@
   });
 
   // CTA ─ 51.5 → 60
-  scene(51.5, 60, { bg: '#ffd23f' }, (root) => {
+  scene(51.5, DUR, { bg: '#ffd23f' }, (root) => {
     const n500 = $('div', 'h', root, '+500');
     Object.assign(n500.style, { top: '190px', fontSize: '232px', letterSpacing: '-.06em' });
     const tC = new Title(root, ['CRÉDITOS BÔNUS'], { size: 66, y: 440 });
@@ -720,6 +723,15 @@
     const s2 = $('div', 'step', root, `<div class="n">2</div><div>Ou no site da Tripo: Referral Program ${SVG.arrow.replace('<svg', '<svg style="width:38px;height:38px;vertical-align:-6px"')} ${CODE}</div>`);
     const warn = $('div', 'warn', root, `<svg viewBox="0 0 24 24"><path d="M12 2 1 21h22L12 2z" fill="#ffd23f"/><path d="M12 9v5" stroke="#0f1013" stroke-width="2.6" stroke-linecap="round"/><circle cx="12" cy="17.6" r="1.5" fill="#0f1013"/></svg>O campo do código aparece <b>só nas primeiras 24 horas</b> depois de criar a conta.`);
     const tD = new Title(root, ['COMENTA QUAL', 'MEME OU OBJETO', 'BRASILEIRO VOCÊ', 'QUER VER NO', { t: '[hk]ABDUZIU.FUN', size: 84 }], { size: 64, y: 905 });
+    // second offer: 60% off the first month with TRIPOCREW
+    const tE = CREW ? new Title(root, ['ALÉM DE', { t: '[hk]60%_DE_DESCONTO', size: 74 }, 'NO SEU PRIMEIRO MÊS'], { size: 64, y: 884 }) : null;
+    const box2 = CREW ? $('div', 'codebox', root, '<div class="lb">CÓDIGO DE DESCONTO</div><div class="code"></div>') : null;
+    const CODE2 = 'TRIPOCREW';
+    const L2 = CREW ? [...CODE2].map(() => $('span', '', box2.children[1])) : [];
+    if (box2) {
+      box2.children[1].style.gap = '10px';
+      for (const s of L2) s.style.fontSize = '100px';
+    }
     const bub = $('div', 'abs', root, SVG.bubble);
     Object.assign(bub.style, { width: '110px', height: '110px', color: '#0f1013' });
     const AL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -740,8 +752,19 @@
       place(s1, { x: 64 - out * 1100, y: 885, ax: 0, ay: 0, o: lin(lt, 1.1, 1.3) });
       place(s2, { x: 64 - out * 1100, y: 1000, ax: 0, ay: 0, o: lin(lt, 1.4, 1.6) });
       place(warn, { x: 64 - out * 1100, y: 1135, ax: 0, ay: 0, o: lin(lt, 1.8, 2.0) });
-      tD.paint(lt, 4.95, 1e9, { st: 0.05 });
-      place(bub, { x: 930, y: 900, s: pop(lt, 5.5, 0.35), r: 8 });
+      if (tE && box2) {
+        const T = 5.0;
+        tE.paint(lt, T, T + 4.4, { st: 0.06 });
+        const out2 = E.in3(lin(lt, T + 4.4, T + 4.7));
+        place(box2, { x: 540 - out2 * 1100, y: 1238, s: 0.82 * E.back(lin(lt, T + 0.45, T + 0.8)) });
+        L2.forEach((s, i) => {
+          const rv = T + 0.75 + i * 0.07;
+          s.textContent = lt >= rv ? CODE2[i] : AL[Math.floor(hash(Math.floor(lt * 30) * 7 + i) * AL.length)];
+          s.style.color = lt >= rv ? '#fff' : 'rgba(255,255,255,.3)';
+        });
+      }
+      tD.paint(lt, 4.95 + CREW_SHIFT, 1e9, { st: 0.05 });
+      place(bub, { x: 930, y: 900, s: pop(lt, 5.5 + CREW_SHIFT, 0.35), r: 8 });
     };
   });
 
