@@ -33,6 +33,9 @@ const LABEL_POS: Partial<Record<CityId, [number, number, 'start' | 'end']>> = {
   rio: [12, 14, 'start'],
   nova_aurora: [12, -6, 'start'],
   brasilia: [-12, 4, 'end'],
+  goiania: [-12, 12, 'end'],
+  belo_horizonte: [12, 2, 'start'],
+  porto_alegre: [12, 4, 'start'],
 };
 
 const px = (lon: number) => (lon + 75) * 10;

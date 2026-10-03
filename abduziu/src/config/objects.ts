@@ -2,7 +2,7 @@
  * Every abductable thing in every city. The ABDUCTION DEX is generated from this table.
  * `model` points to a procedural builder in assets/models (or a GLB override, see README).
  */
-import { KIT_OBJECTS } from './kitCatalog';
+import { kitObjectDefs } from './kitCatalog';
 
 export type Rarity = 'normal' | 'incomum' | 'raro' | 'epico' | 'alien';
 
@@ -339,10 +339,30 @@ const BASE_OBJECTS: readonly ObjectDef[] = [
   { id: 'meme_huehue', dex: 228, name: 'Huehue', tier: 1, massKg: 70, model: 'person', tags: ['pessoa', 'meme'], rarity: 'raro', matterMult: 6, thumb: 'crowd/thumbs/huehue.webp', description: 'Não fala, só ri. Huehuehue. Lá em cima também.' },
   { id: 'meme_cabeca_guidao', dex: 229, name: 'Cabeça de Guidão', tier: 1, massKg: 75, model: 'person', tags: ['pessoa', 'meme'], rarity: 'raro', matterMult: 6, thumb: 'crowd/thumbs/cabeca_guidao.webp', description: 'O cabelo vem com guidão de fábrica. Fez a curva errada e caiu no feixe.' },
   { id: 'meme_manoel_gomes', dex: 230, name: 'Blue Pen', tier: 1, massKg: 80, model: 'person', tags: ['pessoa', 'meme'], rarity: 'epico', matterMult: 10, thumb: 'crowd/thumbs/manoel_gomes.webp', description: 'Ia cantar a da caneta azul. Foi abduzido no refrão. Azul caneta, caneta azul…' },
+
+  // ───────────── Goiânia, Belo Horizonte e Porto Alegre
+  { id: 'torre_relogio_goiania', dex: 231, name: 'Relógio da Avenida Goiás', tier: 10, massKg: 900_000, model: 'torre_relogio_goiania', tags: ['marco', 'estrutura'], matterMult: 3, description: 'Art Déco de 1942. Marcava a hora certa. Agora marca a hora da partida.' },
+  { id: 'tres_racas', dex: 232, name: 'Monumento às Três Raças', tier: 9, massKg: 400_000, model: 'tres_racas', tags: ['marco', 'estrutura'], matterMult: 3, description: 'Três figuras de bronze erguendo uma pedra. Quem ergueu tudo no fim fomos nós.' },
+  { id: 'pamonha', dex: 233, name: 'Pamonha', tier: 0, massKg: 0.4, model: 'pamonha', tags: ['lixo'], description: 'Doce, salgada ou com queijo. Olha a pamonha fresquinha, quentinha!' },
+  { id: 'pamonha_dourada', dex: 234, name: 'Pamonha Dourada', tier: 1, massKg: 1, model: 'pamonha_dourada', tags: ['secreto'], rarity: 'alien', secret: true, matterMult: 30, description: 'A pamonha lendária do carro de som. Ninguém nunca comeu. Agora ninguém vai.' },
+  { id: 'viola_caipira', dex: 235, name: 'Viola Caipira', tier: 1, massKg: 2, model: 'viola_caipira', tags: ['movel'], description: 'Dez cordas e muita sofrência. O sertanejo perdeu o refrão.' },
+  { id: 'chapeu_vaqueiro', dex: 236, name: 'Chapéu de Peão', tier: 0, massKg: 0.4, model: 'chapeu_vaqueiro', tags: ['lixo'], description: 'Da Pecuária de Goiânia. O peão ficou sem chapéu e sem rodeio.' },
+  { id: 'berrante', dex: 237, name: 'Berrante', tier: 0, massKg: 1, model: 'berrante', tags: ['movel'], description: 'Tocou pra chamar a boiada. Veio o disco.' },
+  { id: 'pit_dog', dex: 238, name: 'Pit Dog', tier: 4, massKg: 3000, model: 'foodtruck', tags: ['van'], paints: [0xd7263d, 0xf3c332, 0x2a9d5a], description: 'Patrimônio goiano: lanche de madrugada com tudo dentro. O ET pediu sem cebola.' },
+  { id: 'igrejinha_pampulha', dex: 239, name: 'Igrejinha da Pampulha', tier: 10, massKg: 6_000_000, model: 'igrejinha_pampulha', tags: ['marco', 'predio'], matterMult: 3, description: 'Curvas de Niemeyer, azulejos de Portinari, abdução nossa.' },
+  { id: 'edificio_niemeyer', dex: 240, name: 'Edifício Niemeyer', tier: 10, massKg: 30_000_000, model: 'edificio_niemeyer', tags: ['marco', 'predio'], matterMult: 3, description: 'Doze andares de curvas na Praça da Liberdade. Agora mais livre ainda.' },
+  { id: 'fogao_lenha', dex: 241, name: 'Fogão a Lenha', tier: 2, massKg: 300, model: 'fogao_lenha', tags: ['movel'], description: 'O feijão tropeiro ainda estava no fogo. Uai, cadê o fogão?' },
+  { id: 'panela_pedra', dex: 242, name: 'Panela de Pedra', tier: 1, massKg: 8, model: 'panela_pedra', tags: ['movel'], description: 'Pedra-sabão de Ouro Preto. Pesada, quente e agora orbital.' },
+  { id: 'usina_gasometro', dex: 243, name: 'Usina do Gasômetro', tier: 10, massKg: 25_000_000, model: 'usina_gasometro', tags: ['marco', 'predio'], matterMult: 3, description: 'A chaminé de 107 metros finalmente chegou nas nuvens. E passou delas.' },
+  { id: 'lacador', dex: 244, name: 'Estátua do Laçador', tier: 9, massKg: 3800, model: 'lacador', tags: ['marco', 'estrutura'], matterMult: 4, description: 'O gaúcho mais famoso de Porto Alegre laçou muita coisa. O disco, não.' },
+  { id: 'cuia_chimarrao', dex: 245, name: 'Cuia de Chimarrão', tier: 0, massKg: 0.5, model: 'cuia_chimarrao', tags: ['movel'], description: 'Erva, água quente e roda de conversa. A roda subiu junto, bah!' },
+  { id: 'cuia_dourada', dex: 246, name: 'Cuia Dourada', tier: 1, massKg: 1, model: 'cuia_dourada', tags: ['secreto'], rarity: 'alien', secret: true, matterMult: 30, description: 'Passava de mão em mão há 200 anos. Passou pra mão errada.' },
+  { id: 'garrafa_termica', dex: 247, name: 'Garrafa Térmica', tier: 0, massKg: 1.5, model: 'garrafa_termica', tags: ['movel'], description: 'Água a 70 graus, nunca fervendo. Tchê, isso é sério.' },
+  { id: 'cavalo_crioulo', dex: 248, name: 'Cavalo Crioulo', tier: 2, massKg: 450, model: 'cavalo_crioulo', tags: ['animal'], description: 'Raça dos pampas: aguenta frio, vento e fome. Abdução, não.' },
 ];
 
-/** Hand-made objects plus the CC0 kit catalog (dex 231+). */
-export const OBJECTS: readonly ObjectDef[] = [...BASE_OBJECTS, ...KIT_OBJECTS];
+/** Hand-made objects plus the CC0 kit catalog (numbered after them). */
+export const OBJECTS: readonly ObjectDef[] = [...BASE_OBJECTS, ...kitObjectDefs(Math.max(...BASE_OBJECTS.map((o) => o.dex)) + 1)];
 
 export const OBJECT_BY_ID: ReadonlyMap<string, ObjectDef> = new Map(OBJECTS.map((o) => [o.id, o]));
 

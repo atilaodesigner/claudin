@@ -28,17 +28,17 @@ Você é um disco voador recém-chegado com um feixe de abdução e muita fome. 
 Cada coisa abduzida faz a nave crescer. Quanto maior a nave, maior o que ela consegue levar: pessoas, carros, ônibus, prédios. A cidade reage. Primeiro vem a polícia, depois helicópteros, caças e um exército inteiro tentando te derrubar.
 
 CIDADES BRASILEIRAS DE VERDADE
-Rio de Janeiro, São Paulo, Brasília, Salvador, Recife e Manaus, cada uma com seus bairros, prédios, praias e bagunça. Invada uma por uma no modo Invasão do Brasil e ganhe até três estrelas em cada.
+Rio de Janeiro, São Paulo, Brasília, Salvador, Recife, Manaus, Goiânia, Belo Horizonte e Porto Alegre, cada uma com seus bairros, prédios, cartões-postais e bagunça. Invada uma por uma no modo Invasão do Brasil e ganhe até três estrelas em cada.
 
 EVOLUA SEM PAUSA
 A cada nível você escolhe uma melhoria no meio da ação: feixe duplo, escudo alienígena, pulso EMP, ímã de matéria, buraco negro e muito mais. Monte combos e entre em frenesi.
 
-MAIS DE 200 OBJETOS PRA COLECIONAR
+MAIS DE 550 OBJETOS PRA COLECIONAR
 Coxinha, orelhão, carrinho de pipoca, vira-lata caramelo, perua clássica, barraca de praia, torre de transmissão... Tudo vai pra sua Coleção, com raridades do comum ao lendário. Fique de olho: alguns personagens raros aparecem brilhando na cidade só de vez em quando.
 
 JOGUE DO SEU JEITO
 • Passeio: sem tiros e sem pressa, só você e a cidade
-• Invasão do Brasil: campanha com sete cidades
+• Invasão do Brasil: campanha com dez cidades
 • Invasão do Dia: um mapa novo por dia, igual pra todo mundo
 • Ranqueada: o mesmo mapa da semana pra todos, suba de divisão
 • Arena: comece pequeno, engula as naves menores e fuja das maiores
@@ -80,17 +80,17 @@ You are a freshly landed flying saucer with a tractor beam and a big appetite. S
 Everything you abduct makes your saucer grow. The bigger you get, the bigger the things you can lift: people, cars, buses, buildings. The city fights back. First the police, then helicopters, fighter jets and a whole army trying to shoot you down.
 
 REAL BRAZILIAN CITIES
-Rio de Janeiro, São Paulo, Brasília, Salvador, Recife and Manaus, each with its own neighborhoods, towers, beaches and chaos. Invade them one by one in the Invasion of Brazil campaign and earn up to three stars in each.
+Rio de Janeiro, São Paulo, Brasília, Salvador, Recife, Manaus, Goiânia, Belo Horizonte and Porto Alegre, each with its own neighborhoods, landmarks and chaos. Invade them one by one in the Invasion of Brazil campaign and earn up to three stars in each.
 
 EVOLVE WITHOUT PAUSING
 Every level you pick an upgrade right in the middle of the action: double beam, alien shield, EMP pulse, matter magnet, black hole and more. Chain combos and go into a frenzy.
 
-200+ OBJECTS TO COLLECT
+550+ OBJECTS TO COLLECT
 Coxinhas, payphones, popcorn carts, caramel street dogs, classic vans, beach stalls, radio towers... Everything goes into your Collection, from common to legendary. Keep your eyes open: a few rare characters show up glowing in the city only once in a while.
 
 PLAY YOUR WAY
 • Cruise: no shooting, no rush, just you and the city
-• Invasion of Brazil: a seven-city campaign
+• Invasion of Brazil: a ten-city campaign
 • Daily Invasion: a new map every day, the same for everyone
 • Ranked: the same weekly map for everyone, climb the divisions
 • Arena: start small, swallow smaller saucers and run from bigger ones

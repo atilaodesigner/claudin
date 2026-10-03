@@ -33,7 +33,7 @@ export const MODES: Record<GameMode, ModeInfo> = {
     id: 'campanha',
     name: 'INVASÃO DO BRASIL',
     tag: 'CAMPANHA',
-    description: 'Sete cidades, três estrelas em cada. Extraia com vida para liberar a próxima.',
+    description: 'Dez cidades, três estrelas em cada. Extraia com vida para liberar a próxima.',
     coreMult: 1,
     enemies: true,
     damage: true,

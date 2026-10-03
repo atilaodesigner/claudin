@@ -8,6 +8,7 @@ import { LANDMARK_MODELS } from './models/landmarks';
 import { MILITARY_MODELS } from './models/military';
 import { NATURE_MODELS } from './models/nature';
 import { PROP_MODELS } from './models/props';
+import { REGIONAL_MODELS } from './models/regional';
 import { SPECIAL_MODELS } from './models/special';
 import type { ModelFn } from './models/types';
 import { VEHICLE_MODELS } from './models/vehicles';
@@ -34,6 +35,7 @@ const ALL_MODELS: Record<string, ModelFn> = {
   ...COAST_MODELS,
   ...LANDMARK_MODELS,
   ...BRASIL_MODELS,
+  ...REGIONAL_MODELS,
 };
 
 /**

@@ -858,7 +858,7 @@ export class WorldGenerator {
     this.place('telhado', hx, 2.9, hz, (this.placements[hIdx] as Placement).rotY, d, hIdx);
     for (let i = 0; i < 4; i++) this.animal('cow', cx + r.range(-18, 18), cz + r.range(-18, 18), d, 8);
     for (let i = 0; i < 7; i++) this.animal('chicken', hx + r.range(-8, 8), hz + r.range(-8, 8), d, 4);
-    const ruralTrees = this.city.id === 'nova_aurora' || this.city.id === 'sao_paulo' ? ['arvore', 'ipe', 'araucaria', 'mangueira', 'jaqueira'] : ['coqueiro', 'arvore', 'ipe', 'mangueira', 'cajueiro', 'jaqueira'];
+    const ruralTrees = this.city.id === 'porto_alegre' ? ['araucaria', 'arvore', 'pinheiro', 'araucaria', 'arvore_outono'] : this.city.id === 'nova_aurora' || this.city.id === 'sao_paulo' || this.city.id === 'belo_horizonte' ? ['arvore', 'ipe', 'araucaria', 'mangueira', 'jaqueira'] : ['coqueiro', 'arvore', 'ipe', 'mangueira', 'cajueiro', 'jaqueira'];
     for (let i = 0; i < 6; i++) this.place(r.pick(ruralTrees), cx + r.range(-19, 19), 0, cz + r.range(-19, 19), r.range(0, 6), d);
     // the sítio's extras: a mud hut, a tractor, a chapel or a phone tower on the corner
     const ex = hx > cx ? cx - 13 : cx + 13;

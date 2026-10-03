@@ -2,7 +2,7 @@
  * Objects built from CC0 low-poly kits by Kenney (www.kenney.nl, Creative Commons Zero).
  *
  * Each entry is a model and its dex entry. `tools/props` packs the listed GLB files
- * into `public/props/props.bin` (sized to `h` meters tall or `s` meters on the longest
+ * into `src/assets/props/props.pack` (sized to `h` meters tall or `s` meters on the longest
  * side) and the game loads them as models named `kit:<id>`.
  *
  * `spawn` says where it shows up, as space-separated codes with a weight:
@@ -451,19 +451,19 @@ export function kitSpawns(where: string, rare = false): Array<{ id: string; w: n
 
 export const KIT_MODEL_PREFIX = 'kit:';
 
-/** Dex numbers continue after the hand-made objects and memes. */
-export const KIT_DEX_START = 231;
-
-export const KIT_OBJECTS: readonly ObjectDef[] = KIT.map((e, i) => ({
-  id: e.id,
-  dex: KIT_DEX_START + i,
-  name: e.name,
-  tier: e.tier,
-  massKg: e.kg,
-  model: KIT_MODEL_PREFIX + e.id,
-  tags: e.tags,
-  description: e.desc,
-  ...(e.rarity ? { rarity: e.rarity } : {}),
-  ...(e.matterMult ? { matterMult: e.matterMult } : {}),
-  ...(e.tags.includes('secreto') && (e.rarity === 'alien' || e.rarity === 'epico') ? { secret: true } : {}),
-}));
+/** Dex entries for the kit, numbered right after the hand-made objects (`dexStart`). */
+export function kitObjectDefs(dexStart: number): ObjectDef[] {
+  return KIT.map((e, i) => ({
+    id: e.id,
+    dex: dexStart + i,
+    name: e.name,
+    tier: e.tier,
+    massKg: e.kg,
+    model: KIT_MODEL_PREFIX + e.id,
+    tags: e.tags,
+    description: e.desc,
+    ...(e.rarity ? { rarity: e.rarity } : {}),
+    ...(e.matterMult ? { matterMult: e.matterMult } : {}),
+    ...(e.tags.includes('secreto') && (e.rarity === 'alien' || e.rarity === 'epico') ? { secret: true } : {}),
+  }));
+}
