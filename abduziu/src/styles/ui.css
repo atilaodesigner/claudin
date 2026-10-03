@@ -3643,3 +3643,16 @@ svg.brazil .pin.sel .dot {
   opacity: 1;
   transform: none;
 }
+.list .legal-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 6px;
+}
+.list .legal-links .btn {
+  font-size: calc(13px * var(--ui-scale));
+  padding: 8px 12px;
+  text-decoration: none;
+  opacity: 0.75;
+}

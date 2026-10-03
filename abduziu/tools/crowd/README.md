@@ -56,7 +56,7 @@ O rig do Quaternius tem os pés como ossos soltos guiados por IK e a corrida do 
 |---|---|---|
 | HUEHUE | `source/huehue.glb` | #228, raro |
 | CABEÇA DE GUIDÃO | `source/cabeca_guidao.glb` | #229, raro |
-| MANOEL GOMES | `source/manoel_gomes.glb` | #230, épico |
+| BLUE PEN | `source/manoel_gomes.glb` | #230, épico |
 
 Gerados na Tripo com rig Mixamo e animações. `simplify` reduz pra ~5 mil triângulos mantendo esqueleto e UVs
 (atravessando as costuras de UV da Tripo pesando o quanto a textura estica). Animação que falta num é

@@ -1,0 +1,217 @@
+/* Páginas legais do ABDUZIU (privacidade, excluir conta): mesma identidade do jogo, leitura confortável. */
+@font-face {
+  font-family: 'Barlow Condensed';
+  font-style: italic;
+  font-weight: 800;
+  font-display: swap;
+  src: url('barlow-condensed-latin-800-italic.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Chakra Petch';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('chakra-petch-latin-500-normal.woff2') format('woff2');
+}
+
+:root {
+  color-scheme: dark;
+  --bg: #050a12;
+  --panel: #07121c;
+  --line: rgba(93, 255, 160, 0.22);
+  --green: #5dffa0;
+  --green-dim: #2fbf72;
+  --gold: #ffcf3f;
+  --text: #dcefe6;
+  --text-2: #9ab8ad;
+  --text-3: #6f8a80;
+  --title: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+  --mono: 'Chakra Petch', ui-monospace, monospace;
+  --body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(120% 60% at 50% -10%, rgba(93, 255, 160, 0.09), transparent 60%),
+    var(--bg);
+  color: var(--text);
+  font: 16px/1.65 var(--body);
+  padding-inline: 16px;
+  padding-block: calc(28px + env(safe-area-inset-top, 0px)) calc(56px + env(safe-area-inset-bottom, 0px));
+}
+
+main {
+  max-width: 68ch;
+  margin: 0 auto;
+  display: grid;
+  gap: 8px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  text-decoration: none;
+  color: inherit;
+}
+.brand img {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+}
+.brand span {
+  font: italic 800 26px/1 var(--title);
+  letter-spacing: 0.04em;
+  color: var(--green);
+}
+
+.eyebrow {
+  font: 500 12px/1.4 var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+h1,
+h2 {
+  font-family: var(--title);
+  font-style: italic;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  text-wrap: balance;
+  margin: 0;
+}
+h1 {
+  font-size: clamp(36px, 8vw, 52px);
+  line-height: 0.95;
+  color: #fff;
+}
+h2 {
+  font-size: 24px;
+  line-height: 1.1;
+  color: var(--green);
+  margin-top: 26px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+p,
+ul,
+ol {
+  margin: 6px 0 0;
+}
+ul,
+ol {
+  padding-left: 1.2em;
+  display: grid;
+  gap: 4px;
+}
+strong {
+  color: #fff;
+}
+a {
+  color: var(--green);
+  text-underline-offset: 3px;
+}
+
+.lead {
+  font-size: 18px;
+  color: var(--text-2);
+}
+
+.box {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--green-dim);
+  padding: 14px 16px;
+  margin-top: 10px;
+}
+.box.gold {
+  border-color: rgba(255, 207, 63, 0.3);
+  border-left-color: var(--gold);
+}
+.box.gold strong {
+  color: var(--gold);
+}
+
+.steps {
+  counter-reset: s;
+  list-style: none;
+  padding: 0;
+  gap: 8px;
+}
+.steps li {
+  counter-increment: s;
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 10px;
+  align-items: start;
+}
+.steps li::before {
+  content: counter(s);
+  font: italic 800 22px/1.2 var(--title);
+  color: #04110a;
+  background: var(--green);
+  text-align: center;
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
+}
+
+.table-wrap {
+  overflow-x: auto;
+  margin-top: 10px;
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 520px;
+  font-size: 14px;
+}
+th,
+td {
+  text-align: left;
+  vertical-align: top;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+th {
+  font: 500 11px/1.4 var(--mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+td:first-child {
+  color: #fff;
+  font-weight: 600;
+}
+
+code {
+  font: 500 14px var(--mono);
+  color: var(--gold);
+}
+
+.lang {
+  display: flex;
+  gap: 10px;
+  font: 500 12px/1 var(--mono);
+  letter-spacing: 0.12em;
+  margin-bottom: 10px;
+}
+
+footer {
+  margin-top: 34px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--text-3);
+}

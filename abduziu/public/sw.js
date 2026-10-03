@@ -1,7 +1,7 @@
 /* ABDUZIU service worker: offline-capable app shell.
  * Network-first for navigations (always get the latest build), cache-first for
  * hashed assets (they never change). Never blocks normal browser play. */
-const CACHE = 'abduziu-v2';
+const CACHE = 'abduziu-v3';
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
@@ -29,14 +29,19 @@ self.addEventListener('fetch', (e) => {
   if (url.origin !== self.location.origin) return;
 
   if (req.mode === 'navigate') {
+    // only the game itself is the app shell; other pages (privacidade, excluir-conta) pass through
+    const root = new URL(self.registration.scope).pathname;
+    const isShell = url.pathname === root || url.pathname === root + 'index.html';
     e.respondWith(
       fetch(req)
         .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put('./index.html', copy));
+          if (isShell && res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put('./index.html', copy));
+          }
           return res;
         })
-        .catch(() => caches.match('./index.html')),
+        .catch(() => (isShell ? caches.match('./index.html') : caches.match(req).then((hit) => hit || caches.match('./index.html')))),
     );
     return;
   }

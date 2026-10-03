@@ -109,5 +109,20 @@ export class SettingsScreen extends Screen {
     });
     reset.style.marginTop = '10px';
     this.list.appendChild(reset);
+
+    // the stores require the privacy policy to be reachable from inside the app
+    const legal = h('div', 'row legal-links');
+    for (const [label, href] of [
+      ['POLÍTICA DE PRIVACIDADE', 'privacidade/'],
+      ['EXCLUIR CONTA', 'excluir-conta/'],
+    ] as const) {
+      const a = h('a', 'btn ghost', label);
+      a.href = href;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.addEventListener('pointerdown', (e) => e.stopPropagation());
+      legal.appendChild(a);
+    }
+    this.list.appendChild(legal);
   }
 }

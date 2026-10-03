@@ -336,7 +336,7 @@ export const OBJECTS: readonly ObjectDef[] = [
   // ───────────── MEMES — personagens feitos na Tripo, raros no meio dos pedestres
   { id: 'meme_huehue', dex: 228, name: 'Huehue', tier: 1, massKg: 70, model: 'person', tags: ['pessoa', 'meme'], rarity: 'raro', matterMult: 6, thumb: 'crowd/thumbs/huehue.webp', description: 'Não fala, só ri. Huehuehue. Lá em cima também.' },
   { id: 'meme_cabeca_guidao', dex: 229, name: 'Cabeça de Guidão', tier: 1, massKg: 75, model: 'person', tags: ['pessoa', 'meme'], rarity: 'raro', matterMult: 6, thumb: 'crowd/thumbs/cabeca_guidao.webp', description: 'O cabelo vem com guidão de fábrica. Fez a curva errada e caiu no feixe.' },
-  { id: 'meme_manoel_gomes', dex: 230, name: 'Manoel Gomes', tier: 1, massKg: 80, model: 'person', tags: ['pessoa', 'meme'], rarity: 'epico', matterMult: 10, thumb: 'crowd/thumbs/manoel_gomes.webp', description: 'Ia cantar a da caneta azul. Foi abduzido no refrão. Azul caneta, caneta azul…' },
+  { id: 'meme_manoel_gomes', dex: 230, name: 'Blue Pen', tier: 1, massKg: 80, model: 'person', tags: ['pessoa', 'meme'], rarity: 'epico', matterMult: 10, thumb: 'crowd/thumbs/manoel_gomes.webp', description: 'Ia cantar a da caneta azul. Foi abduzido no refrão. Azul caneta, caneta azul…' },
 ];
 
 export const OBJECT_BY_ID: ReadonlyMap<string, ObjectDef> = new Map(OBJECTS.map((o) => [o.id, o]));

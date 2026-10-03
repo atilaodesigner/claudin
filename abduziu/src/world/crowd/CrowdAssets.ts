@@ -34,7 +34,7 @@ export const CROWD_CHARACTERS: ReadonlyArray<{ id: string; name: string; meme?: 
   { id: 'aventureira', name: 'AVENTUREIRA' },
   { id: 'huehue', name: 'HUEHUE', meme: 'meme_huehue' },
   { id: 'cabeca_guidao', name: 'CABEÇA DE GUIDÃO', meme: 'meme_cabeca_guidao' },
-  { id: 'manoel_gomes', name: 'MANOEL GOMES', meme: 'meme_manoel_gomes' },
+  { id: 'manoel_gomes', name: 'BLUE PEN', meme: 'meme_manoel_gomes' },
 ];
 
 export type CrowdClipName = 'run' | 'afraid' | 'freaky' | 'swim';
