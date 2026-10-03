@@ -1,0 +1,17 @@
+{
+  "name": "abduziu-props-tools",
+  "private": true,
+  "type": "module",
+  "description": "Converts CC0 low-poly models (Kenney kits) into ABDUZIU's packed prop geometry (public/props/props.bin).",
+  "dependencies": {
+    "@gltf-transform/core": "^4.2.0",
+    "@gltf-transform/extensions": "^4.5.1",
+    "playwright-core": "^1.63.0",
+    "pngjs": "^7.0.0"
+  },
+  "scripts": {
+    "fetch": "node fetch.mjs",
+    "preview": "node preview.mjs",
+    "pack": "node --experimental-strip-types pack.mjs"
+  }
+}

@@ -8,6 +8,7 @@ import { LobbyScreen } from '../ui/LobbyScreen';
 import { ONLINE_MAX_SCALE } from '../arena/OnlineArena';
 import { DynamicObjectPool } from '../abduction/DynamicObjectPool';
 import { loadModelOverrides } from '../assets/AssetLoader';
+import { loadPropPack } from '../assets/PropPack';
 import { ModelLibrary } from '../assets/ModelLibrary';
 import { AudioManager } from '../audio/AudioManager';
 import { Haptics } from '../audio/Haptics';
@@ -304,8 +305,9 @@ export class Game {
     worldUniforms.uCloudTex.value = this.noise;
     this.atlas = new TextureAtlas();
     this.lib = new ModelLibrary(this.atlas);
-    // pedestrians download while the procedural models build
+    // pedestrians and the CC0 kit models download while the procedural models build
     const crowdLoad = loadCrowd().catch(() => []);
+    const propLoad = loadPropPack(this.lib);
     await loadModelOverrides(this.lib);
     const keys = this.lib.keys();
     for (let i = 0; i < keys.length; i++) {
@@ -315,6 +317,7 @@ export class Game {
         await nextFrame();
       }
     }
+    await propLoad;
     this.loading.progress(0.5, 'MONTANDO A CIDADE...');
     await nextFrame();
 

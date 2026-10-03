@@ -6,6 +6,8 @@
  * F centro financeiro · B base aérea · U sítio · W água (mar, rio, lago)
  * A praia · K centro histórico · Q superquadra · G esplanada · M floresta · L marco da cidade
  */
+import { kitSpawns } from './kitCatalog';
+
 export type DistrictId = 'R' | 'V' | 'C' | 'P' | 'S' | 'I' | 'F' | 'B' | 'U' | 'W' | 'A' | 'K' | 'Q' | 'G' | 'M' | 'L';
 
 /** Grid metrics shared by every city. */
@@ -516,6 +518,21 @@ export const DISTRICTS: Record<DistrictId, DistrictDef> = {
  * Fictional signs (Nova Aurora defaults). Every city swaps these 16 slots for its own,
  * see CityDef.signs. Humor stays ambient and organic.
  */
+// CC0 kit objects join each district's loose props and rares (see kitCatalog.ts). The
+// rare roll gets proportionally likelier so the hand-made legends keep their odds.
+for (const def of Object.values(DISTRICTS)) {
+  const props = kitSpawns(def.id);
+  const rares = kitSpawns(def.id, true);
+  if (props.length) (def.props as Array<{ id: string; w: number }>).push(...props);
+  if (rares.length) {
+    const before = def.rares.reduce((s, r) => s + r.w, 0);
+    (def.rares as Array<{ id: string; w: number }>).push(...rares);
+    const after = def.rares.reduce((s, r) => s + r.w, 0);
+    if (before > 0) def.rareChance = Math.min(0.3, def.rareChance * (after / before));
+    else if (def.rareChance === 0) def.rareChance = 0.06;
+  }
+}
+
 export const SHOP_SIGNS = [
   'BAR DO ET',
   'LANCHONETE 51',

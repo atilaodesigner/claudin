@@ -2,6 +2,8 @@
  * Every abductable thing in every city. The ABDUCTION DEX is generated from this table.
  * `model` points to a procedural builder in assets/models (or a GLB override, see README).
  */
+import { KIT_OBJECTS } from './kitCatalog';
+
 export type Rarity = 'normal' | 'incomum' | 'raro' | 'epico' | 'alien';
 
 export type ObjectTag =
@@ -58,7 +60,7 @@ const BIKE_PAINTS = [0xe63946, 0x1d3557, 0x2a9d8f, 0xf4a261, 0x8338ec];
 const CONTAINER_PAINTS = [0xc0392b, 0x2471a3, 0x1e8449, 0xd68910, 0x7d3c98, 0x566573, 0xe67e22];
 const TOWER_PAINTS = [0xd8e2ea, 0xb9d3e0, 0xe9d8c4, 0xc7d0d8, 0xa9c7d6];
 
-export const OBJECTS: readonly ObjectDef[] = [
+const BASE_OBJECTS: readonly ObjectDef[] = [
   // ───────────── TIER 0 — lixo e miudezas
   { id: 'lata', dex: 1, name: 'Lata de Refri', tier: 0, massKg: 0.35, model: 'can', tags: ['lixo'], paints: [0xd62828, 0x2a9d8f, 0xf77f00, 0x3a0ca3, 0x70e000], description: 'Vazia. Alguém deixou na calçada. Começo humilde de uma invasão.' },
   { id: 'garrafa', dex: 2, name: 'Garrafa de Vidro', tier: 0, massKg: 0.6, model: 'bottle', tags: ['lixo'], description: 'Retornável. Os terráqueos acham que um dia vão devolver.' },
@@ -338,6 +340,9 @@ export const OBJECTS: readonly ObjectDef[] = [
   { id: 'meme_cabeca_guidao', dex: 229, name: 'Cabeça de Guidão', tier: 1, massKg: 75, model: 'person', tags: ['pessoa', 'meme'], rarity: 'raro', matterMult: 6, thumb: 'crowd/thumbs/cabeca_guidao.webp', description: 'O cabelo vem com guidão de fábrica. Fez a curva errada e caiu no feixe.' },
   { id: 'meme_manoel_gomes', dex: 230, name: 'Blue Pen', tier: 1, massKg: 80, model: 'person', tags: ['pessoa', 'meme'], rarity: 'epico', matterMult: 10, thumb: 'crowd/thumbs/manoel_gomes.webp', description: 'Ia cantar a da caneta azul. Foi abduzido no refrão. Azul caneta, caneta azul…' },
 ];
+
+/** Hand-made objects plus the CC0 kit catalog (dex 231+). */
+export const OBJECTS: readonly ObjectDef[] = [...BASE_OBJECTS, ...KIT_OBJECTS];
 
 export const OBJECT_BY_ID: ReadonlyMap<string, ObjectDef> = new Map(OBJECTS.map((o) => [o.id, o]));
 

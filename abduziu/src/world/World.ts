@@ -14,6 +14,9 @@ import { Wires } from './Wires';
 import { WorldBatch } from './WorldBatch';
 import type { GenResult } from './WorldGenerator';
 
+/** Vertex headroom for kit models spawned at runtime that the city didn't place. */
+const KIT_SPAWN_RESERVE = 30000;
+
 const STRUCTURAL_MIN_HEIGHT = 1.4;
 /** Models that can appear in the living (moving) batch: NPCs, animals and traffic. */
 export const LIVING_MODELS = ['person', 'person_up', 'dog', 'chicken', 'cow', 'hatch', 'sedan', 'taxi', 'beetle', 'kombi', 'bus', 'van', 'pickup', 'moto', 'mototaxi', 'truck'];
@@ -104,6 +107,11 @@ export class World {
     // size batches from the generated content (+ headroom for runtime spawns)
     let totalVerts = 0;
     for (const key of lib.keys()) if (!key.startsWith('bd_')) totalVerts += lib.get(key).vertexCount;
+    // kit models only reserve room when this city places them (plus a few runtime spawns)
+    const kitUsed = new Set<string>();
+    for (const p of gen.placements) if (lib.isPacked(p.modelKey)) kitUsed.add(p.modelKey);
+    for (const key of kitUsed) totalVerts += lib.get(key).vertexCount;
+    totalVerts += KIT_SPAWN_RESERVE;
     this.staticBatch = new WorldBatch(gen.placements.length + 900, totalVerts + 1000, this.material, 'city-static');
     let livingVerts = 0;
     for (const key of LIVING_MODELS) livingVerts += lib.get(key).vertexCount;

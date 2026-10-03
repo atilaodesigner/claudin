@@ -1,5 +1,5 @@
 import { Box3, type BufferGeometry } from 'three';
-import type { TextureAtlas } from '../rendering/TextureAtlas';
+import type { TextureAtlas, UVRect } from '../rendering/TextureAtlas';
 import { ModelBuilder } from './ModelBuilder';
 import { BRASIL_MODELS } from './models/brasil';
 import { BUILDING_MODELS, MODEL_VARIANTS } from './models/buildings';
@@ -43,8 +43,24 @@ const ALL_MODELS: Record<string, ModelFn> = {
 export class ModelLibrary {
   private readonly cache = new Map<string, ModelInfo>();
   private readonly overrides = new Map<string, BufferGeometry>();
+  /** Models loaded from the CC0 kit pack (kit:<id>), not built procedurally. */
+  private readonly packed = new Set<string>();
 
   constructor(private readonly atlas: TextureAtlas) {}
+
+  get whiteUV(): UVRect {
+    return this.atlas.white;
+  }
+
+  /** Registers a ready-made geometry under a new key (CC0 kit models). */
+  addPacked(key: string, geometry: BufferGeometry): void {
+    this.packed.add(key);
+    this.setOverride(key, geometry);
+  }
+
+  isPacked(key: string): boolean {
+    return this.packed.has(key);
+  }
 
   has(key: string): boolean {
     return key in ALL_MODELS || this.overrides.has(key);
@@ -93,8 +109,13 @@ export class ModelLibrary {
     return info;
   }
 
+  /** Procedural model keys (kit models are listed by packedKeys()). */
   keys(): string[] {
     return Object.keys(ALL_MODELS);
+  }
+
+  packedKeys(): string[] {
+    return [...this.packed];
   }
 
   loadedModels(): ModelInfo[] {

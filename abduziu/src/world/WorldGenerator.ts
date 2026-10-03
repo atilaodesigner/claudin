@@ -3,10 +3,20 @@ import { ModelBuilder } from '../assets/ModelBuilder';
 import type { ModelLibrary } from '../assets/ModelLibrary';
 import type { CityDef } from '../config/cities';
 import { DISTRICTS, GRID, type DistrictId } from '../config/districts';
+import { kitSpawns } from '../config/kitCatalog';
 import { getObjectDef, type Rarity } from '../config/objects';
 import type { TextureAtlas } from '../rendering/TextureAtlas';
 import { Rng } from '../utils/rng';
 import { CityGrid, HB, HL, type Rect } from './CityGrid';
+
+/** Kit spawn groups that aren't districts (see kitCatalog.ts). */
+const KIT_GROUPS: Record<string, Array<{ id: string; w: number }>> = Object.fromEntries(
+  ['car', 'carH', 'boat', 'yard', 'base', 'praca', 'farm', 'roof'].map((g) => [g, kitSpawns(g)]),
+);
+const TRAIN_HEADS = new Set(['maria_fumaca', 'locomotiva', 'trem_metro', 'trem_urbano', 'trem_bala', 'bonde', 'vlt']);
+const PASSENGER_TRAINS = new Set(['trem_metro', 'trem_urbano', 'trem_bala', 'bonde', 'vlt']);
+const FREIGHT_WAGONS = new Set(['vagao_minerio', 'vagao_tanque', 'vagao_toras', 'vagao_conteiner', 'vagao_fechado']);
+const TRAIN_CARS = new Set([...TRAIN_HEADS, ...FREIGHT_WAGONS]);
 
 export interface Placement {
   defId: string;
@@ -99,6 +109,8 @@ export class WorldGenerator {
   private skyscraperPlaced = false;
   private radioTowerPlaced = false;
   private statuePlaced = false;
+  /** First placement of the block being generated (overlap checks stay inside it). */
+  private blockStart = 0;
   private trioPlaced = false;
   private mercadaoPlaced = false;
   private festaPlaced = 0;
@@ -143,6 +155,7 @@ export class WorldGenerator {
       const r = this.rng.fork(blk.col * 31 + blk.row * 7);
       const prev = this.rng;
       this.rng = r;
+      this.blockStart = this.placements.length;
       switch (blk.district) {
         case 'R':
           this.genResidential(blk);
@@ -247,6 +260,36 @@ export class WorldGenerator {
     return this.placements.length - 1;
   }
 
+  /** True when a circle of radius r at (x,z) hits anything this block placed on the ground. */
+  private overlaps(x: number, z: number, r: number): boolean {
+    for (let i = this.blockStart; i < this.placements.length; i++) {
+      const p = this.placements[i] as Placement;
+      if (p.parent >= 0 || Math.abs(p.x - x) > 60 || Math.abs(p.z - z) > 60) continue;
+      if (Math.hypot(p.x - x, p.z - z) < r + this.lib.get(p.modelKey).radius * 0.8) return true;
+    }
+    return false;
+  }
+
+  /** Drops an object somewhere free inside the block square (cx ± half); -1 when it doesn't fit. */
+  private placeFree(defId: string, cx: number, cz: number, half: number, d: DistrictId, rotY?: number): number {
+    const model = this.lib.get(this.lib.variantKey(getObjectDef(defId).model, 0));
+    const rad = model.radius * 0.8;
+    if (rad >= half) return -1;
+    const r = this.rng;
+    for (let t = 0; t < 14; t++) {
+      const x = cx + r.range(-half + rad, half - rad);
+      const z = cz + r.range(-half + rad, half - rad);
+      if (!this.overlaps(x, z, rad)) return this.place(defId, x, 0, z, rotY ?? r.range(0, Math.PI * 2), d);
+    }
+    return -1;
+  }
+
+  /** Weighted pick from a kit spawn group ("yard", "base"...), or null when it's empty. */
+  private kitPick(group: string, filter?: (id: string) => boolean): string | null {
+    const table = (KIT_GROUPS[group] ?? []).filter((e) => !filter || filter(e.id)).map((e) => ({ item: e.id, weight: e.w }));
+    return table.length ? this.rng.weighted(table) : null;
+  }
+
   /** Height of the ground surface (road, sidewalk, lot, sand, water) at a point. */
   groundAt(x: number, z: number): number {
     return this.grid.groundAt(x, z);
@@ -333,6 +376,8 @@ export class WorldGenerator {
           { item: 'carro_pamonha', weight: 0.35 },
           { item: 'moto_entrega', weight: 0.6 },
         ];
+    // kit vehicles add variety without taking over the curb
+    for (const e of KIT_GROUPS[heavy ? 'carH' : 'car'] ?? []) table.push({ item: e.id, weight: e.w * (heavy ? 0.45 : 0.6) });
     this.place(r.weighted(table), x, 0, z, rotY + (r.chance(0.5) ? Math.PI : 0), d);
   }
 
@@ -602,8 +647,11 @@ export class WorldGenerator {
     if (!this.statuePlaced) {
       this.place('estatua', cx, 0, cz, 0, d);
       this.statuePlaced = true;
-    } else if (r.chance(0.7)) {
-      this.place('coreto', cx, 0, cz, r.range(0, 6), d);
+    } else {
+      // a fountain or something from the kits instead of the bandstand, now and then
+      const kit = r.chance(0.4) ? this.kitPick('praca', (id) => this.kitRadius(id) < 7) : null;
+      if (kit) this.place(kit, cx, 0, cz, r.range(0, 6), d);
+      else if (r.chance(0.7)) this.place('coreto', cx, 0, cz, r.range(0, 6), d);
     }
     for (let i = 0; i < 8; i++) {
       const a = (i / 8) * Math.PI * 2;
@@ -614,6 +662,10 @@ export class WorldGenerator {
     this.place('quiosque', cx - 10, 0, cz + 10, 0, d);
     this.place('carrinho_pipoca', cx + 7, 0, cz - 5, 1, d);
     this.place('banca', cx + 12, 0, cz + 10, -0.8, d);
+    if (r.chance(0.3)) {
+      const big = this.kitPick('praca', (id) => this.kitRadius(id) >= 7);
+      if (big) this.placeFree(big, cx, cz, HL, d);
+    }
     this.scatterProps(d, cx, cz, HL, HL, 10);
     for (let i = 0; i < 9; i++) this.person(cx + r.range(-14, 14), cz + r.range(-14, 14), d, undefined, 6);
   }
@@ -650,7 +702,7 @@ export class WorldGenerator {
       for (let i = 0; i < 3; i++) this.place('silo', cx - 12 + i * 8, 0, cz - 10, 0, d);
       this.place('guindaste', cx + 10, 0, cz + 8, r.range(0, 6), d);
       this.containerStack(cx - 8, cz + 10, d);
-      this.place('carreta', cx + 2, 0, cz - 1, Math.PI / 2, d);
+      if (!r.chance(0.7) || !this.trainLine(cx, cz - 1, d)) this.place('carreta', cx + 2, 0, cz - 1, Math.PI / 2, d);
     } else {
       this.place('galpao', cx + 7, 0, cz, 0, d);
       this.containerStack(cx - 13, cz - 13, d);
@@ -660,6 +712,12 @@ export class WorldGenerator {
     for (let i = 0; i < 3; i++) this.place(r.chance(0.5) ? 'empilhadeira' : 'caminhonete', cx + r.range(-16, 16), 0, cz + r.range(-16, 16), r.range(0, 6), d);
     this.place(r.pick(['caminhao_lixo', 'betoneira', 'caminhao_pipa', 'caminhao_gas']), cx + r.range(-6, 6), 0, cz + 16, HALF_PI, d);
     if (r.chance(0.6)) this.place('cacamba', cx - 16, 0, cz + r.range(-6, 6), 0, d);
+    // a parked train along the north edge of the yard
+    if (r.chance(0.55)) this.trainLine(cx, cz - 17.5, d);
+    if (r.chance(0.5)) {
+      const kit = this.kitPick('yard', (id) => !TRAIN_CARS.has(id));
+      if (kit) this.placeFree(kit, cx, cz, HL, d);
+    }
     this.scatterProps(d, cx, cz, HL, HL, 12);
     for (let i = 0; i < 3; i++) this.person(cx + r.range(-16, 16), cz + r.range(-16, 16), d, undefined, 5);
     this.maybeRare(d, cx, cz, 12);
@@ -674,6 +732,30 @@ export class WorldGenerator {
         parent = this.place('conteiner', x + row * 2.8, lvl * 2.6, z, 0, d, parent);
       }
     }
+  }
+
+  /** A parked train along X centred on (cx, z): a head car and wagons while they fit. */
+  private trainLine(cx: number, z: number, d: DistrictId): boolean {
+    const head = this.kitPick('yard', (id) => TRAIN_HEADS.has(id));
+    if (!head) return false;
+    const passenger = PASSENGER_TRAINS.has(head);
+    let x = cx + 21;
+    let placed = 0;
+    for (let i = 0; i < 4; i++) {
+      const id = i === 0 || passenger ? head : (this.kitPick('yard', (w) => FREIGHT_WAGONS.has(w)) ?? head);
+      const len = this.lib.get(this.lib.variantKey(getObjectDef(id).model, 0)).halfZ * 2;
+      if (x - len < cx - 21) break;
+      const mx = x - len / 2;
+      if (this.overlaps(mx, z, 1.6)) break;
+      this.place(id, mx, 0, z, -Math.PI / 2, d);
+      x -= len + 0.5;
+      placed++;
+    }
+    return placed > 0;
+  }
+
+  private kitRadius(id: string): number {
+    return this.lib.get(this.lib.variantKey(getObjectDef(id).model, 0)).radius;
   }
 
   private genFinancial(blk: BlockInfo): void {
@@ -718,11 +800,19 @@ export class WorldGenerator {
       this.place('antena_tv', x + 5, roof, z + 5, 0, d, idx);
       this.place('ar_cond', x - 5, roof, z - 5, 0, d, idx);
       if (this.has('helipads') && r.chance(0.25)) this.place('heli_civil', x + 1.5, roof, z - 2.5, r.range(0, 6), d, idx);
+      else if (r.chance(0.3)) {
+        const kit = this.kitPick('roof', (id) => this.kitRadius(id) < 3);
+        if (kit) this.place(kit, x + 2, roof, z - 3, r.range(0, 6), d, idx);
+      }
     } else {
       const roof = 56.5;
       this.place('ar_cond', x + 6, roof, z + 6, 0, d, idx);
       this.place('ar_cond', x - 6, roof, z + 6, 0, d, idx);
       if (this.has('helipads') && r.chance(0.7)) this.place('heli_civil', x, roof, z - 1, r.range(0, 6), d, idx);
+      else if (r.chance(0.45)) {
+        const kit = this.kitPick('roof');
+        if (kit) this.place(kit, x, roof, z - 2, r.range(0, 6), d, idx);
+      }
     }
   }
 
@@ -750,6 +840,10 @@ export class WorldGenerator {
       this.place('helicoptero', cx - 12, 0, cz + 14, 1.2, d);
     }
     for (let i = 0; i < 3; i++) this.place('silo', cx + 15 - i * 0.1, 0, cz - 16 + i * 7.5, 0, d);
+    for (let i = 0; i < 2; i++) {
+      const kit = r.chance(0.7) ? this.kitPick('base') : null;
+      if (kit) this.placeFree(kit, cx, cz, HL, d);
+    }
     this.scatterProps(d, cx, cz, HL, HL, 8);
     for (let i = 0; i < 3; i++) this.person(cx + r.range(-16, 16), cz + r.range(-16, 16), d, 'runner', 6);
     this.maybeRare(d, cx, cz, 14);
@@ -775,6 +869,7 @@ export class WorldGenerator {
       { item: 'capela', weight: 1 },
       { item: 'trator', weight: 2 },
       { item: 'none', weight: 2 },
+      ...(KIT_GROUPS.farm ?? []).map((e) => ({ item: e.id, weight: e.w * 2 })),
     ]);
     if (extra !== 'none') this.place(extra, ex, 0, ez, r.int(0, 3) * HALF_PI, d);
     this.parkedCar(hx + 8, hz, 0, d, true);
@@ -795,10 +890,16 @@ export class WorldGenerator {
     const pad = 7;
     const n = this.city.boats.length ? r.int(0, 2) : 0;
     const table = this.city.boats.map((b) => ({ item: b.id, weight: b.w }));
+    // kit boats too, as long as the hull fits this stretch of water (no liners in a river)
+    const room = Math.min(rect.x1 - rect.x0, rect.z1 - rect.z0) - pad * 2;
+    for (const e of KIT_GROUPS.boat ?? []) if (this.kitRadius(e.id) * 2 < room) table.push({ item: e.id, weight: e.w * 0.6 });
     for (let i = 0; i < n; i++) {
-      const x = r.range(rect.x0 + pad, rect.x1 - pad);
-      const z = r.range(rect.z0 + pad, rect.z1 - pad);
-      this.place(r.weighted(table), x, 0, z, r.range(0, Math.PI * 2), d);
+      const id = r.weighted(table);
+      const rad = this.lib.get(this.lib.variantKey(getObjectDef(id).model, 0)).radius;
+      const m = Math.min(pad + rad, (rect.x1 - rect.x0) / 2, (rect.z1 - rect.z0) / 2);
+      const x = r.range(rect.x0 + m, rect.x1 - m);
+      const z = r.range(rect.z0 + m, rect.z1 - m);
+      this.place(id, x, 0, z, r.range(0, Math.PI * 2), d);
     }
     // life along the banks
     for (const side of SIDES) {
