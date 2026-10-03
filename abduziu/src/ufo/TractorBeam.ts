@@ -97,6 +97,8 @@ export class TractorBeam {
   private readonly targetColor = new Color(0x4dffa0);
   private readonly core = new Color(0xeafff4);
   intensity = 1;
+  /** Extra dimmer (the meme close-up films from inside the cone). */
+  dim = 1;
   private intensityTarget = 1;
   private pulse = 0;
   private strain = 0;
@@ -204,7 +206,7 @@ export class TractorBeam {
     this.intensity = damp(this.intensity, this.intensityTarget, 6, dt);
     this.pulse = Math.max(0, this.pulse - dt * 3);
     this.strain = Math.max(0, this.strain - dt * 2.5);
-    const inten = this.intensity * (0.75 + Math.min(0.9, power * 0.12));
+    const inten = this.intensity * (0.75 + Math.min(0.9, power * 0.12)) * this.dim;
     const topY = ufoPos.y - ufoRadius * 0.3;
     this.apply(this.main, ufoPos.x, groundY, ufoPos.z, topY, ufoRadius * 0.34, beamRadius, inten);
 

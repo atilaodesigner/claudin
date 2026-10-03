@@ -126,9 +126,44 @@ export class AbductionSystem {
     }
   }
 
+  /**
+   * Meme close-up (MemeHunt): other carried things crossing the line from the lens to the face are
+   * hidden for the shot, so a flying palm tree never fills the frame.
+   */
+  cineClear: { from: Vector3; to: Vector3; keep: Abductable } | null = null;
+  private readonly cineHidden = new Set<Abductable>();
+
+  private cineBlocks(o: Abductable, x: number, y: number, z: number): boolean {
+    const c = this.cineClear;
+    if (!c || o === c.keep) return false;
+    const ax = c.to.x - c.from.x;
+    const ay = c.to.y - c.from.y;
+    const az = c.to.z - c.from.z;
+    const len2 = ax * ax + ay * ay + az * az || 1;
+    const t = ((x - c.from.x) * ax + (y - c.from.y) * ay + (z - c.from.z) * az) / len2;
+    // in front of the face, or right behind it (crowding the subject)
+    if (t < -0.15 || t > 1.6) return false;
+    const k = clamp(t, 0, 1.6);
+    const dx = x - (c.from.x + ax * k);
+    const dy = y - (c.from.y + ay * k);
+    const dz = z - (c.from.z + az * k);
+    // bounding sphere of the whole thing (a tumbling lamp post reaches far from its centre)
+    const half = o.model.height * 0.5;
+    const r = Math.hypot(o.model.radius, half) * o.visualScale * 0.85 + 0.5;
+    return dx * dx + dy * dy + dz * dz < r * r;
+  }
+
   private syncMesh(o: Abductable): void {
     if (o.dynamicIndex < 0) return;
     const dm = this.pool.get(o.dynamicIndex);
+    // only touch what this hid (crowd characters keep their pool mesh hidden on their own)
+    if (this.cineClear || this.cineHidden.has(o)) {
+      const hide = this.cineBlocks(o, o.pos.x, o.pos.y + o.model.height * 0.5 * o.visualScale, o.pos.z);
+      if (hide && dm.mesh.visible) {
+        this.cineHidden.add(o);
+        dm.mesh.visible = false;
+      } else if (!hide && this.cineHidden.delete(o)) dm.mesh.visible = true;
+    }
     // o.pos is the base pivot; spin around the object's center so tall things tumble naturally
     const hc = o.model.height * 0.5 * o.visualScale;
     _pv.set(0, hc, 0).applyQuaternion(o.quat);

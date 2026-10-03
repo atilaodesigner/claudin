@@ -81,6 +81,12 @@ export class NPCSystem {
   detailDistance = 120;
   /** Reaction hooks for audio (bark, scream...). */
   onReact: ((kind: NpcKind, x: number, z: number, what: 'panic' | 'bark' | 'moo' | 'cluck') => void) | null = null;
+  /**
+   * Meme in its close-up (MemeHunt): instead of floating on its back it stays on its feet facing
+   * the camera, running in the air in despair (or freaking out, the first beat).
+   */
+  panicMeme: Abductable | null = null;
+  panicClip: CrowdClipName = 'run';
 
   constructor(
     private readonly world: World,
@@ -165,6 +171,11 @@ export class NPCSystem {
     const out: number[] = [];
     (this.crowd?.chars ?? []).forEach((c, i) => c.meme && out.push(i));
     return out;
+  }
+
+  /** Standing height of the crowd character drawing `o` (world units, before its scale). */
+  crowdHeight(o: Abductable): number {
+    return this.crowd?.chars[o.crowd]?.height ?? 1.8;
   }
 
   /** Dex entry of a meme crowd character. */
@@ -543,6 +554,22 @@ export class NPCSystem {
     n.lastX = o.pos.x;
     n.lastZ = o.pos.z;
     if (dx * dx + dz * dz > 1e-6) n.swimYaw = dampAngle(n.swimYaw, Math.atan2(dx, dz), 4, dt);
+    if (o === this.panicMeme) {
+      // close-up: upright, facing the lens (a touch off-axis), legs going nowhere
+      const clip = clips[this.panicClip];
+      n.animTime += dt * (this.panicClip === 'run' ? 2.4 : 1.6);
+      const toCam = Math.atan2(camera.x - o.pos.x, camera.z - o.pos.z) + 0.3;
+      n.heading = dampAngle(n.heading, toCam + Math.sin(n.animTime * 5.3) * 0.12, 8, dt);
+      _q.setFromAxisAngle(UP, n.heading);
+      // flailing: a little roll side to side
+      _q2.setFromAxisAngle(FWD, Math.sin(n.animTime * 7.1 + n.seed * 5) * 0.07);
+      _q.multiply(_q2);
+      _s.setScalar(scale);
+      _m.compose(o.pos, _q, _s);
+      // soft gold rim only: a full glow would wash the face out this close
+      cr.add(n.look, _m, clip, n.animTime, false, rim * 0.1);
+      return;
+    }
     const shaking = o.state === AState.Anticipate || o.state === AState.Shaking || o.state === AState.Straining;
     // dropped and back on the ground: on its feet again, shaking
     const landed = o.state === AState.Settling;
