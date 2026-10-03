@@ -8,9 +8,12 @@
   const W = 1080;
   const H = 1920;
   // CREW: the end card gets a second offer (TRIPOCREW) before the comment CTA (+6 s)
-  const CREW = !!window.CREW;
+  const SYNC = window.CREW_SYNC || null;
+  const CREW = !!window.CREW || !!SYNC;
   const CREW_SHIFT = CREW ? 4.75 : 0;
-  const DUR = CREW ? 66 : 60;
+  const DUR = SYNC ? 51.5 + SYNC.dur : CREW ? 66 : 60;
+  // SYNC: every beat at narration time n, shown at lt = n - offset
+  const at = (n) => n - (SYNC ? SYNC.offset : 0);
 
   // ─── math
   const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
@@ -735,6 +738,11 @@
     const bub = $('div', 'abs', root, SVG.bubble);
     Object.assign(bub.style, { width: '110px', height: '110px', color: '#0f1013' });
     const AL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    // burned-in captions for the narration (same look as the edit's subtitles)
+    const cap = SYNC ? $('div', 'abs', root) : null;
+    if (cap) Object.assign(cap.style, { left: '0', right: '0', top: '1536px', display: 'flex', justifyContent: 'center', zIndex: 5 });
+    const capBox = cap ? $('div', '', cap) : null;
+    if (capBox) Object.assign(capBox.style, { background: 'rgba(30,27,22,.92)', color: '#fff', fontFamily: 'AR', fontWeight: 600, fontSize: '38px', lineHeight: '1.15', padding: '14px 18px 15px', letterSpacing: '0' });
     const crew = [['huehue', 210, 0], ['cabeca_guidao', 540, 7], ['manoel_gomes', 870, 15]].map(([id, x, off]) => ({ id, x, off, sp: new Sprite(root) }));
     return (lt) => {
       crew.forEach((c, i) => c.sp.set({ src: S.st(c.id, 'run', lt * 30 + c.off), x: c.x, y: 1560, w: 300, h: 450, s: pop(lt, 0.6 + i * 0.1, 0.4) }));
@@ -744,27 +752,39 @@
       tC.paint(lt, 0.2);
       place(box, { x: 540, y: 700, s: E.back(lin(lt, 0.4, 0.75)) });
       L.forEach((s, i) => {
-        const rv = 0.65 + i * 0.08;
+        const rv = SYNC ? at(SYNC.rv[i]) : 0.65 + i * 0.08;
         s.textContent = lt >= rv ? CODE[i] : AL[Math.floor(hash(Math.floor(lt * 30) * 5 + i) * AL.length)];
         s.style.color = lt >= rv ? '#fff' : 'rgba(255,255,255,.3)';
       });
-      const out = E.in3(lin(lt, 4.7, 5.0));
-      place(s1, { x: 64 - out * 1100, y: 885, ax: 0, ay: 0, o: lin(lt, 1.1, 1.3) });
-      place(s2, { x: 64 - out * 1100, y: 1000, ax: 0, ay: 0, o: lin(lt, 1.4, 1.6) });
-      place(warn, { x: 64 - out * 1100, y: 1135, ax: 0, ay: 0, o: lin(lt, 1.8, 2.0) });
+      const o1 = SYNC ? at(SYNC.out1) : 4.7;
+      const out = E.in3(lin(lt, o1, o1 + 0.3));
+      const st = SYNC ? at(SYNC.steps) : 1.1;
+      const wn = SYNC ? at(SYNC.warn) : 1.8;
+      place(s1, { x: 64 - out * 1100, y: 885, ax: 0, ay: 0, o: lin(lt, st, st + 0.2) });
+      place(s2, { x: 64 - out * 1100, y: 1000, ax: 0, ay: 0, o: lin(lt, st + 0.3, st + 0.5) });
+      place(warn, { x: 64 - out * 1100, y: 1135, ax: 0, ay: 0, o: lin(lt, wn, wn + 0.2) });
       if (tE && box2) {
         const T = 5.0;
-        tE.paint(lt, T, T + 4.4, { st: 0.06 });
-        const out2 = E.in3(lin(lt, T + 4.4, T + 4.7));
-        place(box2, { x: 540 - out2 * 1100, y: 1238, s: 0.82 * E.back(lin(lt, T + 0.45, T + 0.8)) });
+        const tIn = SYNC ? at(SYNC.title) : T;
+        const tOut = SYNC ? at(SYNC.out2) : T + 4.4;
+        const bIn = SYNC ? at(SYNC.box2) : T + 0.45;
+        tE.paint(lt, tIn, tOut, { st: 0.06 });
+        const out2 = E.in3(lin(lt, tOut, tOut + 0.3));
+        place(box2, { x: 540 - out2 * 1100, y: 1238, s: 0.82 * E.back(lin(lt, bIn, bIn + 0.35)) });
         L2.forEach((s, i) => {
-          const rv = T + 0.75 + i * 0.07;
+          const rv = SYNC ? at(SYNC.rv2[i]) : T + 0.75 + i * 0.07;
           s.textContent = lt >= rv ? CODE2[i] : AL[Math.floor(hash(Math.floor(lt * 30) * 7 + i) * AL.length)];
           s.style.color = lt >= rv ? '#fff' : 'rgba(255,255,255,.3)';
         });
       }
-      tD.paint(lt, 4.95 + CREW_SHIFT, 1e9, { st: 0.05 });
-      place(bub, { x: 930, y: 900, s: pop(lt, 5.5 + CREW_SHIFT, 0.35), r: 8 });
+      const cm = SYNC ? at(SYNC.comenta) : 4.95 + CREW_SHIFT;
+      tD.paint(lt, cm, 1e9, { st: 0.05 });
+      place(bub, { x: 930, y: 900, s: pop(lt, cm + 0.55, 0.35), r: 8 });
+      if (cap && capBox) {
+        const c = SYNC.captions.find(([a, b]) => lt >= at(a) && lt < at(b));
+        cap.style.display = c ? 'flex' : 'none';
+        if (c && capBox.textContent !== c[2]) capBox.textContent = c[2];
+      }
     };
   });
 

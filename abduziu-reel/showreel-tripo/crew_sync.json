@@ -1,0 +1,113 @@
+{
+  "note": "End card synced to the ElevenLabs narration (n = narration time; the card starts 0.25 s after it: lt = n - 0.25). The comment line reuses the original voice, placed at lt 18.95.",
+  "offset": 0.25,
+  "dur": 25.0,
+  "rv": [
+    5.48,
+    6.22,
+    6.74,
+    7.44,
+    8.02,
+    8.56
+  ],
+  "steps": 8.95,
+  "warn": 9.4,
+  "out1": 12.3,
+  "box2": 12.8,
+  "rv2": [
+    14.18,
+    14.25,
+    14.32,
+    14.39,
+    14.46,
+    14.62,
+    14.69,
+    14.76,
+    14.83
+  ],
+  "title": 15.42,
+  "out2": 19.0,
+  "comenta": 19.2,
+  "captions": [
+    [
+      0.25,
+      1.84,
+      "E se você quiser testar a Tripo,"
+    ],
+    [
+      1.84,
+      3.0,
+      "novos usuários ganham"
+    ],
+    [
+      3.0,
+      4.68,
+      "500 créditos bônus"
+    ],
+    [
+      4.68,
+      5.48,
+      "usando o código"
+    ],
+    [
+      5.48,
+      9.3,
+      "R-I-W-O-H-B"
+    ],
+    [
+      9.4,
+      10.92,
+      "nas primeiras 24 horas"
+    ],
+    [
+      10.92,
+      12.3,
+      "depois de criar a conta."
+    ],
+    [
+      12.42,
+      14.18,
+      "E usando o código de desconto"
+    ],
+    [
+      14.18,
+      15.42,
+      "TRIPOCREW,"
+    ],
+    [
+      15.42,
+      16.12,
+      "você ainda ganha"
+    ],
+    [
+      16.12,
+      17.82,
+      "60% de desconto"
+    ],
+    [
+      17.82,
+      19.1,
+      "no primeiro mês."
+    ],
+    [
+      19.32,
+      20.62,
+      "Agora comenta aí,"
+    ],
+    [
+      20.94,
+      21.4,
+      "qual vai ser"
+    ],
+    [
+      21.4,
+      22.98,
+      "a próxima coisa brasileira"
+    ],
+    [
+      22.98,
+      24.4,
+      "que o OVNI vai abduzir?"
+    ]
+  ]
+}

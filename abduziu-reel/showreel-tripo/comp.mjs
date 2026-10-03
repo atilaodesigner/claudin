@@ -2,7 +2,7 @@
 //   node comp.mjs <outDir> [every=1] [from=0] [to=DUR] [scale=1]
 //   e.g. node comp.mjs look/p 15        -> one frame every half second (contact sheets)
 import { chromium } from 'playwright-core';
-import { existsSync, mkdirSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -31,6 +31,10 @@ const page = await browser.newPage({ viewport: { width: 1080, height: 1920 }, de
 page.on('pageerror', (e) => console.log('pageerror', e.message));
 page.on('console', (m) => m.type() === 'error' && console.log('console', m.text()));
 if (process.env.CREW) await page.addInitScript(() => { window.CREW = true; });
+if (process.env.CREW_SYNC) {
+  const sync = JSON.parse(readFileSync(join(here, process.env.CREW_SYNC), 'utf8'));
+  await page.addInitScript((s) => { window.CREW_SYNC = s; }, sync);
+}
 await page.goto(pathToFileURL(join(here, process.env.PAGE || 'comp.html')).href);
 await page.evaluate(async () => {
   const faces = ['900 italic 40px BC', '800 italic 40px BC', '900 40px BC', '700 40px BC', '700 40px CP', '600 40px CP', '900 40px UB', '700 40px UB', '500 40px UB', '700 40px SM', '400 40px SM', '800 40px AR', '700 40px AR', '600 40px AR'];
