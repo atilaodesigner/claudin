@@ -4,7 +4,9 @@
     "target": {
       "namespace": "android_app",
       "package_name": "fun.abduziu.app",
-      "sha256_cert_fingerprints": []
+      "sha256_cert_fingerprints": [
+        "55:AA:64:03:EB:49:2D:6F:D1:F4:B4:6A:84:8F:CB:D3:A1:B7:24:91:10:4E:BC:74:D5:0D:95:2A:F7:87:55:2F"
+      ]
     }
   }
 ]
