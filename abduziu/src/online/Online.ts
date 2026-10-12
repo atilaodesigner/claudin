@@ -61,6 +61,10 @@ const ERRORS: Record<string, string> = {
   not_authenticated: 'Você precisa entrar na sua conta.',
   'Email rate limit exceeded': 'Muitos e-mails em pouco tempo. Tenta de novo daqui a pouco.',
   'Token has expired or is invalid': 'Código inválido ou expirado.',
+  'Invalid login credentials': 'E-mail ou senha incorretos.',
+  'Email not confirmed': 'Essa conta ainda não foi confirmada.',
+  'E-mail inválido': 'E-mail inválido.',
+  'Digite a senha': 'Digite a senha.',
 };
 
 export function friendlyError(err: unknown): string {
@@ -245,6 +249,13 @@ export class Online {
   async sendEmailLink(email: string): Promise<void> {
     const c = await this.need();
     const { error } = await c.auth.signInWithOtp({ email, options: { emailRedirectTo: this.redirectUrl(), shouldCreateUser: true } });
+    if (error) throw error;
+  }
+
+  /** E-mail + password (accounts made in the dashboard, e.g. the Play Store reviewer's). */
+  async signInWithPassword(email: string, password: string): Promise<void> {
+    const c = await this.need();
+    const { error } = await c.auth.signInWithPassword({ email, password });
     if (error) throw error;
   }
 

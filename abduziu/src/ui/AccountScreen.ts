@@ -8,6 +8,8 @@ export class AccountScreen extends Screen {
   private readonly body: HTMLDivElement;
   private readonly msg: HTMLDivElement;
   private pendingEmail = '';
+  /** Shows the e-mail + password form (test/reviewer accounts). */
+  private withPassword = false;
   private busy = false;
   private unsub: (() => void) | null = null;
   onClose: (() => void) | null = null;
@@ -157,6 +159,31 @@ export class AccountScreen extends Screen {
       const r2 = h('div', 'acc-row');
       r2.append(code, ok);
       c.appendChild(r2);
+    }
+    // e-mail + password: for accounts created by the studio (e.g. the store reviewer)
+    if (this.withPassword) {
+      const pe = this.input('email', 'e-mail da conta', email.value);
+      const pw = this.input('password', 'senha');
+      pw.autocomplete = 'current-password';
+      const go = h('button', 'btn', 'ENTRAR');
+      onTap(go, () => void this.run(go, async () => {
+        const v = pe.value.trim();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) throw new Error('E-mail inválido');
+        if (!pw.value) throw new Error('Digite a senha');
+        await o.signInWithPassword(v, pw.value);
+        this.withPassword = false;
+        return 'Bem-vindo a bordo!';
+      }));
+      const r3 = h('div', 'acc-row');
+      r3.append(pe, pw, go);
+      c.appendChild(r3);
+    } else {
+      const toggle = h('button', 'acc-link', 'TENHO E-MAIL E SENHA');
+      onTap(toggle, () => {
+        this.withPassword = true;
+        this.render();
+      });
+      c.appendChild(toggle);
     }
     c.appendChild(h('p', 'fine', 'Guardamos só o necessário pro jogo: e-mail de login, apelido, RP, partidas ranqueadas e seu save. Dá pra apagar tudo quando quiser.'));
     this.body.appendChild(c);

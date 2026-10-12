@@ -107,8 +107,15 @@ Respostas que batem com o que o jogo faz de verdade:
 
 **Política de privacidade:** `https://abduziu.fun/privacidade/`
 
-**Acesso ao app:** "Algumas funcionalidades estão restritas" → instrução: *"Login opcional com qualquer conta
-Google ou por e-mail (link mágico). Todo o resto funciona sem login. Não há credenciais especiais."*
+**Acesso ao app:** "Todas ou algumas funcionalidades estão restritas" → **Adicionar instruções**. Antes, crie a
+conta do revisor no Supabase: **Authentication → Users → Add user → Create new user**, e-mail
+`revisor@abduziu.fun`, uma senha forte só pra isso, **Auto Confirm User** ligado. A senha vai só no formulário da
+Play (nunca no chat nem no repositório). No formulário:
+- Nome: `Conta de revisão`
+- Usuário: `revisor@abduziu.fun` · Senha: a que você criou
+- Outras informações: *"O jogo funciona sem login. O login libera só o ranking online e o save na nuvem. Para
+  entrar: menu inicial → ENTRAR (canto superior direito) → TENHO E-MAIL E SENHA → digite o e-mail e a senha →
+  ENTRAR. Depois escolha um apelido e jogue uma partida no modo Ranqueada para aparecer no ranking."*
 
 **Anúncios:** Não, o app não contém anúncios.
 

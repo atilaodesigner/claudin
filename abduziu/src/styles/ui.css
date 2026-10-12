@@ -3741,3 +3741,19 @@ svg.brazil .pin.sel .dot {
   text-decoration: none;
   opacity: 0.75;
 }
+
+.acc-link {
+  pointer-events: auto;
+  cursor: pointer;
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 6px 0;
+  align-self: flex-start;
+  font-family: var(--font-hud);
+  font-size: calc(11px * var(--ui-scale));
+  letter-spacing: 0.14em;
+  color: var(--text-secondary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
